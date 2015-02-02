@@ -1,3 +1,13 @@
+##############################
+# ignore weird Mac OSX files
+##############################
+
+.DS_Store
+
+##############################
+# ignore Python-related files
+##############################
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[cod]

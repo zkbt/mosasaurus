@@ -1,0 +1,49 @@
+name				WASP94b
+instrument			LDSS3C
+night				ut140805
+baseDirectory		/Users/zkbt/Cosmos/Data/Magellan/LDSS3_2014B/
+dataDirectory 		data/
+workingDirectory	working/
+wavelengthFile		wavelength/wavelength_identifications.txt
+extractionDirectory	extract12pix/
+extractionWidth		12
+skyGap 				50
+skyWidth			4
+cosmicThreshold		10
+
+# CCD number ranges
+nUndispersed		284	286
+nScience			287	1500
+# actually should go up to 1912 with science images
+nHe					183	187
+nNe					188	192
+nAr					193	197
+nWideFlat			213	227
+nBias				198	212
+nWideMask			173	177
+nThinMask			178	182
+nDark				228	252
+nFinder				281	281
+
+# extraction parameters
+traceOrder			2
+nFWHM				2
+
+# what area of the detector contains real data? (for individual amplifiers
+namps				2
+dataleft			0
+dataright			512
+databottom			0
+datatop				2048
+
+# how far (in pixels) does spectrum extend away from direct image position
+blueward			770
+redward				1300
+
+# which comparison stars to use?
+target				0
+comp				1
+
+# for BJD calculation
+ra					313.78308
+dec					-34.135528

@@ -1,0 +1,49 @@
+name				WASP94b
+instrument			LDSS3C
+night				ut140809
+#baseDirectory		/Volumes/lumovision/Data/Magellan/LDSS3_2014B/
+baseDirectory		/Users/zkbt/Cosmos/Data/Magellan/LDSS3_2014B/
+dataDirectory 		data/
+workingDirectory	working/
+wavelengthFile		wavelength/wavelength_identifications.txt
+extractionDirectory	extract12pix/
+extractionWidth		12
+skyGap 				50
+skyWidth			4
+cosmicThreshold		10
+
+# CCD number ranges
+nUndispersed		81	81
+nScience			1002	2550
+nHe					6	10
+nNe					11	15
+nAr					16	20
+nWideFlat			36	50
+nBias				21	35
+nWideMask			4	5
+nThinMask			5	5
+nDark				51	75
+nFinder				79	79
+
+# extraction parameters
+traceOrder			2
+nFWHM				2
+
+# what area of the detector contains real data? (for individual amplifiers
+namps				2
+dataleft			0
+dataright			512
+databottom			0
+datatop				2048
+
+# how far (in pixels) does spectrum extend away from direct image position
+blueward			770
+redward				1300
+
+# which comparison stars to use?
+target				0
+comp				1
+
+# for BJD calculation
+ra					313.78308
+dec					-34.135528
