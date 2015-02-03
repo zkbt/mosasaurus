@@ -20,7 +20,7 @@ import scipy.interpolate, scipy.signal, scipy.integrate
 #from numpy.polynomial import polynomial as P
 
 # ... to use utilities from the zachopy toolbox
-import zachopy.utils, zachopy.regions, zachopy.iplot, zachopy.display
+import zachopy.utils, zachopy.regions, zachopy.iplot, zachopy.display, zachopy.oned, zachopy.twod
 
 from  zachopy.borrowed.mpfit.mpfit import mpfit
 

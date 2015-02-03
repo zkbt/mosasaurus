@@ -35,19 +35,20 @@ class Reducer(Talker):
 
         # create a night object, associated with this observation
         night = Night(self.obs)
+
         # create an observing log from all the image headers from this night
         night.obsLog()
 
-        # set up the calibration
-        calib = Calibration(self.obs)
+        # set up the Calibration
+        self.speak('setting up Calibration data')
+        self.calib = Calibration(self.obs)
 
-        '''# loop through the CCD's needed for this observation, and make sure they are stitched
-        #for n in obs.nNeeded:
-        #		ccd = CCD(obs,n=n,calib=calib)
-        #	ccd.createStitched(visualize=True)
+        # loop through the CCD's needed for this observation, and make sure they are stitched
+        self.speak('stitching all science images and rejecting cosmics along the way')
+        self.calib.rejectCosmicRays()
 
-
-        mask = Mask(calib)
+        '''
+        mask = Mask(self.calib)
         for a in mask.apertures:
             a.displayStamps(a.images)
             a.extractAll(remake=True)'''

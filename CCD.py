@@ -3,7 +3,7 @@ from imports import *
 class CCD(Talker):
   '''CCD object handles every related to an individual CCD exposure.'''
 
-  def __init__(self, obs, n=0, type=None, calib=None, verbose=True, **kwargs):
+  def __init__(self, obs, n=0, imageType=None, calib=None, verbose=True, **kwargs):
     '''Initialized the CCD object.'''
 
 
@@ -24,27 +24,27 @@ class CCD(Talker):
     self.verbose = verbose
 
     # point this CCD to right file, if provided
-    self.set(n, type)
+    self.set(n, imageType)
 
     # make sure the stitched directory is defined
     zachopy.utils.mkdir(self.obs.workingDirectory+'/stitched/'	)
 
 
-  def set(self, n=None, type=None):
+  def set(self, n=None, imageType=None):
     '''Point this CCD object at a specific file.'''
 
     # keep track if this is some special kind of image
-    self.type = type
+    self.imageType = imageType
 
     # define the file prefix
     if n is not None:
       self.fileprefix = self.obs.fileprefix(n)
 
       # define a nickname for referring to this image
-      if self.type is None:
+      if self.imageType is None:
         label = 'ccd'
       else:
-        label = self.type
+        label = self.imageType
       self.name = '{1}{0:04d}'.format(n,label)
 
       # define a stitched filename
@@ -58,12 +58,12 @@ class CCD(Talker):
     if self.verbose:
       self.speak(self.space + "set image to {0}".format(self.name))
 
-  def readHeader(self, n=None, type=None):
+  def readHeader(self, n=None, imageType=None):
     '''Read in the header for this image.'''
 
     # set the CCD, if necessary
     if n is not None:
-      self.set(n, type)
+      self.set(n, imageType)
 
     # read one of the two images to get header
     filename = self.fileprefix + 'c1.fits'
@@ -80,12 +80,16 @@ class CCD(Talker):
     # return the header
     return self.header
 
-  def readData(self, n=None, type=None):
+  def writeData(self):
+      self.speak('saving image to {0}'.format(self.stitched_filename))
+      writeFitsData(self.data, self.stitched_filename)
+
+  def readData(self, n=None, imageType=None):
     '''Read in the image data for this exposure (create stitched exposure if necessary.)'''
 
     # set the CCD, if necessary
     if n is not None:
-      self.set(n, type)
+      self.set(n, imageType)
 
     # try loading a stitched image, otherwise create one from scratch
     try:
@@ -126,22 +130,26 @@ class CCD(Talker):
       self.speak(self.space + "creating a stitched image for {0}".format( self.stitched_filename))
 
     # provide different options for different kinds of images
-    if self.type == 'Bias':
+    if self.imageType == 'Bias':
       self.flags['subtractbias'] = False
       self.flags['subtractdark'] = False
       self.flags['multiplygain'] = False
-    elif self.type == 'Dark':
+      self.flags['subtractcrosstalk'] = False
+    elif self.imageType == 'Dark':
       self.flags['subtractbias'] = True
       self.flags['subtractdark'] = False
       self.flags['multiplygain'] = False
-    elif self.type == 'FlatInADU':
+      self.flags['subtractcrosstalk'] = False
+    elif self.imageType == 'FlatInADU':
       self.flags['subtractbias'] = True
       self.flags['subtractdark'] = True
       self.flags['multiplygain'] = False
+      self.flags['subtractcrosstalk'] = False
     else:
       self.flags['subtractbias'] = True
       self.flags['subtractdark'] = True
       self.flags['multiplygain'] = True
+      self.flags['subtractcrosstalk'] = True
 
     # don't restitch if unnecessary
     if os.path.exists(self.stitched_filename) and self.verbose:
@@ -164,26 +172,30 @@ class CCD(Talker):
           self.calib.gains
         except:
           self.calib.estimateGain()
-        self.speak("       multiplying by gains of {0} e-/ADU".format(self.calib.gains))
+        self.speak("multiplying by gains of {0} e-/ADU".format(self.calib.gains))
         c1data *= self.calib.gains[0]
         c2data *= self.calib.gains[1]
 
+      if self.flags['subtractcrosstalk']:
+          # is this possible?
+          pass
+
       # stitch the CCD's together
       stitched = np.hstack([c1data, np.fliplr(c2data)])
-      self.speak("       stitching images of size {0} and {1} into one {2} image".format(c1data.shape, c2data.shape, stitched.shape))
+      self.speak("stitching images of size {0} and {1} into one {2} image".format(c1data.shape, c2data.shape, stitched.shape))
 
       # subtract bias
       if self.flags['subtractbias']:
-        self.speak("       subtracting bias image")
+        self.speak("subtracting bias image")
         stitched -= self.calib.bias()
 
       # normalize darks by exposure time
-      if self.type == 'Dark':
+      if self.imageType == 'Dark':
         stitched /= c1header['EXPTIME']
 
       # subtract dark
       if self.flags['subtractdark']:
-        self.speak("       subtracting dark image")
+        self.speak("subtracting dark image")
         stitched -= self.calib.dark()*c1header['EXPTIME']
 
 
@@ -204,7 +216,7 @@ class CCD(Talker):
     return self.data[:,0:self.obs.dataright - self.obs.dataleft], self.data[:,self.obs.dataright - self.obs.dataleft:]
 
 
-  def loadImages(self, n, type=None):
+  def loadImages(self, n, imageType=None):
     '''Load a series of CCD images, returning them as a cube.'''
 
     # if n is a single element array, just return one image
@@ -212,12 +224,12 @@ class CCD(Talker):
       n[1]
     except:
       self.set(n[0])
-      return self.readData(type=type)
+      return self.readData(imageType=imageType)
 
     # loop over the image numbers, and read them
     images = []
     for i in range(len(n)):
-      images.append(self.readData(n[i], type))
+      images.append(self.readData(n[i], imageType))
 
     # convert a list of images into an array
     cube = np.array(images)
