@@ -1,13 +1,16 @@
 from imports import *
-
-class Mask():
+from Aperture import Aperture
+class Mask(Talker):
   '''Mask object keeps track of the collection of apertures that make up the mask.'''
-  def __init__(self, calib):
+  def __init__(self, calib, **kwargs):
     '''Initialize the mask object.'''
+    # decide whether or not this Mask is chatty
+    Talker.__init__(self, **kwargs)
     self.calib = calib
     self.ccd = self.calib.ccd
     self.obs = self.calib.obs
-    self.display = self.obs.display
+    self.display =  zachopy.display.ds9('mask')
+
     self.setup()
 
   def extractCenters(self, ds9RegionString):
@@ -27,8 +30,8 @@ class Mask():
       x, y = np.loadtxt(extractionCentersFilename)
     else:
       print "You should pick the stars you're interested in."
-      self.obs.display.one(self.calib.images['Undispersed'], clobber=True)
-      D = self.obs.display.ds9
+      self.display.one(self.calib.images['Undispersed'], clobber=True)
+      D = self.display.window
       D.set("scale log")
       D.set("regions centroid auto yes")
       var = raw_input("Plop down regions on the stars you'd like to extract. Then hit enter:\n  (ds9 should auto-centroid)\n")
@@ -72,8 +75,8 @@ class Mask():
           r.addBox(a.xbox, a.ybox, a.wbox, a.hbox, color='green')
         filename = self.obs.extractionDirectory + 'apertures.reg'
         r.write(filename)
-        self.obs.display.one(imageDispersed, clobber=True)
-        self.obs.display.ds9.set("regions load {0}".format(filename))
+        self.display.one(imageDispersed, clobber=True)
+        self.display.window.set("regions load {0}".format(filename))
 
 
   def createStamps(self, n):
@@ -85,4 +88,4 @@ class Mask():
     for a in self.apertures:
       stamp = a.stamp(this)
       writeFitsData(stamp, stampFilename(n,a))
-      print "       saved stamp to", stampFilename(n, a)
+      self.speak("saved stamp to {0}".format(stampFilename(n, a)))

@@ -47,8 +47,8 @@ class Reducer(Talker):
         self.speak('stitching all science images and rejecting cosmics along the way')
         self.calib.rejectCosmicRays()
 
-        '''
+
         mask = Mask(self.calib)
         for a in mask.apertures:
             a.displayStamps(a.images)
-            a.extractAll(remake=True)'''
+            a.extractAll(remake=True)

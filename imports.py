@@ -16,7 +16,6 @@ import glob, os, string
 import scipy.interpolate, scipy.signal, scipy.integrate
 #import scipy.interpolate as interp
 #from scipy import interpolate
-#from scipy.interpolate import LSQUnivariateSpline
 #from numpy.polynomial import polynomial as P
 
 # ... to use utilities from the zachopy toolbox

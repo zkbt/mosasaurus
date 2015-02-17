@@ -144,6 +144,8 @@ class Calibration(Talker):
     array = self.ccd.loadImages(n[::stride], imageType=imageType)
     if len(array.shape) <=2:
       return array
+
+
     median, noise = zachopy.twod.stack(array,axis=0,threshold=threshold)
 
     #self.ccd.display.many(array, depth=0, clobber=True)
@@ -237,14 +239,14 @@ class Calibration(Talker):
     for i in range(len(self.obs.nScience)):
       n = self.obs.nScience[i]
       try:
-          print "testing"
+          #print "testing"
           ok = remake == False
-          print 'remake'
+          #print 'remake'
           ok = ok & os.path.exists(self.obs.workingDirectory + 'stitched/Science{0:04.0f}.fits'.format(n))
-          print 'fits'
+          #print 'fits'
           ok = ok & os.path.exists(self.obs.workingDirectory + 'cosmics/rejectedpercolumn{0:04.0f}.npy'.format(n))
-          print 'rejected'
-          print ok
+          #print 'rejected'
+          #print ok
           assert(ok)
           self.speak('a cosmic-rejected stitched/Science{0:04.0f}.fits already exists!'.format(n))
       except:

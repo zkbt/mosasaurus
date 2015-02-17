@@ -1,19 +1,23 @@
 from imports import *
 
-class Aperture():
+class Aperture(Talker):
   '''Aperture objects store all information about individual apertures (e.g. slits).'''
-  def __init__(self, x, y, mask):
+  def __init__(self, x, y, mask, **kwargs):
     '''Initialize an aperture, taking a position on the detector as input.'''
+
+    # decide whether or not this Reducer is chatty
+    Talker.__init__(self, **kwargs)
     self.visualize = True
     self.mask = mask
     self.calib = self.mask.calib
     self.obs = self.calib.obs
-    self.display = self.obs.display
+    self.display =  zachopy.display.ds9('aperture')
     self.setup(x,y)
     self.createCalibStamps()
     self.createTrace()
     self.createSkyApertures()
     self.createWavelengthCal()
+
 
   def setup(self,x,y):
     '''Setup the basic geometry of the aperture.'''
@@ -35,7 +39,7 @@ class Aperture():
       self.wbox = np.abs(self.xend - self.xstart)
       self.hbox = np.abs(self.yend - self.ystart)
 
-      # first index of numpy array is in the wavelength (w) direction
+      # first index of np. array is in the wavelength (w) direction
       # second index is in the spatial (s) direction
       # we'll define these now to help keep things straight
       self.w = self.y_sub - self.ystart
@@ -51,23 +55,23 @@ class Aperture():
       self.name = 'aperture_{0:.0f}_{1:.0f}'.format(self.x, self.y)
       self.directory = self.obs.extractionDirectory + self.name + '/'
       zachopy.utils.mkdir(self.directory)
-      print "   created a spectroscopic aperture at ({0:.1f}, {1:.1f})".format(self.x, self.y)
+      self.speak("created a spectroscopic aperture at ({0:.1f}, {1:.1f})".format(self.x, self.y))
     else:
-      print "*!$!%()@! no cameras besides LDSS3C have been defined yet!"
+      self.speak("*!$!%()@! no cameras besides LDSS3C have been defined yet!")
 
   def stamp(self, image):
     '''Return a postage stamp of an image, appropriate for this aperture.'''
     return image[self.ystart:self.yend, self.xstart:self.xend]
 
-  def createCalibStamps(self, visualize=True, interactive=False):
+  def createCalibStamps(self, visualize=True, interactive=True):
     '''Populate the necessary postage stamps for the calibrations.'''
-    print "     populating calibration stamps"
+    self.speak("populating calibration stamps")
     filename = self.directory + 'calibStamps_{0}.npy'.format(self.name)
     try:
       self.images = np.load(filename)[()] # i don't understand why i need the "empty tuple" but the internet says so
-      print "       loaded calibration stamps from ", filename
+      self.speak("loaded calibration stamps from {0}".format(filename))
     except:
-      print "       cutting them out of the master images"
+      self.speak("cutting them for the first time out of the stitched master images")
 
       # define an empty dictionary to store the calibration stamps
       self.images = {}
@@ -75,21 +79,29 @@ class Aperture():
       # include the coordinate system over the grid of the image
       self.images['s'] = self.s
       self.images['w'] = self.w
+      self.speak("populating calibration stamps with the (s)patial and (w)avelength pixel coordinate images")
+
 
       # cut out stamps from the big images
-      for k in self.calib.images.keys():
+      interesting = ['Science' ,'WideFlat', 'He', 'Ne', 'Ar', 'BadPixels', 'Dark', 'Bias']
+      for k in interesting:
         self.images[k] = self.stamp(self.calib.images[k])
+
+      self.speak('these are the stamps before interpolating over bad pixels')
+      self.displayStamps(self.images, keys = ['Science', 'WideFlat', 'BadPixels'])
+      self.input('', prompt='(press return to continue)')
+      for k in interesting:
+          if k != 'BadPixels':
+              self.images[k] = zachopy.twod.interpolateOverBadPixels(self.images[k], self.images['BadPixels'])
+
+      self.speak('and these are they after interpolating over bad pixels')
+      self.displayStamps(self.images, keys = ['Science', 'WideFlat', 'BadPixels'])
+      self.input('', prompt='(press return to continue)')
 
       # subtract dark from everything but the dark
       #for k in self.images.keys():
       #	if k is not 'Dark':
       #		self.images[k] -= self.images['Dark']
-
-      # create a sky subtracted science image, for estimate shape of trace
-      roughSky1d = np.median(self.images['Science'], self.sindex)
-      self.images['Sky'] = np.ones_like(self.images['Science'])*roughSky1d.reshape((self.waxis.shape[0],1))
-      self.images['Subtracted'] = np.maximum(self.images['Science'] - self.images['Sky'], 0)
-        # (the edges of the slit might not be exposed -- they'd drop to way negative without the np.maximum statement
 
       # create a normalized flat field stamp, dividing out the blaze + spectrum of quartz lamp
       raw_flatfield = self.images['WideFlat']
@@ -97,57 +109,69 @@ class Aperture():
       envelope = np.median(raw_flatfield, self.sindex)
       n_envp = 30
       points = np.linspace(np.min(self.waxis), np.max(self.waxis),n_envp+2)
-      spline = LSQUnivariateSpline(self.waxis,envelope,points[1:-2],k=2)
+      spline = scipy.interpolate.LSQUnivariateSpline(self.waxis,envelope,points[1:-2],k=2)
       self.images['NormalizedFlat'] = self.images['WideFlat']/spline(self.waxis).reshape((self.waxis.shape[0],1))
+      self.images['NormalizedFlat'] /= np.median(self.images['NormalizedFlat'], self.sindex).reshape(self.waxis.shape[0], 1)
+
+
+      # create a sky subtracted science image, for estimate shape of trace
+      roughSky1d = np.median(self.images['Science']/self.images['NormalizedFlat'], self.sindex)
+      #zachopy.twod.estimateBackground(self.images['Science'], axis=self.sindex)
+      self.images['Sky'] = np.ones_like(self.images['Science'])*roughSky1d.reshape((self.waxis.shape[0],1))
+      self.images['Subtracted'] = (self.images['Science'] - self.images['Sky']*self.images['NormalizedFlat'])#np.maximum(, 0)
+        # (the edges of the slit might not be exposed -- they'd drop to way negative without the np.maximum statement
+
 
       if visualize:
-        self.display.small()
-        plt.cla()
-        plt.plot(self.waxis, envelope)
-        plt.plot(self.waxis, spline(self.waxis))
+        try:
+            self.ax.cla()
+        except:
+            self.fi, self.ax = plt.subplots(1,1)
+        self.ax.cla()
+        self.ax.plot(self.waxis, envelope)
+        self.ax.plot(self.waxis, spline(self.waxis))
 
       if visualize:
-        self.displayStamps(self.images)
-        a = raw_input('like stamps?')
-
-      if interactive:
-        assert("n" not in raw_input("         Do you like the apertures for {0}, {1}?".format(self.x, self.y)))
+        self.displayStamps(self.images, keys = ['Science', 'Sky', 'Subtracted', 'WideFlat', 'NormalizedFlat', 'BadPixels'])
+        assert("n" not in self.input('Do you like the calibration stamps?').lower())
 
       np.save(filename, self.images)
-      print "       saved to ", filename
+      self.speak("saved calibration stamps to {0}".format( filename))
 
-  def displayStamps(self, images):
+  def displayStamps(self, images, keys=None):
     '''Display stamps relevant to this aperture in ds9.'''
-    keys = images.keys()
-    self.display.ds9.set('tile yes')
-    self.display.ds9.set('tile mode row')
+    if keys is None:
+        keys = images.keys()
+
+    self.display.tile('row')
     for i in range(len(keys)):
-      self.display.ds9replace(images[keys[i]], i)
+      self.display.replace(np.transpose(images[keys[i]]), i)
 
   def createTrace(self):
     '''Fit for the position and width of the trace.'''
-    print "     populating trace parameters"
+    self.speak("populating the trace parameters")
     filename = self.directory + 'trace_{0}.npy'.format(self.name)
     try:
       traceCoeff, width = np.load(filename)
-      print "       loaded trace from ", filename
+      self.speak("loaded previously fitted trace from {0}".format(filename))
     except:
+      self.speak("fitting to the master science image to determine the trace parameters")
       converged = False
       old_width = 10
       traceCoeff = [np.max(self.saxis)/2]
       width = old_width
       while(converged == False):
 
-        self.traceCenter = numpy.polynomial.polynomial.Polynomial(traceCoeff)
+        self.traceCenter = np.polynomial.polynomial.Polynomial(traceCoeff)
         self.traceWidth = width
         weighting = np.abs((self.s - self.traceCenter(self.w))/self.traceWidth) < 2.5
         # estimates the centroids of the spectrum in the spatial direction
         fluxWeightedCentroids = (self.s*self.images['Subtracted']*weighting).sum(self.sindex)/(self.images['Subtracted']*weighting).sum(self.sindex)
         fluxWeightedWidths = np.sqrt((self.s**2*self.images['Subtracted']*weighting).sum(self.sindex)/(self.images['Subtracted']*weighting).sum(self.sindex) - fluxWeightedCentroids**2)
-
+        fluxWeightedWidths[np.isfinite(fluxWeightedWidths) == False] = np.inf
 
         # fit a polynomial to the ridge of the spectrum
-        traceCoeff = numpy.polynomial.polynomial.polyfit(self.waxis, fluxWeightedCentroids, self.obs.traceOrder, w=1.0/fluxWeightedWidths**2)
+        traceCoeff = np.polynomial.polynomial.polyfit(self.waxis, fluxWeightedCentroids, self.obs.traceOrder, w=1.0/fluxWeightedWidths**2)
         fit_width = np.median(fluxWeightedWidths)
         width = np.minimum( fit_width, 10)
 
@@ -155,20 +179,21 @@ class Aperture():
 
         self.images['RoughLSF'] = np.exp(-0.5*((self.s - self.traceCenter(self.w))/self.traceWidth)**2)
         converged = np.abs(fit_width - old_width) < 0.01
-        print "{0} -> {1}, converged = {2}".format(old_width, width, converged)
+        self.speak( "{0} -> {1}, converged = {2}".format(old_width, width, converged))
         old_width = width
 
 
 
-        self.display.ds9rgb(self.images['Subtracted'], self.images['RoughLSF'], weighting)
+        self.display.rgb(self.images['Subtracted'], self.images['RoughLSF'], weighting)
         self.display.one(self.images['Science'], clobber=False)
-      a = raw_input("like trace?")
+      assert("n" not in self.input("like trace?").lower())
       np.save(filename, (traceCoeff, width))
-      print "       saved to ", filename
-    self.traceCenter = numpy.polynomial.polynomial.Polynomial(traceCoeff)
+      self.speak("saved trace parameters to {0}".format( filename))
+
+    self.traceCenter = np.polynomial.polynomial.Polynomial(traceCoeff)
     self.traceWidth = width
     self.images['RoughLSF'] = np.exp(-0.5*((self.s - self.traceCenter(self.w))/self.traceWidth)**2)
-    self.display.ds9rgb(self.images['Subtracted'], self.images['RoughLSF'], self.images['Sky'])
+    self.display.rgb(self.images['Subtracted'], self.images['RoughLSF'], self.images['Sky'])
     self.display.one(self.images['Science'], clobber=False)
 
   def createSkyApertures(self, visualize=True):
@@ -180,7 +205,7 @@ class Aperture():
       print "         loaded sky apertures from {0}".format(filename)
     except:
       finished = False
-      self.display.large()
+      plt.figure('sky apertures')
       i = zachopy.iplot.iplot(3,10)
       self.aximage = i.subplot(1,0,rowspan=2,colspan=8)
       self.axskyspectrum = i.subplot(0,0,colspan=8,sharex=self.aximage)
@@ -267,7 +292,7 @@ class Aperture():
         self.arcs[element] = self.extract(self.images[element], arc=True)
 
       # load wavelength identifications
-      wavelength_ids = ascii.read(self.obs.wavelengthFile)
+      wavelength_ids = astropy.io.ascii.read(self.obs.wavelengthFile)
 
       # cross correlate my arc spectra with reference
       def findRoughShift(wavelength_ids, visualize=False):
@@ -354,22 +379,22 @@ class Aperture():
             iMine.append(np.where(np.abs(distance) == closestdistance)[0][0])
             iTheirs.append(i)
 
-        initialCoeff = numpy.polynomial.polynomial.polyfit(xPeak[iMine], theirWavelengths[iTheirs], 2)
-        initialFit = numpy.polynomial.polynomial.Polynomial(initialCoeff)
+        initialCoeff = np.polynomial.polynomial.polyfit(xPeak[iMine], theirWavelengths[iTheirs], 2)
+        initialFit = np.polynomial.polynomial.Polynomial(initialCoeff)
         pixel.extend(xPeak[iMine])
         wavelength.extend(theirWavelengths[iTheirs])
         count += 1
 
-      fit = numpy.polynomial.polynomial.Polynomial(numpy.polynomial.polynomial.polyfit(pixel, wavelength, 5) )
+      fit = np.polynomial.polynomial.Polynomial(np.polynomial.polynomial.polyfit(pixel, wavelength, 5) )
       residual = wavelength - fit(pixel)
       good = np.abs(residual) < np.median(np.abs(residual))*5
       bad = ~good
-      self.waveCalCoef  = numpy.polynomial.polynomial.polyfit(pixel, wavelength, 5, w=good)
-      fit = numpy.polynomial.polynomial.Polynomial(self.waveCalCoef )
+      self.waveCalCoef  = np.polynomial.polynomial.polyfit(pixel, wavelength, 5, w=good)
+      fit = np.polynomial.polynomial.Polynomial(self.waveCalCoef )
       pixel, wavelength = np.array(pixel), np.array(wavelength)
 
       if visualize:
-        self.display.medium()
+        plt.figure('wavelength calibration')
         ax = plt.subplot(211)
         ax.set_title('Wavelength Calib. for Aperture (%0.1f,%0.1f)' % (self.x, self.y))
         ax.scatter(pixel, wavelength, marker='o')
@@ -382,7 +407,7 @@ class Aperture():
         ax.set_xlabel('Pixel # (by python rules)')
       np.save(filename, self.waveCalCoef)
       print "      saved wavelength calibration to ", filename
-    self.wavelengthCalibrate = numpy.polynomial.polynomial.Polynomial(self.waveCalCoef )
+    self.wavelengthCalibrate = np.polynomial.polynomial.Polynomial(self.waveCalCoef )
 
   def ones(self):
     '''Create a blank array of ones to fill this aperture.'''
@@ -454,7 +479,7 @@ class Aperture():
       #	writeFitsData(intermediates[k], self.directory + k + '{0:04}.fits'.format(n))
 
     if self.visualize:
-      self.display.ds9rgb(intermediates['original'], intermediates['extractMask'], intermediates['skyMask'])
+      self.display.rgb(intermediates['original'], intermediates['extractMask'], intermediates['skyMask'])
       a = raw_input("OK?")
       if 'y' in a:
         self.visualize=False
@@ -470,13 +495,23 @@ class Aperture():
 
     # select the large figure, and clear it
     keys = extracted.keys()
-    eax = self.display.spectrum(keys)
+    try:
+        self.eax
+    except:
+        self.efig = plt.figure('extracted spectrum')
+        gs = plt.matplotlib.gridspec.GridSpec(len(keys), 1, wspace=0, hspace=0)
+        self.eax = []
+        sharex = None
+        for i in range(len(keys)):
+            self.eax.append(plt.subplot(gs[i], sharex=sharex))
+            sharex = self.eax[0]
+
     for i in range(len(keys)):
-      eax[i].cla()
-      eax[i].plot(x,extracted[keys[i]])
-      eax[i].set_ylabel(keys[i])
-    eax[-1].set_xlim(x.min(), x.max())
-    eax[-1].set_xlabel(coordinate)
+      self.eax[i].cla()
+      self.eax[i].plot(x,extracted[keys[i]])
+      self.eax[i].set_ylabel(keys[i])
+    self.eax[-1].set_xlim(x.min(), x.max())
+    self.eax[-1].set_xlabel(coordinate)
     plt.draw()
     if filename != None:
       thisfig = plt.gcf()

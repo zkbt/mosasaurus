@@ -165,16 +165,7 @@ class CCD(Talker):
       if self.visualize:
         tempstitched = np.hstack([c1data, np.fliplr(c2data)])
 
-      # divide by the gain (KLUDGE! make sure these are the best estimates!)
-      if self.flags['multiplygain']:
 
-        try:
-          self.calib.gains
-        except:
-          self.calib.estimateGain()
-        self.speak("multiplying by gains of {0} e-/ADU".format(self.calib.gains))
-        c1data *= self.calib.gains[0]
-        c2data *= self.calib.gains[1]
 
       if self.flags['subtractcrosstalk']:
           # is this possible?
@@ -184,10 +175,18 @@ class CCD(Talker):
       stitched = np.hstack([c1data, np.fliplr(c2data)])
       self.speak("stitching images of size {0} and {1} into one {2} image".format(c1data.shape, c2data.shape, stitched.shape))
 
+      if self.visualize:
+          self.display.one(stitched, clobber=True)
+          self.input('the raw image')
+
       # subtract bias
       if self.flags['subtractbias']:
         self.speak("subtracting bias image")
         stitched -= self.calib.bias()
+
+      if self.visualize:
+          self.display.one(stitched, clobber=True)
+          self.input('after subtracting bias')
 
       # normalize darks by exposure time
       if self.imageType == 'Dark':
@@ -198,7 +197,26 @@ class CCD(Talker):
         self.speak("subtracting dark image")
         stitched -= self.calib.dark()*c1header['EXPTIME']
 
+      if self.visualize:
+          self.display.one(stitched, clobber=True)
+          self.input('after subtracting dark')
 
+      # divide by the gain (KLUDGE! make sure these are the best estimates!)
+      if self.flags['multiplygain']:
+
+        try:
+          self.calib.gains
+        except:
+          self.calib.estimateGain()
+        self.speak("multiplying by gains of {0} e-/ADU".format(self.calib.gains))
+        gain1 = np.zeros_like(c1data) + self.calib.gains[0]
+        gain2 = np.zeros_like(c2data)+ self.calib.gains[1]
+        gainimage = np.hstack([gain1, np.fliplr(gain2)])
+        stitched *= gainimage
+
+      if self.visualize:
+          self.display.one(stitched, clobber=True)
+          self.visualize = self.input('after multiplying by gain\ntype [s] to stop showing these').lower() != 's'
 
       # save the stitched image into memory
       self.data = stitched
@@ -208,9 +226,7 @@ class CCD(Talker):
       if self.verbose:
         self.speak(self.space + "stitched and saved {0}".format(self.name))
 
-      # if need be, visualize the images
-      if False:#self.visualize:
-        self.display.many([stitched, tempstitched])
+
 
   def amplifiers(self):
     return self.data[:,0:self.obs.dataright - self.obs.dataleft], self.data[:,self.obs.dataright - self.obs.dataleft:]
