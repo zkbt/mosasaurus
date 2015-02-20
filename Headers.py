@@ -38,7 +38,7 @@ class Headers(Talker):
 
 
        self.speak('looping through all science images to load their headers')
-       keys = ['date-obs', 'ut-time', 'ut-end', 'scale', 'gain', 'epoch', 'airmass', 'ha', 'exptime', 'tempccd', 'templdss', 'focus', 'rotangle', 'rotatore']
+       keys = ['date-obs', 'ut-date', 'ut-time', 'ut-end', 'scale', 'gain', 'epoch', 'airmass', 'ha', 'exptime', 'tempccd', 'templdss', 'focus', 'rotangle', 'rotatore']
        d = {}
        d['n'] = []
        for k in keys:

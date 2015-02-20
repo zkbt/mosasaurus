@@ -4,7 +4,7 @@ import astropy.io.fits, astropy.io.ascii, astropy.time
 #from astropy.io import fits, ascii
 #from astropy.time import Time
 
-import matplotlib.pyplot as plt, numpy as np
+import matplotlib.pyplot as plt, numpy as np, matplotlib.animation
 #from matplotlib.colors import Normalize
 
 #import zachopy.display, zachopy.oned

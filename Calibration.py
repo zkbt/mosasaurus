@@ -143,7 +143,7 @@ class Calibration(Talker):
 
     array = self.ccd.loadImages(n[::stride], imageType=imageType)
     if len(array.shape) <=2:
-      return array
+      return array, array*0
 
 
     median, noise = zachopy.twod.stack(array,axis=0,threshold=threshold)
@@ -226,12 +226,12 @@ class Calibration(Talker):
         assert('n' not in self.input("Does the bad pixel mask seem reasonable?").lower())
       writeFitsData(self.images['BadPixels'], badPixelFilename)
 
-  def rejectCosmicRays(self, remake=False, threshold=7.5, visualize=False):
+  def rejectCosmicRays(self, remake=False, threshold=7.5, visualize=False, nBeforeAfter=5):
     '''Stitch all science images, establish a comparison noise level for each pixel.'''
 
     cosmics_directory = self.obs.workingDirectory + 'cosmics/'
     zachopy.utils.mkdir(cosmics_directory)
-    nBeforeAfter = 5
+
     nImages = 2*nBeforeAfter + 1
     imageType = 'ScienceUnmitigated'
     nComparison = self.obs.nScience[0:nImages]

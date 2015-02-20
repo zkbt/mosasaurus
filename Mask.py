@@ -89,3 +89,35 @@ class Mask(Talker):
       stamp = a.stamp(this)
       writeFitsData(stamp, stampFilename(n,a))
       self.speak("saved stamp to {0}".format(stampFilename(n, a)))
+
+
+  def load(self, n):
+      '''Make sure the mask's CCD data is set to the correct frame.'''
+      self.ccd.readData(n, imageType='Science')
+      assert(self.ccd.n == n)
+      self.speak('set CCD data to {0}'.format(self.ccd.name))
+
+
+  def extractStars(self, n, remake=False):
+      '''For one frame, extract all the spectra in this mask.'''
+
+      # provide update
+      self.speak('extracting {0} spectra from image #{1}'.format(len(self.apertures), n))
+
+      # load the (entire!) image
+      self.load(n)
+
+      # loop over apertures
+      for a in self.apertures:
+
+          # extract the spectrum in this aperture
+          a.extract(n, remake=remake)
+          #self.input('just finished extracting all stars ({0})'.format(n))
+
+
+  def extractEverything(self, remake=False):
+
+    '''Loop through exposures, extracting all the spectra in this mask.'''
+    self.speak('looping through all frames and extracting all spectra in them')
+    for n in self.obs.nScience:
+        self.extractStars(n, remake=remake)

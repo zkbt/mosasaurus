@@ -27,7 +27,7 @@ class Reducer(Talker):
 
         self.speak('mosasaurus is ready to reduce')
 
-    def reduce(self):
+    def reduce(self, remake=False):
         self.speak('reducing observations of {0} on {1}'.format(self.obs.name, self.obs.night))
 
         # load the headers for this observation
@@ -45,10 +45,10 @@ class Reducer(Talker):
 
         # loop through the CCD's needed for this observation, and make sure they are stitched
         self.speak('stitching all science images and rejecting cosmics along the way')
-        self.calib.rejectCosmicRays()
+        #self.calib.rejectCosmicRays()
 
+        # create a mask
+        self.mask = Mask(self.calib)
 
-        mask = Mask(self.calib)
-        for a in mask.apertures:
-            a.displayStamps(a.images)
-            a.extractAll(remake=True)
+        # loop over exposures and apertures
+        self.mask.extractEverything(remake=remake)

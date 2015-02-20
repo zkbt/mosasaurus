@@ -35,6 +35,7 @@ class CCD(Talker):
 
     # keep track if this is some special kind of image
     self.imageType = imageType
+    self.n = n
 
     # define the file prefix
     if n is not None:
@@ -97,6 +98,9 @@ class CCD(Talker):
     except:
       self.createStitched()
 
+    if imageType == 'Science':
+        self.cosmicdiagnostic = np.load(self.obs.workingDirectory+'cosmics/rejectedpercolumn{0:04.0f}.npy'.format(n))
+    
     # print status
     if self.verbose:
       self.speak(self.space + "read image from {0}".format(self.name))
@@ -221,10 +225,93 @@ class CCD(Talker):
       # save the stitched image into memory
       self.data = stitched
 
+      if self.imageType == 'Science':
+          self.rejectCosmicRays()
+
       # write out the image to a stitched image
       writeFitsData(stitched, self.stitched_filename)
       if self.verbose:
         self.speak(self.space + "stitched and saved {0}".format(self.name))
+
+  def rejectCosmicRays(self, remake=False, threshold=7.5, visualize=False, nBeforeAfter=5):
+     '''Stitch all science images, establish a comparison noise level for each pixel.'''
+     # make sure a cosmics directory exists
+     cosmics_directory = self.obs.workingDirectory + 'cosmics/'
+     zachopy.utils.mkdir(cosmics_directory)
+
+     # figure out how many images to consider
+     nImages = 2*nBeforeAfter + 1
+     imageType = 'ScienceUnmitigated'
+     n = self.n
+     try:
+         #print "testing"
+         ok = remake == False
+         #print 'remake'
+         ok = ok & os.path.exists(self.obs.workingDirectory + 'stitched/Science{0:04.0f}.fits'.format(n))
+         #print 'fits'
+         ok = ok & os.path.exists(self.obs.workingDirectory + 'cosmics/rejectedpercolumn{0:04.0f}.npy'.format(n))
+         #print 'rejected'
+         #print ok
+         assert(ok)
+         self.speak('a cosmic-rejected stitched/Science{0:04.0f}.fits already exists!'.format(n))
+     except:
+         nComparison = np.arange(-nBeforeAfter + n, nBeforeAfter+n+1, 1)
+         nComparison = nComparison[(nComparison >= np.min(self.obs.nScience)) & (nComparison <= np.max(self.obs.nScience))]
+         comparison = self.loadImages(n=nComparison, imageType=imageType)
+         shape = np.array(comparison.shape)
+         axis =0
+         shape[axis] = 1
+
+         self.speak('comparing image {0} to images {1} to remove cosmic rays'.format(n, nComparison))
+         image = self.data
+         #image = comparison[nComparison == n,:,:].squeeze()
+
+
+         # calculate median and noise of comparisons
+         med = np.median(comparison, axis=axis)
+         noise = np.maximum(1.48*np.median(np.abs(comparison - med.reshape(shape)), axis=axis), 1.0)
+
+         bad = (image - med)/noise > threshold
+         corrected = image + 0.0
+         corrected[bad] = med[bad]
+         if visualize:
+             self.display.replace(image,0)
+             self.display.replace(image - corrected,1)
+             self.display.replace(corrected,2)
+             self.display.scale(mode='zscale')
+             self.display.match()
+             self.display.tile('column')
+
+
+         images = [corrected]
+         labels = ['Science']
+         for i in np.arange(len(labels)):
+             self.set(n, labels[i])
+             self.data = images[i]
+             self.writeData()
+
+         self.speak('total corrected flux is {0}'.format(np.sum(image - corrected)))
+
+         lostflux = np.sum(image - corrected, axis=0)
+         try:
+             cosmicplot.set_ydata(lostflux)
+         except:
+             plt.figure('cosmic ray rejection', figsize=(5, 3), dpi=100)
+             self.axcr = plt.subplot()
+             cosmicplot = self.axcr.plot(lostflux, color='Sienna')[0]
+             self.axcr.set_ylim(1.0, 1e8)
+             self.axcr.set_xlim(-1, len(lostflux)+1)
+             self.axcr.set_yscale('log')
+             self.axcr.set_ylabel('Total Flux Rejected (e-/column)')
+             self.axcr.set_xlabel('Column (pixels)')
+             plt.tight_layout()
+
+         self.axcr.set_title('Science{0:04.0f}'.format(n))
+         plt.draw()
+         np.save(cosmics_directory + 'rejectedpercolumn{0:04.0f}.npy'.format(n), lostflux)
+         plt.savefig(cosmics_directory + 'rejectedpercolumn{0:04.0f}.png'.format(n))
+         self.speak('saved cosmic ray rejection checks to {0}'.format(cosmics_directory))
+         #self.input('thoughts on CR?')
 
 
 

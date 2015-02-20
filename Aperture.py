@@ -1,4 +1,5 @@
 from imports import *
+from Tools import *
 
 class Aperture(Talker):
   '''Aperture objects store all information about individual apertures (e.g. slits).'''
@@ -17,6 +18,10 @@ class Aperture(Talker):
     self.createTrace()
     self.createSkyApertures()
     self.createWavelengthCal()
+
+  def stampFilename(n):
+	'''Spit out the right stamp filename for this aperture, cut out of CCDn.'''
+	return self.directory + 'stamp{0:04}.fits'.format(n)
 
 
   def setup(self,x,y):
@@ -87,16 +92,16 @@ class Aperture(Talker):
       for k in interesting:
         self.images[k] = self.stamp(self.calib.images[k])
 
-      self.speak('these are the stamps before interpolating over bad pixels')
-      self.displayStamps(self.images, keys = ['Science', 'WideFlat', 'BadPixels'])
-      self.input('', prompt='(press return to continue)')
+      #self.speak('these are the stamps before interpolating over bad pixels')
+      #self.displayStamps(self.images, keys = ['Science', 'WideFlat', 'BadPixels'])
+      #self.input('', prompt='(press return to continue)')
       for k in interesting:
           if k != 'BadPixels':
               self.images[k] = zachopy.twod.interpolateOverBadPixels(self.images[k], self.images['BadPixels'])
 
-      self.speak('and these are they after interpolating over bad pixels')
-      self.displayStamps(self.images, keys = ['Science', 'WideFlat', 'BadPixels'])
-      self.input('', prompt='(press return to continue)')
+      #self.speak('and these are they after interpolating over bad pixels')
+      #self.displayStamps(self.images, keys = ['Science', 'WideFlat', 'BadPixels'])
+      #self.input('', prompt='(press return to continue)')
 
       # subtract dark from everything but the dark
       #for k in self.images.keys():
@@ -122,7 +127,7 @@ class Aperture(Talker):
         # (the edges of the slit might not be exposed -- they'd drop to way negative without the np.maximum statement
 
 
-      if visualize:
+      if self.visualize:
         try:
             self.ax.cla()
         except:
@@ -131,8 +136,8 @@ class Aperture(Talker):
         self.ax.plot(self.waxis, envelope)
         self.ax.plot(self.waxis, spline(self.waxis))
 
-      if visualize:
-        self.displayStamps(self.images, keys = ['Science', 'Sky', 'Subtracted', 'WideFlat', 'NormalizedFlat', 'BadPixels'])
+      if self.visualize:
+        self.displayStamps(self.images, keys = ['Science', 'Sky', 'Subtracted', 'WideFlat', 'NormalizedFlat'])
         assert("n" not in self.input('Do you like the calibration stamps?').lower())
 
       np.save(filename, self.images)
@@ -143,9 +148,9 @@ class Aperture(Talker):
     if keys is None:
         keys = images.keys()
 
-    self.display.tile('row')
+    self.display.tile('column')
     for i in range(len(keys)):
-      self.display.replace(np.transpose(images[keys[i]]), i)
+      self.display.replace(images[keys[i]], i)
 
   def createTrace(self):
     '''Fit for the position and width of the trace.'''
@@ -198,14 +203,14 @@ class Aperture(Talker):
 
   def createSkyApertures(self, visualize=True):
     '''Let user select the best sky apertures.'''
-    print "     setting up the sky apertures"
+    self.speak("setting up the sky apertures")
     filename = self.directory + 'skyMask_{0}.npy'.format(self.name)
     try:
       self.images['skyMask'] = np.load(filename)
-      print "         loaded sky apertures from {0}".format(filename)
+      self.speak("loaded sky apertures from {0}".format(filename))
     except:
       finished = False
-      plt.figure('sky apertures')
+      plt.figure('sky apertures', figsize=(10,10), dpi=100)
       i = zachopy.iplot.iplot(3,10)
       self.aximage = i.subplot(1,0,rowspan=2,colspan=8)
       self.axskyspectrum = i.subplot(0,0,colspan=8,sharex=self.aximage)
@@ -220,7 +225,7 @@ class Aperture(Talker):
 
         if first == False:
           # have user select a sky region
-          print "   |!| please click the start of a sky region"
+          self.speak(":-D please click the start of a sky region")
           clicks = i.getMouseClicks(n=2)
 
           # clear the axes
@@ -264,8 +269,8 @@ class Aperture(Talker):
           self.axskyprofile.set_xlim((self.images['Science']*mask)[click.xdata,:].min(), (self.images['Science']*mask)[click.xdata,:].max()*2)
           self.axskyprofile.set_ylim(self.saxis.min(), self.saxis.max())
           plt.draw()
-          print "Are you happy with the sky subtraction apertures? (default = no)"
-          answer = raw_input("  (y)es, (n)o, (r)edo\n")
+          self.speak("Are you happy with the sky subtraction apertures? (default = no)")
+          answer = self.input("  (y)es, (n)o, (r)edo")
           if "y" in answer:
             finished = True
           elif "r" in answer:
@@ -275,29 +280,29 @@ class Aperture(Talker):
         first = False
       self.images['skyMask'] = mask
       np.save(filename, self.images['skyMask'])
-      print " Saved a sky mask to {0}".format(filename)
+      self.speak("saved a sky mask to {0}".format(filename))
 
   def createWavelengthCal(self, visualize=True):
     '''Populate the wavelength calibration for this aperture.'''
-    print "     populating wavelength calibration"
+    self.speak("populating wavelength calibration")
     filename = self.directory + 'waveCal_{0}.npy'.format(self.name)
     try:
       # load the the thing!
       self.waveCalCoef = np.load(filename)
     except:
-      print "       estimating wavelength calibration from extracted arc spectra"
+      self.speak("estimating wavelength calibration from extracted arc spectra")
       # extract the arc lamp spectra
       self.arcs = {}
       for element in ['He', 'Ne','Ar']:
-        self.arcs[element] = self.extract(self.images[element], arc=True)
+        self.arcs[element] = self.extract(image=self.images[element], arc=True)
 
       # load wavelength identifications
       wavelength_ids = astropy.io.ascii.read(self.obs.wavelengthFile)
 
       # cross correlate my arc spectra with reference
       def findRoughShift(wavelength_ids, visualize=False):
-        print "       cross correlating arcs with known wavelengths"
-        if visualize:
+        self.speak("cross correlating arcs with known wavelengths")
+        if self.visualize:
           fi, ax = plt.subplots(3,2, figsize=(5,5))
 
         count = 0
@@ -310,7 +315,7 @@ class Aperture(Talker):
           this = []
           for i in range(len(wavelength_ids)):
             if element in wavelength_ids['name'][i]:
-              print wavelength_ids[i]
+              #self.speak(wavelength_ids[i])
               this.append(i)
 
           myPeaks, theirPeaks = np.zeros(len(x)), np.zeros(len(x))
@@ -324,7 +329,7 @@ class Aperture(Talker):
             blob = 2
             myPeaks += np.exp(-0.5*((x-center)/blob)**2)*np.log(yPeak[i])
 
-          if visualize:
+          if self.visualize:
             ax[count,0].plot(x, theirPeaks/theirPeaks.sum())
             ax[count,0].plot(x, myPeaks/myPeaks.sum())
             ax[count,1].plot(np.correlate(myPeaks, theirPeaks, 'full'))
@@ -335,7 +340,7 @@ class Aperture(Talker):
             corre = corre*np.correlate(myPeaks, theirPeaks, 'full')
           count += 1
 
-        if visualize:
+        if self.visualize:
           for count in [0,1,2]:
             ax[count,1].plot(corre, color='black')
         peakoffset = np.where(corre == corre.max())[0][0] - len(x)
@@ -353,7 +358,7 @@ class Aperture(Talker):
       count =0
       for element in ['He', 'Ne','Ar']:
 
-        # the pixel spectrum extracted from this arc lamp
+        # the pixel spectrum self.extracted from this arc lamp
         flux = self.arcs[element]['raw_counts']
         x = self.arcs[element]['w']
 
@@ -393,7 +398,7 @@ class Aperture(Talker):
       fit = np.polynomial.polynomial.Polynomial(self.waveCalCoef )
       pixel, wavelength = np.array(pixel), np.array(wavelength)
 
-      if visualize:
+      if self.visualize:
         plt.figure('wavelength calibration')
         ax = plt.subplot(211)
         ax.set_title('Wavelength Calib. for Aperture (%0.1f,%0.1f)' % (self.x, self.y))
@@ -406,95 +411,239 @@ class Aperture(Talker):
         ax.scatter(pixel[bad], wavelength[bad] - fit(pixel[bad]), marker='x', color='blue')
         ax.set_xlabel('Pixel # (by python rules)')
       np.save(filename, self.waveCalCoef)
-      print "      saved wavelength calibration to ", filename
+      self.speak("saved wavelength calibration to {0}".format( filename))
     self.wavelengthCalibrate = np.polynomial.polynomial.Polynomial(self.waveCalCoef )
 
   def ones(self):
     '''Create a blank array of ones to fill this aperture.'''
     return np.ones_like(self.images['Science'])
 
-  def extract(self, raw, subtractsky=True, arc=False, cosmics=False, n=0):
+  def extract(self, n=0, image=None, subtractsky=True, arc=False, cosmics=False, remake=False):
     '''Extract the spectrum from this aperture.'''
-    intermediates = {}
-    intermediates['original'] = raw
-    extracted = {}
-    extracted['w'] = self.waxis
 
-    # remove cosmic rays
-    if cosmics and not arc:
-      image = self.removeCosmics(raw)
-    else:
-      image = raw
-    intermediates['cosmics'] = raw - image
-
-    # define an image marking the distance from the ridge of the trace
-    distanceFromTrace = np.abs(self.s - self.traceCenter(self.w))
-
-    # define the extraction aperture (Gaussian profile for wavelength extraction, boxcar for stellar flux)
-    if arc:
-      intermediates['extractMask'] = self.images['RoughLSF']
-      subtractsky = False
-    else:
-      intermediates['extractMask'] = self.ones()
-
-    # replaced self.obs.nFWHM*width with "obs.extractionWidth"
-    intermediates['extractMask'][distanceFromTrace > self.obs.extractionWidth] = 0
-
-    # define a mask for the sky estimate area
-    intermediates['skyMask'] = self.images['skyMask']
-    #intermediates['skyMask'] = self.ones()
-    #intermediates['skyMask'][distanceFromTrace < self.obs.extractionWidth + self.obs.skyGap] = 0
-    #intermediates['skyMask'][distanceFromTrace > (self.obs.extractionWidth + self.obs.skyGap + self.obs.skyWidth)] = 0
-
-    if subtractsky:
-      # estimate a 1D sky spectrum by summing over the masked region
-      #skyperpixel = (image*intermediates['skyMask']/self.images['NormalizedFlat']).sum(self.sindex)/(intermediates['skyMask']/self.images['NormalizedFlat']).sum(self.sindex)
-      ma = np.ma.MaskedArray(image*intermediates['skyMask']/self.images['NormalizedFlat'], intermediates['skyMask']==0)
-      skyperpixel = np.ma.median(ma, self.sindex).data
-
-      extracted['sky'] = skyperpixel*intermediates['extractMask'].sum(self.sindex)
-      intermediates['sky'] = np.ones_like(image)*skyperpixel.reshape((self.waxis.shape[0],1))
-
-    # wavelength calibrate the spectrum, if you can
+    self.extractedFilename = self.directory + 'extracted{0:04}.npy'.format(n)
     try:
-      extracted['wavelength'] = self.wavelengthCalibrate(self.waxis)
+        assert(remake == False)
+        assert(arc == False)
+        self.extracted = np.load(self.extractedFilename)
+        self.speak('loaded extracted spectrum from {0}'.format(self.extractedFilename))
     except:
-      extracted['wavelength'] = None
 
-    # if sky subtraction is turned on, subtract off a sky spectrum
-    if subtractsky:
-      extracted['raw_counts'] = (intermediates['extractMask']*image/self.images['NormalizedFlat']).sum(self.sindex) - extracted['sky']
-      intermediates['subtracted'] = np.maximum(image - intermediates['sky'], 0)
-      extracted['centroid'] = np.nansum(self.s*intermediates['subtracted']*intermediates['extractMask'],self.sindex)/np.nansum(intermediates['subtracted']*intermediates['extractMask'], self.sindex)
-      extracted['width'] = np.sqrt(np.nansum(self.s**2*intermediates['subtracted']*intermediates['extractMask'], self.sindex)/np.nansum(intermediates['subtracted']*intermediates['extractMask'], self.sindex) - extracted['centroid']**2)
-      extracted['peak'] = np.max(intermediates['extractMask']*image, self.sindex)
-      #assert(np.isfinite(extracted['centroid']).all())
+        # make sure we don't subtract the sky, if the arcs are set
+        subtractsky = subtractsky & (arc == False)
 
-    else:
-      extracted['raw_counts'] = np.nansum(intermediates['extractMask']*image/self.images['NormalizedFlat'], self.sindex)
+        if image is None:
+            # make sure the right data have been loaded
+            assert(self.mask.ccd.n == n)
 
-    #self.displayStamps(intermediates)
-    #if subtractsky:
-      #for k in ['subtracted']:# intermediates.keys():
-      #	writeFitsData(intermediates[k], self.directory + k + '{0:04}.fits'.format(n))
+            # extract the raw science stamp from this mask image
+            raw = self.stamp(self.mask.ccd.data)
+        else:
+            raw = image
 
-    if self.visualize:
-      self.display.rgb(intermediates['original'], intermediates['extractMask'], intermediates['skyMask'])
-      a = raw_input("OK?")
-      if 'y' in a:
-        self.visualize=False
-    return extracted
+        # create a dictionary to store some of the intermediate images
+        intermediates = {}
+        intermediates['original'] = raw
 
-  def plot(self, extracted, coordinate='wavelength', sharex=True, filename=None):
+        # create a dictionary to store the self.extracted spectra
+        self.extracted = {}
+        self.extracted['w'] = self.waxis
+
+        # remove cosmic rays (now moved to an earlier stage)
+        image = raw
+
+        # define an image marking the distance from the ridge of the trace
+        distanceFromTrace = np.abs(self.s - self.traceCenter(self.w))
+
+        # define the extraction aperture (Gaussian profile for wavelength extraction, boxcar for stellar flux)
+        self.speak('defining the extraction mask')
+        if arc:
+          intermediates['extractMask'] = self.images['RoughLSF']
+          subtractsky = False
+          self.speak('using a Gaussian approximation to the line-spread function (for arc extraction)', 2)
+        else:
+          intermediates['extractMask'] = self.ones()
+          self.speak('using a boxcar', 2)
+
+        # replaced self.obs.nFWHM*width with "obs.extractionWidth"
+        intermediates['extractMask'][distanceFromTrace > self.obs.extractionWidth] = 0
+
+        # load the (custom-defined) sky estimation mask
+        intermediates['skyMask'] = self.images['skyMask']
+
+        # wavelength calibrate the spectrum, if you can
+        try:
+          self.extracted['wavelength'] = self.wavelengthCalibrate(self.waxis)
+        except:
+          self.extracted['wavelength'] = None
+
+
+        # keep track of the cosmics that were rejected along the important columns
+        try:
+            intermediates['smearedcosmics'] = self.mask.ccd.cosmicdiagnostic[self.xstart:self.xend].reshape(1,self.xend - self.xstart)*np.ones_like(image)/(self.yend - self.ystart).astype(np.float)
+            self.extracted['cosmicdiagnostic'] = (intermediates['smearedcosmics']*intermediates['extractMask']).sum(self.sindex)
+            self.speak('the cosmic over-correction diagnostic is {0}'.format(np.sum(self.extracted['cosmicdiagnostics'])))
+        except:
+            self.speak("couldn't find any cosmic over-correction diagnostics for this frame")
+
+        # subtract the sky, if requested
+        if subtractsky:
+            # estimate a 1D sky spectrum by summing over the masked region
+            self.speak('estimating a sky background image')
+
+            # currently taking median of a masked array -- would be better to fit low-order polynomial to each column
+            ma = np.ma.MaskedArray(image*intermediates['skyMask']/self.images['NormalizedFlat'], intermediates['skyMask']==0)
+            skyperpixel = np.ma.median(ma, self.sindex).data
+
+            # store the sky estimation (in both 1D and 2D)
+            self.extracted['sky_median'] = skyperpixel*intermediates['extractMask'].sum(self.sindex)
+            intermediates['sky_median'] = np.ones_like(image)*skyperpixel.reshape((self.waxis.shape[0],1))
+
+            # try a better sky estimation
+            #self.display.one(image*intermediates['skyMask']/self.images['NormalizedFlat'])
+            intermediates['sky'] = zachopy.twod.polyInterpolate(image/self.images['NormalizedFlat'], intermediates['skyMask'] == 0, order=2, visualize=False)
+            self.extracted['sky'] = (intermediates['sky']*intermediates['extractMask']).sum(self.sindex)
+
+            # for raw counts, weight by extraction mask, divide by flat, subtract the sky
+            self.extracted['raw_counts'] = (intermediates['extractMask']*image/self.images['NormalizedFlat']).sum(self.sindex) - self.extracted['sky']
+
+            # for testing, save a non-flatfielded version extraction, just to make sure
+            self.extracted['no_flat'] =  (intermediates['extractMask']*(image - intermediates['sky']*self.images['NormalizedFlat'])).sum(self.sindex)
+
+
+            # store the 2D sky subtracted image
+            intermediates['subtracted'] = image/self.images['NormalizedFlat'] - intermediates['sky']
+            writeFitsData(intermediates['subtracted'], self.extractedFilename.replace('extracted', 'subtracted').replace('npy', 'fits'))
+
+            # store a few more diagnostics
+            self.extracted['centroid'] = np.nansum(self.s*intermediates['subtracted']*intermediates['extractMask'],self.sindex)/np.nansum(intermediates['subtracted']*intermediates['extractMask'], self.sindex)
+            self.extracted['width'] = np.sqrt(np.nansum(self.s**2*intermediates['subtracted']*intermediates['extractMask'], self.sindex)/np.nansum(intermediates['subtracted']*intermediates['extractMask'], self.sindex) - self.extracted['centroid']**2)
+            self.extracted['peak'] = np.max(intermediates['extractMask']*image, self.sindex)
+            if self.visualize:
+                self.plot()
+
+        else:
+            self.extracted['raw_counts'] = np.nansum(intermediates['extractMask']*image/self.images['NormalizedFlat'], self.sindex)
+
+        if self.visualize:
+
+            # display the calibration stamps
+            self.display.window.set("frame 0")
+            self.display.rgb(intermediates['original'], intermediates['extractMask'], intermediates['skyMask'])
+            self.displayStamps(intermediates)
+            answer = 'y'#self.input('Do you like the extraction intermediates for aperture {0}?'.format( self.name)).lower()
+            assert("n" not in answer)
+            if 'y' in answer:
+                self.visualize=False
+
+        #self.plot()
+        #np.save(self.extractedFilename.replace('self.extracted', 'intermediates'), intermediates)
+        np.save(self.extractedFilename, self.extracted)
+        self.speak('saved extracted spectrum to {0}'.format(self.extractedFilename))
+
+        if arc == False:
+            self.interpolate(remake=remake)
+
+    return self.extracted
+
+  def interpolate(self, remake=False):
+        '''Interpolate the spectra onto a common (uniform) wavelength scale.'''
+
+
+        # decide which values to supersample
+        self.keys = ['sky',  'centroid', 'width', 'peak', 'raw_counts']
+        self.limits = {}
+
+        #
+        self.supersampledFilename = self.extractedFilename.replace('extracted', 'supersampled')
+
+        try:
+            assert(remake == False)
+            self.supersampled = np.load(self.supersampledFilename)
+            self.speak('loaded supersampled spectrum from {0}'.format(self.extractedFilename))
+        except:
+
+            # define an empty cube that we're going to populate with spectra
+            if self.visualize:
+                # set up a plot window to show how the interpolation is going
+                plt.figure('interpolating spectra')
+                self.ax_supersampled = {}
+                sharex=None
+                gs = plt.matplotlib.gridspec.GridSpec(len(self.keys),1,hspace=0,wspace=0)
+
+            # pull out the extracted wavelength
+            wavelength = self.extracted['wavelength']
+
+            # set up a fine, common wavelength grid onto which everything will be interpolated
+            try:
+                self.supersampled['wavelength']
+            except:
+                commonwavelength = np.arange(4000, 10500)
+                # calculate the number of pixels that go into each wavelength bin
+                dw_original = wavelength[1:] - wavelength[0:-1]
+                dw_new = np.ones_like(commonwavelength)
+                interpolation = scipy.interpolate.interp1d(wavelength[0:-1], dw_original, bounds_error=False)
+                dnpixelsdw = dw_new/interpolation(commonwavelength)
+                self.supersampled = {}
+
+                self.supersampled['wavelength'] = commonwavelength
+                self.supersampled['dnpixelsdw'] = dnpixelsdw
+
+            # loop over the measurements
+            sharex=None
+            for i in range(len(self.keys)):
+                key = self.keys[i]
+
+                # set up the plots
+                if self.visualize:
+                    self.ax_supersampled[key] = plt.subplot(gs[i], sharex=sharex)
+                    sharex = self.ax_supersampled[key]
+
+                else:
+                    # clear the plots
+                    if self.visualize:
+                        self.ax_supersampled[key].cla()
+
+                # supersample onto the grid
+                self.supersampled[key] = zachopy.oned.supersample(wavelength, self.extracted[key], self.supersampled['wavelength'], visualize=False)
+
+                # plot demonstration
+                if self.visualize and True:
+                    self.ax_supersampled[key].set_ylabel(key)
+                    self.ax_supersampled[key].plot(wavelength, self.extracted[key], color='black', alpha=0.5)
+                    self.ax_supersampled[key].plot(self.supersampled['wavelength'], self.supersampled[key], color='red', alpha=0.5)
+                    self.ax_supersampled[key].set_xlim(np.min(self.supersampled['wavelength'])-200, np.max(self.supersampled['wavelength']) + 200)
+                    try:
+                        self.limits[key]
+                    except:
+                        lims = np.min(self.supersampled[key]), np.max(self.supersampled[key])
+                        span = lims[1] - lims[0]
+                        nudge = .2
+                        self.limits[key] = np.maximum(lims[0] - span*nudge, 0),  (lims[1] + span*nudge)
+                    self.ax_supersampled[key].set_ylim(*self.limits[key])
+
+                    if key != self.keys[-1]:
+                        plt.setp(self.ax_supersampled[key].get_xticklabels(), visible=False)
+
+            if self.visualize:
+                plt.draw()
+
+            #self.input('do you like the interpolation for {0}?'.format(self.name))
+            np.save(self.supersampledFilename, self.supersampled)
+            self.speak('saved supersampled spectrum to {0}'.format(self.supersampledFilename))
+        return self.supersampled
+
+
+  def plot(self, coordinate='wavelength', sharex=True, filename=None):
     '''Plot extracted spectrum.'''
 
     # switch to wavelength coordinates, if necessary (and possible)
-    x = extracted['w']
+    x = self.extracted['w']
     if coordinate=='wavelength':
-      x = extracted['wavelength']
+      x = self.extracted['wavelength']
 
     # select the large figure, and clear it
-    keys = extracted.keys()
+    keys = self.extracted.keys()
     try:
         self.eax
     except:
@@ -508,7 +657,7 @@ class Aperture(Talker):
 
     for i in range(len(keys)):
       self.eax[i].cla()
-      self.eax[i].plot(x,extracted[keys[i]])
+      self.eax[i].plot(x,self.extracted[keys[i]])
       self.eax[i].set_ylabel(keys[i])
     self.eax[-1].set_xlim(x.min(), x.max())
     self.eax[-1].set_xlabel(coordinate)
@@ -524,21 +673,3 @@ class Aperture(Talker):
     # a bit of a kludge!
     stamp[outliers] = self.images['Science'][outliers]
     return stamp
-
-  def extractAll(self, remake=False):
-    '''Loop through exposures, extracting all the spectra.'''
-
-    for n in self.obs.nScience:
-      extractedFilename = self.directory + 'extracted{0:04}.npy'.format(n)
-      if os.path.exists(extractedFilename) and remake == False:
-        print "       {0} already extracted".format(extractedFilename)
-      else:
-        try:
-          stamp = readFitsData(stampFilename(n,self), verbose=True)
-        except:
-          self.mask.createStamps(n)
-          stamp = readFitsData(stampFilename(n,self), verbose=True)
-        extracted = self.extract(stamp, n=n)
-        np.save(extractedFilename, extracted)
-        if self.visualize:
-          self.plot(extracted)

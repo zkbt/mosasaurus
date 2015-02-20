@@ -10,6 +10,7 @@ from CCD import CCD
 from Calibration import Calibration
 from Mask import Mask
 from Aperture import Aperture
+from Cube import Cube
 
 
 
@@ -38,7 +39,7 @@ def reduce(filename= 'wasp94_140801.obs'):
 		a.extractAll(remake=True)
 
 def show(filename = 'wasp94_140801.obs', binsize=25, vmin=0.98, vmax=1.02, remake=False):
-	obs = Observation(filename, nods9=True)
+	obs = Observation(filename)
 	cube = Cube(obs, remake=remake)
 	cube.makeMeanSpectrum()
 

@@ -15,7 +15,3 @@ def writeFitsData(data, filename, verbose=False):
   hdu.writeto(filename, clobber=True)
   if verbose:
     print "      wrote image to ", filename
-
-def stampFilename(n, a):
-	'''Spit out the right stamp filename for aperture a on CCDn.'''
-	return a.directory + 'stamp{0:04}.fits'.format(n)
