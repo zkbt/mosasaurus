@@ -1,4 +1,5 @@
 from imports import *
+import astropy.table, astropy.time, pidly
 
 class Headers(Talker):
     '''An object to store the timeseries of image headers for this project -- good for keeping track of various external variables.'''
@@ -20,14 +21,14 @@ class Headers(Talker):
             self.speak('header cube was already loaded')
         except:
             self.loadFromFile(remake=remake)
-        for k in self.headers.keys():
-            self.__dict__[k] = self.headers[k]
+        #for k in self.headers.keys():
+        #    self.__dict__[k] = self.headers[k]
 
     def loadFromFile(self, remake=False):
 
         try:
             assert(remake==False)
-            self.headers = np.load(self.filename)[()]
+            self.headers = astropy.table.Table(np.load(self.filename)[()])
             assert(len(self.headers['airmass']) == len(self.obs.nScience))
             self.speak('header cube loaded from {0}'.format(self.filename))
         except:
@@ -54,16 +55,47 @@ class Headers(Talker):
                d[k].append(header[k])
            self.speak('   {0:10} {1:10} {2:10} {3:10}'.format(n, header['ut-date'],  header['ut-time'],  header['airmass']))
 
-       self.headers = d
+       self.headers = astropy.table.Table(d)
+       self.convertTimes()
        np.save(self.filename, self.headers)
        self.speak('header cube saved to {0}'.format(self.filename))
 
-       '''ccdn = self.nScience
-       date = [header['ut-date'] for header in headers]
-       time = [header['ut-time'] for header in headers]
-       airmass = [header['airmass'] for header in headers]
-       timestrings = []
-       for i in range(len(time)):
-         timestrings.append( date[i] + ' ' + time[i])
-       times = astropy.time.Time(timestrings, format='iso', scale='utc')
-       np.savetxt(self.workingDirectory + 'headerInfo.txt', np.c_[ccdn, times.mjd, airmass])'''
+    def convertTimes(self):
+        '''Convert the header keys into more useful times; store them in the cube.'''
+        self.speak('converting times into BJD (by calling IDL)')
+
+
+        # stitch together date+time strings
+        timestrings = ['{0} {1}'.format(row['ut-date'], row['ut-time']) for row in self.headers]
+
+        # calculate a JD from these times (and adding half the exposure time, assuming ut-time is the start of the exposure)
+        self.headers['jd']  = astropy.time.Time(timestrings, format='iso', scale='utc').jd + 0.5*self.headers['exptime']/24.0/60.0/60.0
+
+        # call IDL for Jason Eastman's code
+        try:
+            idl = pidly.IDL('/Applications/exelis/idl/bin/idl')
+            self.headers['bjd']  = idl.func('utc2bjd', self.headers['jd'] , self.obs.ra, self.obs.dec)
+        except:
+            self.headers['bjd'] = self.headers['jd']
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('==============  NO BJD !!!! =====================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
+            self.speak('=================================================')
