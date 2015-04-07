@@ -10,7 +10,7 @@ import matplotlib.pyplot as plt, numpy as np, matplotlib.animation
 #import zachopy.display, zachopy.oned
 #from ds9 import *
 
-import glob, os, string
+import glob, os, string, copy
 
 # ... to use
 import scipy.interpolate, scipy.signal, scipy.integrate

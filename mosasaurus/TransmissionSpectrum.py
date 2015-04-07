@@ -1,17 +1,34 @@
 from Observation import Observation
-import Cube
-from  transit import *
+from transit import *
 import limbdarkening.phoenix as LD
 from imports import *
 
+class TransmissionSpectrum(Talker):
+	""" Transmission spectrum object, which can contain depths + uncertainties, lightcurves, covariance matrices, and structures for refitting every point."""
 
-class TS(Talker):
-	""" A transmission spectrum object, which can contain depths + uncertainties, lightcurves, covariance matrices."""
-
-	def __init__(self, obs=None, binsize=100, remake=False, noiseassumedforplotting = 0.001, label=''):
+	def __init__(self, obs=None, binsize=100, remake=False, label='defaultFit', mask='defaultMask'):
 		'''Initialize a transmission spectrum object, using a normal Observation file.'''
 		Talker.__init__(self, line=200)
-		self.remake= remake
+
+		self.speak('initializing a transmission spectrum')
+
+		# should we remake everything?
+		self.remake = remake
+
+		# manage the bins
+		self.binsize = binsize
+		self.unit = 10
+		self.unitstring = 'nm'
+		self.speak('it has {0}{1} bins'.format(self.binsize/self.unit, self.unitstring))
+
+		# manage the directories
+		self.initializeFromObs(obs)
+
+		# manage the label and mask, setting each initia
+		self.label = label
+		self.maskname = mask
+
+	def initializeFromObs(self, obs):
 
 		# load the observation structure for this file
 		if type(obs) == str:
@@ -19,35 +36,29 @@ class TS(Talker):
 		else:
 			self.obs = obs
 
-		# load the
+		# keep track of the name and binsize
 		self.name = self.obs.name
-		self.binsize = binsize
-
-		self.label = 'defaultFit'
-		self.maskname = 'defaultMask'
+		self.speak('its name is {0}'.format(self.name))
 
 
-		self.unit = 10
-		self.unitstring = 'nm'
-		self.noiseassumedforplotting = noiseassumedforplotting
 
-		self.loadLCs()
+		#self.loadLCs()
 
 	@property
 	def binningdirectory(self):
-		bd =  self.obs.extractionDirectory + "binby{binsize:05.0f}/".format(binsize=self.binsize)
+		bd =  self.obs.extractionDirectory + "chromatic{binsize:05.0f}/".format(binsize=self.binsize)
 		zachopy.utils.mkdir(bd)
 		return bd
 
 	@property
 	def fitdirectory(self):
-		fd = self.binningdirectory + '{label}/'.format(label=self.label)
+		fd = self.maskdirectory + '{label}/'.format(label=self.label)
 		zachopy.utils.mkdir(fd)
 		return fd
 
 	@property
 	def maskdirectory(self):
-		md = self.fitdirectory + "{maskname}/".format(maskname=self.maskname)
+		md = self.binningdirectory + "{maskname}/".format(maskname=self.maskname)
 		zachopy.utils.mkdir(md)
 		return md
 
@@ -459,58 +470,3 @@ class TS(Talker):
 		#i.width_comparison01_tothe1.float(value=0.002, limits=[-0.005, 0.005])
 
 		self.fit(p, s, i, plot=plot)
-
-
-
-def load(filename='wasp94_140805.obs',binsize=500, label='fixedGeometry'):
-	ts = TS(filename, binsize=binsize, label=label)
-	ts.label = label
-	ts.loadLCs()
-	#ts.load()
-	return ts
-
-def plotTS(filename='wasp94_140805.obs',binsize=500):
-	ts = TS(filename, binsize=binsize, label='fixedGeometry')
-	ts.loadLCs()
-	ts.load()
-	ts.plot()
-
-def determineParameters(filename='wasp94_140805.obs',binsize=500):
-	ts = TS(filename, binsize=binsize, label='floatingGeometry')
-	ts.loadLCs()
-	ts.label = 'floatingGeometry'
-	ts.load()
-	ts.plot()
-
-	keys = ['rs_over_a', 'b', 'dt']
-	n = len(keys)
-	dict = {}
-	for k in keys:
-		dict[k+"_value"] = [bin.tm.planet.__dict__[k].value for bin in ts.bins]
-		dict[k+"_uncertainty"] = [bin.tm.planet.__dict__[k].uncertainty for bin in ts.bins]
-
-	print
-	print "The median values of the {binsize} angstrom fits for {filename} are:".format(binsize=binsize, filename=filename)
-
-
-	plt.figure('geometric parameters')
-	gs = plt.matplotlib.gridspec.GridSpec(n,n)
-	for i in range(n):
-		for j in range(n):
-			ax = plt.subplot(gs[j,i])
-			x = dict[keys[i] + '_value']
-			y = dict[keys[j] + '_value']
-			xerr = dict[keys[i] + '_uncertainty']
-			yerr = dict[keys[j] + '_uncertainty']
-			xstd = np.std(x)
-			ystd = np.std(y)
-			xmed = np.median(x)
-			ymed = np.median(y)
-			nsigma=3
-			ax.errorbar(x, y, xerr=xerr, yerr=yerr, marker='o', linewidth=0, elinewidth=3, capthick=3, color='black', alpha=0.3)
-			ax.plot(xmed, ymed, marker='o', markersize=20, alpha=0.5, color='red')
-			ax.set_xlabel(keys[i])
-			ax.set_ylabel(keys[j])
-			ax.set_xlim(xmed - nsigma*xstd, xmed + nsigma*xstd)
-			ax.set_ylim(ymed - nsigma*ystd, ymed + nsigma*ystd)
-		print "{0:>20} = {1}".format(keys[i], xmed)
