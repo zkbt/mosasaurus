@@ -1,4 +1,5 @@
-
+from imports import *
+from transit import TLC, TM
 
 class WavelengthBin(Talker):
 	'''Bin object to store everything for one transmission spectrum bin.'''
@@ -18,24 +19,13 @@ class WavelengthBin(Talker):
 		self.unitstring = self.TS.unitstring
 
 		# give an update
-		self.speak("Initializing a spectroscopic bin covering {left} to {right} {unitstring}, storing data in {datadirectory} and fits in {fittingdirectory}".format(left=self.left/self.unit, right=self.right/self.unit, unitstring=self.unitstring, datadirectory=self.datadirectory, fittingdirectory=self.fittingdirectory))
+		#self.speak("Initializing a spectroscopic bin covering {left} to {right} {unitstring}, as part of {ts}".format(left=self.left/self.unit, right=self.right/self.unit, unitstring=self.unitstring, ts=self.TS))
 
-		# load the light curves, either from processed file or from a raw file somewhere
-		try:
-			# try to load the processed light curve file
-			assert(self.TS.remake == False)
-			self.readProcessedLC()
-		except:
-			self.readRawLC()
 
-		# load a model, either a precalculated one, or a newly generated one
-		try:
-			self.speak('attempting to load a transit model from {0}'.format(self.fittingdirectory))
-			self.tm = TM(directory=self.fittingdirectory)
-			self.tlc.linkModel(self.tm)
-		except:
-			self.speak("could not load a transit model from {0}".format( self.fittingdirectory))
-			pass
+	def __repr__(self):
+		"""How should this object be represented (e.g. when shown as an element in a list)"""
+
+		return '<WavelengthBin {name}|{night}|{left}to{right}{unitstring}>'.format(left=self.left/self.unit, right=self.right/self.unit, unitstring=self.unitstring, name=self.TS.obs.name,night=self.TS.obs.night)
 
 	@property
 	def wavelength(self):
@@ -45,21 +35,32 @@ class WavelengthBin(Talker):
 	def binsize(self):
 		return self.right - self.left
 
+	def readTLC(self, remake=False):
+		'''read the TLC for this bin, either from the preprocessed object (fast) or a raw file (slower)'''
+		try:
+			# try to load the processed light curve file
+			assert(self.TS.remake == False)
+			assert(remake==False)
+			self.readProcessedLC()
+		except:
+			self.readRawLC()
 
 	def readProcessedLC(self):
+		'''read a light curve that has already been loaded and saved as a TLC object'''
 		self.speak( "attempting to load a processed light curve from {0}".format( self.datadirectory))
 		self.tlc = TLC(directory=self.datadirectory, name=self.TS.name, left=self.left, right=self.right)
 		assert(self.tlc is not None)
 		self.speak( "   ...success!")
 
 	def readRawLC(self):#, filtersize=3):
-		lcFile = self.TS.obs.extractionDirectory + 'lc_binby{0}'.format(self.binsize) + '/' + "{0:05.0f}to{1:05.0f}.lightcurve".format(self.left, self.right)
+		'''read a raw light curve from a .lightcurve text file'''
+		lcFile = self.TS.rawlightcurvedirectory + "{0:05.0f}to{1:05.0f}.lightcurve".format(self.left, self.right)
 		self.speak("attempting to load a raw light curve from {0}".format(lcFile))
 		table = astropy.io.ascii.read(lcFile)
 		arrays = {}
 		for k in table.colnames:
 			if 'col' not in k:
-				arrays[k] = table[k].filled().data
+				arrays[k] = table[k].data
 		self.speak('before')
 		self.tlc = TLC(name=self.TS.name, left=self.left, right=self.right, **arrays)
 		self.speak('after')
@@ -68,34 +69,72 @@ class WavelengthBin(Talker):
 
 	@property
 	def datadirectory(self):
-		dd = self.TS.binningdirectory + "{0:05.0f}to{1:05.0f}/".format(self.left, self.right)
+		dd = self.TS.lightcurvedirectory + "{0:05.0f}to{1:05.0f}/".format(self.left, self.right)
 		zachopy.utils.mkdir(dd)
 		return dd
 
 	@property
 	def fittingdirectory(self):
-		md = self.TS.maskdirectory + "{0:05.0f}to{1:05.0f}/".format(self.left, self.right)
+		md = self.TS.fitdirectory + "{0:05.0f}to{1:05.0f}/".format(self.left, self.right)
 		zachopy.utils.mkdir(md)
 		return md
 
 
-	def fit(self, planet, star, instrument, plot=True):
-		print "  Fitting light curve covering {left} to {right} {unitstring}.".format(left=self.left/self.unit, right=self.right/self.unit, unitstring=self.unitstring)
-		plt.ion()
-		self.planet = copy.deepcopy(planet)
-		self.depthassumedforplotting = self.planet.rp_over_rs.value**2
-		self.star = copy.deepcopy(star)
 
+	def fit(self, plot=True, slow=False, label='fixedGeometry', remake=True, maskname='defaultMask', **kwargs):
+		"""Take an input planet, star, and instrument -- and fit the bin's light curve!"""
+
+		# say what we're doing
+		if slow:
+			method='MCMC'
+		else:
+			method='LM'
+		self.speak('fitting {0}, using {method}'.format(self, method=method))
+
+		# mask any additional points as specified in the mask
+
+		self.TS.setupFit(label=label, remake=True, maskname=maskname)
+
+
+		planet, star, instrument = self.TS.psi()
+
+		#
+		try:
+			self.tlc
+		except AttributeError:
+			self.readTLC()
+
+		# apply the spectrum-level mask
+		self.tlc.bad *= self.TS.mask[self.TS.w2bin[self.wavelength], :]
+
+
+		# initialize some structures
+		self.planet = copy.deepcopy(planet)
+		self.star = copy.deepcopy(star)
+		self.instrument = copy.deepcopy(instrument)
+
+		# set up the depth that will be assumed for making plots (so that multiple wavelength bins line up)
+		self.depthassumedforplotting = self.planet.rp_over_rs.value**2
+
+
+		# initialize the limb darkening values and uncertainties, with prior from atmosphere models
 		u1, u2, du1dt, du2dt = self.TS.ld.quadratic(self.left, self.right, nudge=True)
 		self.star.u1.value = u1
 		self.star.u2.value = u2
 		self.star.u1.uncertainty = np.abs(du1dt)*200.0
 		self.star.u2.uncertainty = np.abs(du2dt)*200.0
 
-		self.instrument = copy.deepcopy(instrument)
+		# create the transit model, using the input structures
 		self.tm = TM(self.planet, self.star, self.instrument, depthassumedforplotting=self.depthassumedforplotting , directory=self.fittingdirectory)
+
+		# link the model and the light curve
 		self.tlc.linkModel(self.tm)
-		self.tm.fastfit(plot=plot)
+
+		if slow:
+			self.tm.slowfit(plot=plot, **kwargs)
+		else:
+			self.tm.fastfit(plot=plot, **kwargs)
+
 		#if plot:
 		#ls	self.tlc.DiagnosticsPlots()
 		self.save()
@@ -104,18 +143,10 @@ class WavelengthBin(Talker):
 		self.tlc.save(self.datadirectory)
 		self.tm.save(self.fittingdirectory)
 
-	def load(self):
-		self.tlc = TLC(directory=self.datadirectory)
+	def readTM(self):
 		self.tm = TM(directory=self.fittingdirectory)
-		self.tlc.linkModel(self.tm)
 
-	def __str__(self):
-		s = "spectroscopic bin:\n {left:.0f}-{right:.0f}nm\n {n} light curve points\n".format(left=self.left/self.unit, right = self.right/self.unit, n=len(self.tlc.bjd))
-		try:
-			for key in self.tm.planet.__dict__.keys():
-				p = self.tm.planet.__dict__[key]
-				if p.uncertainty > 0:
-					s += "     {key} = {value}\pm{uncertainty}\n".format(key=key, value=p.value, uncertainty=p.uncertainty)
-		except:
-			"     no model defined."
-		return s
+	def load(self):
+		self.readTLC()
+		self.readTM()
+		self.tlc.linkModel(self.tm)

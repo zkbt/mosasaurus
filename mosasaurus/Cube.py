@@ -497,7 +497,7 @@ class Cube(Talker):
 
 
 
-    lcDirectory = self.obs.extractionDirectory + 'chromatic' + ('%d' % binsize) + '/'
+    lcDirectory = self.obs.extractionDirectory + "chromatic{binsize:05.0f}/".format(binsize=binsize)
     zachopy.utils.mkdir(lcDirectory)
     lcDirectory = lcDirectory + 'originalLCs/'
     zachopy.utils.mkdir(lcDirectory)
@@ -550,10 +550,12 @@ class Cube(Talker):
         #lc.populate(bjd, flux, uncertainty, **lc)
         table = astropy.table.Table(lc)
         table['bjd'].format = '.10f'
-        # MAYBE THIS IS A KLUDGE, MAYBE IT ISN'T?
-        table = table[table['ok'].astype(np.bool)]
 
-        table.write(lcfilename, format='ascii.fixed_width')
+        #table = table[table['ok'].astype(np.bool)]
+        # REMOVED TO MAKE SURE MASKING IS EASIER AT LATER STEP
+
+
+        table.write(lcfilename, format='ascii.fixed_width', bookend=False)
         self.speak('saved light curve to')
         self.speak('{0}'.format(lcfilename))
 
