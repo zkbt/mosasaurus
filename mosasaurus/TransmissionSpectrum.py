@@ -462,61 +462,7 @@ class TransmissionSpectrum(Talker):
 
 			self.wavelengths[i] = bin.wavelength
 
-	def setupSuperPlot(self):
-		# set up grid of plots
-		gs = plt.matplotlib.gridspec.GridSpec(3, 1,wspace=0,hspace=0.05,height_ratios=[1,2,2])
 
-		# create the plot for the spectrum of the star
-		self.ax_spectrum = plt.subplot(gs[0])
-		self.ax_spectrum.set_ylabel('Raw Detected Flux (photons/nm/exposure)')
-		plt.setp(self.ax_spectrum.get_xticklabels(), visible=False)
-
-		# create the plot for the light curves
-		self.ax_lc = plt.subplot(gs[1], sharex=self.ax_spectrum)
-		self.ax_lc.set_ylabel('Time from Mid-Transit\n(hours)')
-		plt.setp(self.ax_lc.get_xticklabels(), visible=False)
-
-		# create the plot for the transmission spectrum
-		self.ax_ts = plt.subplot(gs[2], sharex=self.ax_spectrum)
-		self.ax_ts.set_xlim((self.bins[0].left - self.binsize/2)/self.unit, (self.bins[-1].right +  self.binsize/2)/self.unit)
-		self.ax_ts.set_xlabel('Wavelength ({0})'.format(self.unitstring))
-		self.ax_ts.set_ylabel('Transit Depth (%)')
-
-
-	def plot(self):
-		self.setupSuperPlot()
-		colors = []
-		def normalize(flux):
-			ratio = 0.8
-			one = (flux-1.0)/np.mean(self.fitted['k'])**2
-			return self.binsize/self.unit*ratio*(one+0.5)
-
-		# plot the spectrum
-		try:
-			wavelength, spectrum = np.load(self.obs.extractionDirectory + 'medianSpectrum.npy')
-			self.ax_spectrum.plot(wavelength/self.unit, spectrum*self.unit, linewidth=3, alpha=0.5, color='black')
-		except:
-			self.speak('no median spectrum could be found')
-		for i in np.arange(len(self.bins)):
-			# select this bin
-			bin = self.bins[i]
-
-			# plot the model for this bin
-			#time, planetmodel, instrumentmodel = bin.tlc.TM.smooth_model()
-			#kw = {'color':zachopy.color.nm2rgb([bin.left/self.unit, bin.right/self.unit], intensity=0.25), 'linewidth':3, 'alpha':0.5}
-			#self.ax_lc.plot(normalize(planetmodel) + bin.wavelength/self.unit, bin.tlc.TM.planet.timefrommidtransit(time), **kw)
-
-			# plot the (instrument corrected) datapoints
-			kw = {'marker':'.', 'color':zachopy.color.nm2rgb([bin.left/self.unit, bin.right/self.unit]), 'alpha':0.25, 'linewidth':0, 'marker':'o'}
-			self.ax_lc.plot(normalize(bin.tlc.corrected()[bin.tlc.bad == False]) + bin.wavelength/self.unit, bin.tlc.timefrommidtransit()[bin.tlc.bad == False], **kw)
-			colors.append(kw['color'])
-
-			print bin
-			print bin.tlc.TM.planet
-
-			width = 3
-
-			self.ax_ts.errorbar(self.wavelengths[i]/self.unit, self.fitted['k'][i], self.uncertainty['k'][i], marker='o', color=zachopy.color.nm2rgb([bin.left/self.unit, bin.right/self.unit]), markersize=10, linewidth=width, elinewidth=width, capsize=5, capthick=width)
 
 	def setupInitialConditions(self):
 
