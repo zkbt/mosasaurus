@@ -1,4 +1,8 @@
-from zachopy.Talker import Talker
+shortcuts = {'/Users/zkbt/Cosmos/Data/Magellan/LDSS3_2014B/working':'...'}
+import zachopy.Talker
+zachopy.Talker.shortcuts = shortcuts
+zachopy.Talker.line = 200
+Talker = zachopy.Talker.Talker
 
 import astropy.io.fits, astropy.io.ascii, astropy.time
 #from astropy.io import fits, ascii

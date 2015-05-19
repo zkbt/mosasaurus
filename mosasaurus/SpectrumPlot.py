@@ -1,22 +1,52 @@
 from imports import *
+import zachocolor.cmaps
+
+class Color(Talker):
+    def __init__(self, range=[400,1050]):
+        Talker.__init__(self)
+        self.range = range
+
+class Eye(Color):
+    def __init__(self, **kwargs):
+        Color.__init__(self, **kwargs)
+
+    def color(self, nm):
+        return zachopy.color.nm2rgb(nm)
+
+class Gradient(Color):
+    def __init__(self, bottom='indigo', top='orange', **kwargs):
+        Color.__init__(self, **kwargs)
+        self.cmap = zachocolor.cmaps.one2another(bottom, top)
+        self.normalizer = plt.Normalize(*self.range)
+
+    def color(self, nm):
+        return self.cmap(self.normalizer(np.mean(nm)))
+
 
 class SpectrumPlot(Talker):
-    def __init__(self):
+    def __init__(self, xlim=[400,1050]):
         Talker.__init__(self)
 
-        self.toplot = ['spectrum', 'depth']
+        self.toplot = ['spectrum', 'lightcurves', 'depth', 'rs_over_a', 'b']
 
         # populate the plots
         self.panels = {}
         self.panels['spectrum'] = StellarSpectrum(self)
-        #self.panels['lightcurves'] = LightCurves(self)
+        self.panels['lightcurves'] = LightCurves(self)
         self.panels['depth'] = TransitDepths(self)
+        #self.panels['u1'] = FittedParameter(self, key='u1', ylabel='Limb Darkening u1')
+        #self.panels['u2'] = FittedParameter(self, key='u2', ylabel='Limb Darkening u2')
+        self.panels['rs_over_a'] = FittedParameter(self, key='rs_over_a', ylabel='Rs/a')
+        self.panels['b'] = FittedParameter(self, key='b', ylabel='b', ylim=[0,1])
+
+        self.xlim = xlim
+        self.color=Gradient(range=self.xlim).color
 
     @property
     def npanels(self):
         return len(self.toplot)
 
-    def setup(self, spectrum, xlim=[400,1050]):
+    def setup(self, spectrum):
 
         # set up the gridspec
         gs = plt.matplotlib.gridspec.GridSpec(self.npanels, 1,
@@ -37,14 +67,16 @@ class SpectrumPlot(Talker):
 
             p = self.panels[key]
             ax.set_ylabel(p.ylabel)
-            ax.set_xlim(*xlim)
+            ax.set_xlim(*self.xlim)
 
             if i == (self.npanels-1):
                 # set the xlimits
-                if xlim is None:
-                    xlim = [(spectrum.bins[0].left - spectrum.binsize/2)/spectrum.unit,
+                try:
+                    assert(self.xlim[0] is not None)
+                except:
+                    self.xlim = [(spectrum.bins[0].left - spectrum.binsize/2)/spectrum.unit,
                             (spectrum.bins[-1].right +  spectrum.binsize/2)/spectrum.unit]
-                ax.set_xlim(*xlim)
+                ax.set_xlim(*self.xlim)
 
                 # set the xlabel
                 ax.set_xlabel('Wavelength ({0})'.format(spectrum.unitstring))
@@ -56,7 +88,9 @@ class SpectrumPlot(Talker):
 
         self.hasbeensetup = True
 
-    def plot(self, spectrum):
+    def plot(self, spectrum, marker='o'):
+
+        self.marker=marker
 
         try:
             assert(self.hasbeensetup)
@@ -77,17 +111,22 @@ class Plottable(Talker):
         Talker.__init__(self)
         self.parent = parent
 
+    def preface(self):
+        pass#self.speak('plotting {0} for spectrum {1}'.format(self, self.parent.spectrum))
+
+    def __repr__(self):
+        return '<{0}>'.format(self.__class__.__name__)
 
 class StellarSpectrum(Plottable):
     height = 0.5
     ylabel = 'Raw Detected Flux\n(photons/nm/exposure)'
 
     def plot(self, ax):
-        # plot the spectrum
-        if True:
-            spectrum = self.parent.spectrum
-            wavelength, stellarSpectrum = np.load(spectrum.obs.extractionDirectory + 'medianSpectrum.npy')
-            ax.plot(wavelength/spectrum.unit, stellarSpectrum*spectrum.unit, linewidth=3, alpha=0.5, color='black')
+        self.preface()
+
+        spectrum = self.parent.spectrum
+        wavelength, stellarSpectrum = np.load(spectrum.obs.extractionDirectory + 'medianSpectrum.npy')
+        ax.plot(wavelength/spectrum.unit, stellarSpectrum*spectrum.unit, linewidth=3, alpha=0.5, color='black')
 
 
 class LightCurves(Plottable):
@@ -95,46 +134,68 @@ class LightCurves(Plottable):
     ylabel = 'Time from Mid-Transit\n(hours)'
 
     def plot(self, ax):
-        pass
+        self.preface()
 
-class TransitDepths(Plottable):
-    height = 1.0
-    ylabel = 'Transit Depth (%)'
 
-    def plot(self, ax):
-        pass
+
+        spectrum = self.parent.spectrum
+        wavelengths = spectrum.wavelengths/spectrum.unit
+        depths = spectrum.fitted['k']**2
 
         # function to normalize lightcurves onto a rotated wavelength scale
         def normalize(flux):
             ratio = 0.8
-            one = (flux-1.0)/np.mean(self.fitted['k'])**2
-            return self.binsize/self.unit*ratio*(one+0.5)
+            one = (flux-1.0)/np.mean(depths)
+            return spectrum.binsize/spectrum.unit*ratio*(one+0.5)
+
+        for i in range(len(wavelengths)):
+            b = spectrum.bins[i]
+            ok = b.tlc.bad == False
+            x = normalize(b.tlc.corrected()[ok]) + wavelengths[i]
+            y = b.tlc.timefrommidtransit()[ok]
+
+            ax.plot(x, y,
+                    marker=self.parent.marker, markeredgewidth=0, linewidth=0, alpha=0.25,
+                    color=self.parent.color([b.left/b.unit, b.right/b.unit]))
 
 
 
-def plot(self):
-  self.setupSuperPlot()
-  colors = []
+class FittedParameter(Plottable):
+    height = 1.0
 
+    def __init__(self, parent, key=None, ylabel=None, height=1.0, ylim=[None,None]):
+        Plottable.__init__(self, parent)
+        self.key = key
+        self.height = height
+        self.ylabel = ylabel
+        self.ylim = ylim
 
+    def plot(self, ax):
+        self.preface()
 
-  for i in np.arange(len(self.bins)):
-    # select this bin
-    bin = self.bins[i]
+        spectrum = self.parent.spectrum
+        key = self.key
+        parameter = spectrum.fitted[key]
+        uncertainty = spectrum.uncertainty[key]
+        wavelengths = spectrum.wavelengths/spectrum.unit
 
-    # plot the model for this bin
-    #time, planetmodel, instrumentmodel = bin.tlc.TM.smooth_model()
-    #kw = {'color':zachopy.color.nm2rgb([bin.left/self.unit, bin.right/self.unit], intensity=0.25), 'linewidth':3, 'alpha':0.5}
-    #self.ax_lc.plot(normalize(planetmodel) + bin.wavelength/self.unit, bin.tlc.TM.planet.timefrommidtransit(time), **kw)
+        width = 3
+        for i in range(len(spectrum.wavelengths)):
+            b = spectrum.bins[i]
+            ax.errorbar(wavelengths[i], parameter[i], uncertainty[i],
+                marker=self.parent.marker, markersize=10,
+                color=self.parent.color([b.left/b.unit, b.right/b.unit]),
+                linewidth=width, elinewidth=width, capthick=width, capsize=5)
+        ax.set_ylim(*self.ylim)
 
-    # plot the (instrument corrected) datapoints
-    kw = {'marker':'.', 'color':zachopy.color.nm2rgb([bin.left/self.unit, bin.right/self.unit]), 'alpha':0.25, 'linewidth':0, 'marker':'o'}
-    self.ax_lc.plot(normalize(bin.tlc.corrected()[bin.tlc.bad == False]) + bin.wavelength/self.unit, bin.tlc.timefrommidtransit()[bin.tlc.bad == False], **kw)
-    colors.append(kw['color'])
+class TransitDepths(FittedParameter):
+    height = 1.0
+    ylabel = 'Transit Depth (%)'
+    def __init__(self, parent, ylabel=ylabel, height=height):
+        FittedParameter.__init__(self, parent, key='depth', ylabel=ylabel, height=height)
 
-    print bin
-    print bin.tlc.TM.planet
-
-    width = 3
-
-    self.ax_ts.errorbar(self.wavelengths[i]/self.unit, self.fitted['k'][i], self.uncertainty['k'][i], marker='o', color=zachopy.color.nm2rgb([bin.left/self.unit, bin.right/self.unit]), markersize=10, linewidth=width, elinewidth=width, capsize=5, capthick=width)
+    def plot(self, ax):
+        spectrum = self.parent.spectrum
+        spectrum.fitted['depth'] = spectrum.fitted['k']**2
+        spectrum.uncertainty['depth'] = 2*spectrum.uncertainty['k']*spectrum.fitted['k']
+        FittedParameter.plot(self, ax)

@@ -93,7 +93,7 @@ class WavelengthBin(Talker):
 
 		# mask any additional points as specified in the mask
 
-		self.TS.setupFit(label=label, remake=True, maskname=maskname)
+		self.TS.setupFit(label=label, remake=remake, maskname=maskname)
 
 
 		planet, star, instrument = self.TS.psi()
@@ -131,9 +131,9 @@ class WavelengthBin(Talker):
 		self.tlc.linkModel(self.tm)
 
 		if slow:
-			self.tm.slowfit(plot=plot, **kwargs)
+			self.tm.slowfit(plot=plot, remake=remake, **kwargs)
 		else:
-			self.tm.fastfit(plot=plot, **kwargs)
+			self.tm.fastfit(plot=plot, remake=remake,  **kwargs)
 
 		#if plot:
 		#ls	self.tlc.DiagnosticsPlots()

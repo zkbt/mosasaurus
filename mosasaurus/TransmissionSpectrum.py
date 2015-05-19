@@ -537,9 +537,9 @@ class TransmissionSpectrum(Talker):
 			return
 
 		if label == 'floatingGeometry':
-			p.rs_over_a.float(limits=[0.0,1.0])
+			p.rs_over_a.float(value=0.14, limits=[0.0,1.0], shrink=1000.0)
 			p.rp_over_rs.float(limits=[0.05, 0.15])
-			p.b.float(limits=[0.0, 1.0])
+			p.b.float(value=0.8, limits=[0.0, 1.0], shrink=1000.0)
 			p.dt.float(limits=np.array([-0.01, 0.01]))
 			i.C.float(value=1.0,limits=[0.9, 1.1])
 			i.airmass_tothe1.float(value=0.002, limits=[-0.005, 0.005])
@@ -564,9 +564,15 @@ class TransmissionSpectrum(Talker):
 			self.setupFit()
 			return self.initial['planet'], self.initial['star'], self.initial['instrument']
 
-	def fitBins(self, label='fixedGeometry', plot=True):
-		self.setupFit(label)
-		self.fit(self.initial['planet'], self.initial['star'], self.initial['instrument'], plot=plot)
+	def fitBins(self, label='fixedGeometry', maskname='defaultMask', remake=False, slow=False, plot=False, **kw):
+		self.speak('about to fit {0} bins with:')
+		for k in locals().keys():
+			self.speak('   {0} = {1}'.format(k, locals()[k]))
+		self.input('are you okay with that?')
+		assert(self.label == label)
+		for b in self.bins:
+			b.fit(plot=plot, slow=slow, remake=remake, label=label, maskname=maskname, **kw)
+			assert(self.label == label)
 
 def fastfit(inputs):
 	i, kw = inputs
