@@ -95,12 +95,12 @@ class CCD(Talker):
     # try loading a stitched image, otherwise create one from scratch
     try:
       self.data = readFitsData(self.stitched_filename)
-    except:
+    except IOError:
       self.createStitched()
 
     if imageType == 'Science':
         self.cosmicdiagnostic = np.load(self.obs.workingDirectory+'cosmics/rejectedpercolumn{0:04.0f}.npy'.format(n))
-    
+
     # print status
     if self.verbose:
       self.speak(self.space + "read image from {0}".format(self.name))
@@ -181,7 +181,7 @@ class CCD(Talker):
 
       if self.visualize:
           self.display.one(stitched, clobber=True)
-          self.input('the raw image')
+          self.input('This is the raw stitched image; press enter to continue.')
 
       # subtract bias
       if self.flags['subtractbias']:
@@ -203,7 +203,7 @@ class CCD(Talker):
 
       if self.visualize:
           self.display.one(stitched, clobber=True)
-          self.input('after subtracting dark')
+          self.visualize = self.input('after subtracting dark; type [s] to stop showing these').lower() != 's'
 
       # divide by the gain (KLUDGE! make sure these are the best estimates!)
       if self.flags['multiplygain']:
@@ -220,7 +220,7 @@ class CCD(Talker):
 
       if self.visualize:
           self.display.one(stitched, clobber=True)
-          self.visualize = self.input('after multiplying by gain\ntype [s] to stop showing these').lower() != 's'
+          self.visualize = self.input('after multiplying by gain; type [s] to stop showing these').lower() != 's'
 
       # save the stitched image into memory
       self.data = stitched
@@ -294,11 +294,12 @@ class CCD(Talker):
 
          lostflux = np.sum(image - corrected, axis=0)
          try:
-             cosmicplot.set_ydata(lostflux)
-         except:
+             self.cosmicplot.set_ydata(lostflux)
+         except AttributeError:
              plt.figure('cosmic ray rejection', figsize=(5, 3), dpi=100)
              self.axcr = plt.subplot()
-             cosmicplot = self.axcr.plot(lostflux, color='Sienna')[0]
+             self.axcr.cla()
+             self.cosmicplot = self.axcr.plot(lostflux, color='Sienna')[0]
              self.axcr.set_ylim(1.0, 1e8)
              self.axcr.set_xlim(-1, len(lostflux)+1)
              self.axcr.set_yscale('log')

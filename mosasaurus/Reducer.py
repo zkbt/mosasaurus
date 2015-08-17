@@ -5,7 +5,6 @@ from imports import *
 from Observation import Observation
 from Night import Night
 from Tools import *
-from Display import Display
 from CCD import CCD
 from Calibration import Calibration
 from Mask import Mask

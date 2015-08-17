@@ -27,7 +27,7 @@ class Calibration(Talker):
         self.speak("       {0}".format(g))
     except:
       self.speak("estimating gain from noise in multiple flat-field exposures.")
-      c = CCD(self.obs, calib=self)
+      c = self.ccd#CCD(self.obs, calib=self)
 
       fi = plt.figure('gain estimation', figsize=(10,4))
       gs =plt.matplotlib.gridspec.GridSpec(1,2, hspace=0, wspace=0, top=0.85)
@@ -126,7 +126,7 @@ class Calibration(Talker):
         plt.draw()
         #ax[i].plot(n[ok].flatten(), deviates(fit.params, n=n[ok], noise=noise[ok])[-1].flatten(), marker='o', linewidth=0, alpha=0.005, color='black', markersize=3)
         #ax[i].plot(n[ok==False].flatten(), deviates(fit.params, n=n[ok == False], noise=noise[ok == False])[-1].flatten(), marker='o', linewidth=0, alpha=0.1, color='red', markersize=3)
-        assert('n' not in self.input('Does this gain estimate seem reasonable?'.format(imageType)).lower())
+        assert('n' not in self.input('Does this gain estimate seem reasonable?').lower())
 
       np.savetxt(self.obs.workingDirectory + 'gains.txt', gains)
       self.gains = gains
@@ -202,7 +202,7 @@ class Calibration(Talker):
       self.speak( "loaded bad pixel mask from {0}".format(badPixelFilename))
     except:
       self.speak( "creating bad pixel mask from the master flat frames")
-      c = CCD(self.obs, calib=self)
+      c = self.ccd#CCD(self.obs, calib=self)
 
       cube = []
       for n in self.obs.nWideFlat:
@@ -226,99 +226,7 @@ class Calibration(Talker):
         assert('n' not in self.input("Does the bad pixel mask seem reasonable?").lower())
       writeFitsData(self.images['BadPixels'], badPixelFilename)
 
-  def rejectCosmicRays(self, remake=False, threshold=7.5, visualize=False, nBeforeAfter=5):
-    '''Stitch all science images, establish a comparison noise level for each pixel.'''
 
-    cosmics_directory = self.obs.workingDirectory + 'cosmics/'
-    zachopy.utils.mkdir(cosmics_directory)
-
-    nImages = 2*nBeforeAfter + 1
-    imageType = 'ScienceUnmitigated'
-    nComparison = self.obs.nScience[0:nImages]
-
-    for i in range(len(self.obs.nScience)):
-      n = self.obs.nScience[i]
-      try:
-          #print "testing"
-          ok = remake == False
-          #print 'remake'
-          ok = ok & os.path.exists(self.obs.workingDirectory + 'stitched/Science{0:04.0f}.fits'.format(n))
-          #print 'fits'
-          ok = ok & os.path.exists(self.obs.workingDirectory + 'cosmics/rejectedpercolumn{0:04.0f}.npy'.format(n))
-          #print 'rejected'
-          #print ok
-          assert(ok)
-          self.speak('a cosmic-rejected stitched/Science{0:04.0f}.fits already exists!'.format(n))
-      except:
-          nComparison = np.arange(-nBeforeAfter + n, nBeforeAfter+n+1, 1)
-          nComparison = nComparison[(nComparison >= np.min(self.obs.nScience)) & (nComparison <= np.max(self.obs.nScience))]
-          comparison = self.ccd.loadImages(n=nComparison, imageType=imageType)
-          shape = np.array(comparison.shape)
-          axis =0
-          shape[axis] = 1
-
-          '''if i <= nBeforeAfter:
-              comparison = comparison
-              nComparison = nComparison
-              which = i
-          elif (i + nBeforeAfter) >= len(self.obs.nScience):
-              comparison = comparison
-              nComparison = nComparison
-              which = n - np.median(nComparison) + nBeforeAfter
-          else:
-              comparison[:-1,:,:] = comparison[1:,:,:]
-              comparison[-1,:,:] = self.ccd.readData(n=n+nBeforeAfter+1, imageType=imageType)
-              nComparison = nComparison + 1
-              which = nBeforeAfter'''
-          self.speak('comparing image {0} to images {1} to remove cosmic rays'.format(n, nComparison))
-          image = comparison[nComparison == n,:,:].squeeze()
-
-
-          # calculate median and noise of comparisons
-          med = np.median(comparison, axis=axis)
-          noise = np.maximum(1.48*np.median(np.abs(comparison - med.reshape(shape)), axis=axis), 1.0)
-
-          bad = (image - med)/noise > threshold
-          corrected = image + 0.0
-          corrected[bad] = med[bad]
-          if visualize:
-              self.ccd.display.replace(image,0)
-              self.ccd.display.replace(image - corrected,1)
-              self.ccd.display.replace(corrected,2)
-              self.ccd.display.scale(mode='zscale')
-              self.ccd.display.match()
-              self.ccd.display.tile('column')
-
-
-          images = [corrected]
-          labels = ['Science']
-          for i in np.arange(len(labels)):
-              self.ccd.set(n, labels[i])
-              self.ccd.data = images[i]
-              self.ccd.writeData()
-
-          self.speak('total corrected flux is {0}'.format(np.sum(image - corrected)))
-
-          lostflux = np.sum(image - corrected, axis=0)
-          try:
-              cosmicplot.set_ydata(lostflux)
-          except:
-              plt.figure('cosmic ray rejection', figsize=(5, 3), dpi=100)
-              self.axcr = plt.subplot()
-              cosmicplot = self.axcr.plot(lostflux, color='Sienna')[0]
-              self.axcr.set_ylim(1.0, 1e8)
-              self.axcr.set_xlim(-1, len(lostflux)+1)
-              self.axcr.set_yscale('log')
-              self.axcr.set_ylabel('Total Flux Rejected (e-/column)')
-              self.axcr.set_xlabel('Column (pixels)')
-              plt.tight_layout()
-
-          self.axcr.set_title('Science{0:04.0f}'.format(n))
-          plt.draw()
-          np.save(cosmics_directory + 'rejectedpercolumn{0:04.0f}.npy'.format(n), lostflux)
-          plt.savefig(cosmics_directory + 'rejectedpercolumn{0:04.0f}.png'.format(n))
-          self.speak('saved cosmic ray rejection checks to {0}'.format(cosmics_directory))
-          #self.input('thoughts on CR?')
 
 
   def createMasterImage(self, imageType=None, remake=False):
