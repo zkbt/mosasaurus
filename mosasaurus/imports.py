@@ -28,7 +28,7 @@ import zachopy.utils, zachopy.regions, zachopy.iplot, zachopy.display, zachopy.o
 from  zachopy.borrowed.mpfit.mpfit import mpfit
 
 # ... to call IDL from within Python
-import pidly
+#import pidly
 
 
 from Tools import *

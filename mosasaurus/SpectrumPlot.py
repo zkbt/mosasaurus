@@ -23,11 +23,12 @@ class Gradient(Color):
         return self.cmap(self.normalizer(np.mean(nm)))
 
 
+
 class SpectrumPlot(Talker):
     def __init__(self, xlim=[400,1050]):
         Talker.__init__(self)
 
-        self.toplot = ['spectrum', 'lightcurves', 'depth', 'rs_over_a', 'b']
+        self.toplot = ['spectrum', 'lightcurves', 'depth']#, 'rs_over_a', 'b']
 
         # populate the plots
         self.panels = {}
@@ -36,11 +37,11 @@ class SpectrumPlot(Talker):
         self.panels['depth'] = TransitDepths(self)
         #self.panels['u1'] = FittedParameter(self, key='u1', ylabel='Limb Darkening u1')
         #self.panels['u2'] = FittedParameter(self, key='u2', ylabel='Limb Darkening u2')
-        self.panels['rs_over_a'] = FittedParameter(self, key='rs_over_a', ylabel='Rs/a')
-        self.panels['b'] = FittedParameter(self, key='b', ylabel='b', ylim=[0,1])
+        #self.panels['rs_over_a'] = FittedParameter(self, key='rs_over_a', ylabel='Rs/a')
+        #self.panels['b'] = FittedParameter(self, key='b', ylabel='b', ylim=[0,1])
 
         self.xlim = xlim
-        self.color=Gradient(range=self.xlim).color
+        self.color=Eye(range=self.xlim).color
 
     @property
     def npanels(self):
@@ -49,9 +50,10 @@ class SpectrumPlot(Talker):
     def setup(self, spectrum):
 
         # set up the gridspec
+        plt.figure(figsize=(10,5), dpi=100)
         gs = plt.matplotlib.gridspec.GridSpec(self.npanels, 1,
-                        hspace=0.1, wspace=0,
-                        left=0.2,
+                        hspace=0.05, wspace=0,
+                        left=0.2, bottom=0.15,
                         height_ratios=[self.panels[k].height for k in self.toplot])
 
         # create the axes for all the plots
@@ -88,10 +90,10 @@ class SpectrumPlot(Talker):
 
         self.hasbeensetup = True
 
-    def plot(self, spectrum, marker='o'):
+    def plot(self, spectrum, marker='o', alpha=1.0):
 
         self.marker=marker
-
+        self.alpha=alpha
         try:
             assert(self.hasbeensetup)
         except:
@@ -160,6 +162,8 @@ class LightCurves(Plottable):
 
 
 
+
+
 class FittedParameter(Plottable):
     height = 1.0
 
@@ -183,9 +187,9 @@ class FittedParameter(Plottable):
         for i in range(len(spectrum.wavelengths)):
             b = spectrum.bins[i]
             ax.errorbar(wavelengths[i], parameter[i], uncertainty[i],
-                marker=self.parent.marker, markersize=10,
+                marker=self.parent.marker, markersize=10, alpha=self.parent.alpha,
                 color=self.parent.color([b.left/b.unit, b.right/b.unit]),
-                linewidth=width, elinewidth=width, capthick=width, capsize=5)
+                linewidth=width, elinewidth=width, capthick=width, capsize=5, markeredgewidth=0)
         ax.set_ylim(*self.ylim)
 
 class TransitDepths(FittedParameter):
@@ -196,6 +200,58 @@ class TransitDepths(FittedParameter):
 
     def plot(self, ax):
         spectrum = self.parent.spectrum
-        spectrum.fitted['depth'] = spectrum.fitted['k']**2
-        spectrum.uncertainty['depth'] = 2*spectrum.uncertainty['k']*spectrum.fitted['k']
+        spectrum.fitted['depth'] = 100*spectrum.fitted['k']**2
+        spectrum.uncertainty['depth'] = 100*2*spectrum.uncertainty['k']*spectrum.fitted['k']
         FittedParameter.plot(self, ax)
+
+class FloatingGeometry(SpectrumPlot):
+    def __init__(self, **kwargs):
+        SpectrumPlot.__init__(self, **kwargs)
+
+        self.toplot = ['spectrum', 'lightcurves', 'depth', 'rs_over_a', 'b']
+
+        # populate the plots
+        self.panels = {}
+        self.panels['spectrum'] = StellarSpectrum(self)
+        self.panels['lightcurves'] = LightCurves(self)
+        self.panels['depth'] = TransitDepths(self)
+        #self.panels['u1'] = FittedParameter(self, key='u1', ylabel='Limb Darkening u1')
+        #self.panels['u2'] = FittedParameter(self, key='u2', ylabel='Limb Darkening u2')
+        self.panels['rs_over_a'] = FittedParameter(self, key='rs_over_a', ylabel='Rs/a')
+        self.panels['b'] = FittedParameter(self, key='b', ylabel='b', ylim=[0,1])
+
+class FixedGeometry(SpectrumPlot):
+    def __init__(self, **kwargs):
+        SpectrumPlot.__init__(self, **kwargs)
+
+        self.toplot = ['spectrum', 'lightcurves', 'depth', 'u1', 'u2']
+
+        # populate the plots
+        self.panels = {}
+        self.panels['spectrum'] = StellarSpectrum(self)
+        self.panels['lightcurves'] = LightCurves(self)
+        self.panels['depth'] = TransitDepths(self)
+        self.panels['u1'] = FittedParameter(self, key='u1', ylabel='Limb Darkening u1')
+        self.panels['u2'] = FittedParameter(self, key='u2', ylabel='Limb Darkening u2')
+
+class Combined(SpectrumPlot):
+    def __init__(self, **kwargs):
+        SpectrumPlot.__init__(self, **kwargs)
+
+        self.toplot = ['depth', 'u1', 'u2']
+
+        # populate the plots
+        self.panels = {}
+        self.panels['depth'] = TransitDepths(self)
+        self.panels['u1'] = FittedParameter(self, key='u1', ylabel='Limb Darkening u1')
+        self.panels['u2'] = FittedParameter(self, key='u2', ylabel='Limb Darkening u2')
+
+class JustDepth(SpectrumPlot):
+    def __init__(self, **kwargs):
+        SpectrumPlot.__init__(self, **kwargs)
+
+        self.toplot = ['depth']
+
+        # populate the plots
+        self.panels = {}
+        self.panels['depth'] = TransitDepths(self)

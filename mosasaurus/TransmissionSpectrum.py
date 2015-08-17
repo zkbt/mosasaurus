@@ -405,6 +405,7 @@ class TransmissionSpectrum(Talker):
 		# load the mask from the masking directory (probably slows things down a bit, but ensure everything links up)
 		try:
 			self.mask = np.load(self.maskdirectory + 'mask.npy')
+			self.speak('loaded mask from {0}'.format(self.maskdirectory))
 		except:
 			self.speak("couldn't load requested mask '{0}', so reverting to default".format(self.maskname))
 			self.createMask(empty=True)
@@ -412,7 +413,13 @@ class TransmissionSpectrum(Talker):
 		# loop through all the bins, and apply the mask to the individual lightcurves
 		nBins = len(self.bins)
 		for i in range(nBins):
-			self.bins[i].bad = self.mask[i,:]
+			b = self.bins[i]
+			try:
+				b.tlc
+			except:
+				b.readTLC()
+			b.tlc.bad = self.mask[i,:]
+
 
 
 
@@ -429,7 +436,7 @@ class TransmissionSpectrum(Talker):
 		#	self.rp_over_rs[i] = b.tm.planet.rp_over_rs.value
 		##	self.wavelengths[i] = b.wavelength
 
-	def load(self, method='mcmc'):
+	def load(self, method='lm'):
 		'''Load light curves and fits for this transmission spectrum.'''
 
 
@@ -468,7 +475,7 @@ class TransmissionSpectrum(Talker):
 
 		self.initial = {}
 		self.initial['planet'] = Planet(J=0.0, \
-						rp_over_rs=0.107509268533, \
+						k=0.107509268533, \
 						rs_over_a =0.136854018274, \
 						b =0.143228040337, \
 						q=0.0, \
@@ -498,10 +505,10 @@ class TransmissionSpectrum(Talker):
 		p, s, i = self.initial['planet'], self.initial['star'], self.initial['instrument']
 
 		# modify these according to what kind of a fit we want to use
-		if label == 'fixedGeometry':
+		if label == 'fixedGeometry' or label == 'floatingLD':
 
 			# float the radius ratio
-			p.rp_over_rs.float(limits=[0.05, 0.15])
+			p.k.float(limits=[0.05, 0.15])
 
 			# a constant baseline
 			i.C.float(value=1.0,limits=[0.9, 1.1])
@@ -525,12 +532,6 @@ class TransmissionSpectrum(Talker):
 			i.peak_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
 
 
-			#i.width_comparison01_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			#i.sky_comparison01_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			#i.centroid_comparison01_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			#i.width_comparison01_tothe2.float(value=0.002, limits=[-0.005, 0.005])
-			#i.width_comparison01_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-
 			# allow the limbdarkening to float [a prior for each bin will be set later]
 			s.u1.float(value=s.u1.value, limits=[0.0, 1.0])
 			s.u2.float(value=s.u2.value, limits=[0.0, 1.0])
@@ -538,11 +539,10 @@ class TransmissionSpectrum(Talker):
 
 		if label == 'floatingGeometry':
 			p.rs_over_a.float(value=0.14, limits=[0.0,1.0], shrink=1000.0)
-			p.rp_over_rs.float(limits=[0.05, 0.15])
+			p.k.float(limits=[0.05, 0.15])
 			p.b.float(value=0.8, limits=[0.0, 1.0], shrink=1000.0)
 			p.dt.float(limits=np.array([-0.01, 0.01]))
 			i.C.float(value=1.0,limits=[0.9, 1.1])
-			i.airmass_tothe1.float(value=0.002, limits=[-0.005, 0.005])
 			i.rotatore_tothe1.float(value=0.002, limits=[-0.005, 0.005])
 			i.width_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
 			i.centroid_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
@@ -569,6 +569,12 @@ class TransmissionSpectrum(Talker):
 		for k in locals().keys():
 			self.speak('   {0} = {1}'.format(k, locals()[k]))
 		self.input('are you okay with that?')
+
+		self.setupFit( label=label, maskname=maskname, remake=True)
+
+		if label == 'floatingLD':
+			kw['ldpriors'] = False
+			
 		assert(self.label == label)
 		for b in self.bins:
 			b.fit(plot=plot, slow=slow, remake=remake, label=label, maskname=maskname, **kw)
