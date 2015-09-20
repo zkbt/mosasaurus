@@ -1,6 +1,6 @@
 import TransmissionSpectrum
 import multiprocessing
-obs = '../wasp94_140809.obs'
+obs = 'wasp94_140805.obs'
 ncpu = multiprocessing.cpu_count()
 
 def fastfit(i):

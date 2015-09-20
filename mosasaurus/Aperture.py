@@ -127,6 +127,7 @@ class Aperture(Talker):
         # (the edges of the slit might not be exposed -- they'd drop to way negative without the np.maximum statement
 
 
+      '''
       if self.visualize:
         try:
             self.ax.cla()
@@ -140,6 +141,7 @@ class Aperture(Talker):
         self.displayStamps(self.images, keys = ['Science', 'Sky', 'Subtracted', 'WideFlat', 'NormalizedFlat'])
         assert("n" not in self.input('Do you like the calibration stamps?').lower())
 
+      '''
       np.save(filename, self.images)
       self.speak("saved calibration stamps to {0}".format( filename))
 
@@ -432,6 +434,10 @@ class Aperture(Talker):
         # make sure we don't subtract the sky, if the arcs are set
         subtractsky = subtractsky & (arc == False)
 
+        # create a dictionary to store the self.extracted spectra
+        self.extracted = {}
+        self.extracted['w'] = self.waxis
+
         if image is None:
             # make sure the right data have been loaded
             assert(self.mask.ccd.n == n)
@@ -445,9 +451,6 @@ class Aperture(Talker):
         intermediates = {}
         intermediates['original'] = raw
 
-        # create a dictionary to store the self.extracted spectra
-        self.extracted = {}
-        self.extracted['w'] = self.waxis
 
         # remove cosmic rays (now moved to an earlier stage)
         image = raw
@@ -474,7 +477,7 @@ class Aperture(Talker):
         # wavelength calibrate the spectrum, if you can
         try:
           self.extracted['wavelength'] = self.wavelengthCalibrate(self.waxis)
-        except:
+        except AttributeError:
           self.extracted['wavelength'] = None
 
 
@@ -525,9 +528,57 @@ class Aperture(Talker):
         else:
             self.extracted['raw_counts'] = np.nansum(intermediates['extractMask']*image/self.images['NormalizedFlat'], self.sindex)
 
-        if self.visualize:
+
+        '''if True:
+            self.figure = plt.figure(figsize=(1.0, ))
+                                self.aximage.imshow(np.transpose(np.log(self.images['Science'])), cmap='gray', \
+                                              extent=extent, \
+                                              interpolation='nearest', aspect='auto', \
+                                              vmin=np.log(1), vmax=np.log(np.nanmax(self.images['Science'])*0.01))
+                                self.aximage.imshow(np.transpose(mask), alpha=0.1, cmap='winter_r', \
+                                            extent=extent, \
+                                            interpolation='nearest', aspect='auto')
+        '''
+        if (arc == False):
+            shape = intermediates['original'].shape
+            aspect = shape[0]/(self.obs.extractionWidth*6.0)
+
+            plt.ioff()
+            dpi = 100
+            plt.figure('extraction', figsize=(shape[0]*1.0/dpi,self.obs.extractionWidth*6.0/dpi), dpi=dpi)
+            gs = plt.matplotlib.gridspec.GridSpec(2,1,left=0, right=1, bottom=0, top=1, wspace=0, hspace=0)
+            axorig = plt.subplot(gs[0])
+            axsubt = plt.subplot(gs[1], sharex=axorig, sharey=axorig)
+            plt.cla()
+
+            def scale(x):
+                l = np.log(x)
+                l[np.isfinite(l) == False] = 0.0
+                return l
+
+            axorig.imshow(np.transpose(scale(intermediates['original'])), interpolation='nearest', cmap='gray', aspect='equal', vmin=np.log(1), vmax=np.log(50000.0), extent=[self.waxis.min(), self.waxis.max(), self.saxis.min(), self.saxis.max()])
+
+
+            axsubt.imshow(np.transpose(scale(intermediates['subtracted'])), interpolation='nearest', cmap='gray', aspect='equal', vmin=np.log(1), vmax=np.log(50000.0), extent=[self.waxis.min(), self.waxis.max(), self.saxis.min(), self.saxis.max()])
+
+            axorig.set_xlim(self.waxis.min(), self.waxis.max())
+            axorig.set_ylim((self.traceCenter(self.waxis) - 1.5*self.obs.extractionWidth).min(), (self.traceCenter(self.waxis) + 1.5*self.obs.extractionWidth).max())
+
+            for ax in [axorig, axsubt]:
+                plt.sca(ax)
+                plt.plot(self.waxis, self.traceCenter(self.waxis), alpha=0.5, linewidth=3, color='seagreen')
+                plt.plot(self.waxis, self.traceCenter(self.waxis) + self.obs.extractionWidth, alpha=1, linewidth=3, color='springgreen')
+                plt.plot(self.waxis, self.traceCenter(self.waxis) - self.obs.extractionWidth, alpha=1, linewidth=3, color='springgreen')
+                plt.setp(ax.get_xticklabels(), visible=False)
+                plt.setp(ax.get_yticklabels(), visible=False)
+
+            figfilename = self.extractedFilename.replace('extracted', 'image').replace('npy', 'png')
+            plt.savefig(figfilename)
+            self.speak('saved image to {0}'.format(figfilename))
+
 
             # display the calibration stamps
+            '''
             self.display.window.set("frame 0")
             self.display.rgb(intermediates['original'], intermediates['extractMask'], intermediates['skyMask'])
             self.displayStamps(intermediates)
@@ -535,6 +586,7 @@ class Aperture(Talker):
             assert("n" not in answer)
             if 'y' in answer:
                 self.visualize=False
+            '''
 
         #self.plot()
         #np.save(self.extractedFilename.replace('self.extracted', 'intermediates'), intermediates)

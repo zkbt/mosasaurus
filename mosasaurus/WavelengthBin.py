@@ -62,7 +62,7 @@ class WavelengthBin(Talker):
 			if 'col' not in k:
 				arrays[k] = table[k].data
 		self.speak('before')
-		self.tlc = TLC(name=self.TS.name, left=self.left, right=self.right, **arrays)
+		self.tlc = TLC(name=self.TS.name, left=self.left, right=self.right, directory=self.datadirectory, **arrays)
 		self.speak('after')
 		self.speak('...success!')
 		self.tlc.save(self.datadirectory)

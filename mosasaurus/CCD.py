@@ -20,7 +20,7 @@ class CCD(Talker):
 
     # set up options
     self.flags = {'subtractbias':True, 'subtractdark':True, 'multiplygain':False}
-    self.visualize = True
+    self.visualize = False
     self.verbose = verbose
 
     # point this CCD to right file, if provided
