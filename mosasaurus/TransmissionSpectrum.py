@@ -9,7 +9,7 @@ import multiprocessing
 class TransmissionSpectrum(Talker):
 	""" Transmission spectrum object, which can contain depths + uncertainties, lightcurves, covariance matrices, and structures for refitting every point."""
 
-	def __init__(self, obs=None, binsize=100, remake=False, label='fixedGeometry', maskname='defaultMask'):
+	def __init__(self, obs=None, binsize=100, remake=False, label='fixedGeometry', ):
 		'''Initialize a transmission spectrum object, using a normal Observation file.'''
 		Talker.__init__(self, line=200)
 
@@ -24,31 +24,8 @@ class TransmissionSpectrum(Talker):
 		# manage the bins
 		self.setBinsize(binsize)
 
-		# load the light curves associate with this transmission spectrum
-		self.constructBins()
-
-		self.speak('its name is {0}'.format(self))
-
-		# manage the mask, and create a default dummy mask if need be
-		self.maskname = maskname
-
 		# manage the label, initializing the fit
 		self.label = label
-
-
-	def __repr__(self):
-		"""How should this object be represented (e.g. when shown as an element in a list)"""
-
-		try:
-			return '<TransmissionSpectrum {name}|{night}|{left}to{right}{unitstring}|{binsize}{unitstring}>'.format(left=self.bins[0].left/self.unit, right=self.bins[-1].right/self.unit, unitstring=self.unitstring, binsize=self.binsize/self.unit, name=self.obs.name,night=self.obs.night)
-		except AttributeError:
-			return '<TransmissionSpectrum {name}|{night}|[bins unspecified]>'.format(name=self.obs.name,night=self.obs.night)
-
-	def setBinsize(self, binsize, unit=10, unitstring='nm'):
-		'''Set the transmission spectrum's binsize.'''
-		self.binsize = binsize
-		self.unit = unit
-		self.unitstring = unitstring
 
 	def initializeFromObs(self, obs):
 		'''Initialize a spectrum from an observation filename or instance.'''
@@ -62,83 +39,133 @@ class TransmissionSpectrum(Talker):
 		# keep track of the name and binsize
 		self.name = self.obs.name
 
+	def setBinsize(self, binsize, unit=10, unitstring='nm'):
+		'''Set the transmission spectrum's binsize.'''
+		self.binsize = binsize
+		self.unit = unit
+		self.unitstring = unitstring
+
 
 	@property
 	def binningdirectory(self):
+		'''Parent directory for a particular binning.'''
 		bd =  self.obs.extractionDirectory + "chromatic{binsize:05.0f}/".format(binsize=self.binsize)
 		zachopy.utils.mkdir(bd)
 		return bd
 
 	@property
 	def rawlightcurvedirectory(self):
+		'''Directory where the original light curves will be saved (as .lightcurve files).'''
 		rld = self.binningdirectory + 'originalLCs/'
+		zachopy.utils.mkdir(rld)
 		return rld
 
 	@property
 	def lightcurvedirectory(self):
+		'''Directory where processed (e.g. trimmed) light curves will be saved (as .npy files).'''
 		ld = self.binningdirectory + 'processedLCs/'
 		zachopy.utils.mkdir(ld)
 		return ld
 
 	@property
-	def fitdirectory(self):
-		fd = self.maskdirectory + '{label}/'.format(label=self.label)
-		zachopy.utils.mkdir(fd)
-		return fd
-
-	@property
 	def maskdirectory(self):
+		'''Directory where the (possibly custom) mask will be saved.'''
 		md = self.binningdirectory + "{maskname}/".format(maskname=self.maskname)
 		zachopy.utils.mkdir(md)
 		return md
 
-	def constructBins(self):
+	@property
+	def fitdirectory(self):
+		'''Directory where the fit files should be stored.'''
+		fd = self.maskdirectory + '{label}/'.format(label=self.label)
+		zachopy.utils.mkdir(fd)
+		return fd
+
+	def __repr__(self):
+		"""How should this object be represented (e.g. when shown as an element in a list)"""
+
 		try:
-			# first try loading light curves that have been saved into the directory structure
-			possibleTLCs = glob.glob(self.lightcurvedirectory + '*to*/TLC.npy')
-			assert(len(possibleTLCs) > 0)
-			chunks = []
-			for file in possibleTLCs:
-				chunks.append(file.split('/')[-2])
+			return '<TransmissionSpectrum {name}|{night}|{left}to{right}{unitstring}|{binsize}{unitstring}>'.format(left=self.bins[0].left/self.unit, right=self.bins[-1].right/self.unit, unitstring=self.unitstring, binsize=self.binsize/self.unit, name=self.obs.name,night=self.obs.night)
+		except AttributeError:
+			return '<TransmissionSpectrum {name}|{night}|[bins unspecified]>'.format(name=self.obs.name,night=self.obs.night)
 
-		except:
-			self.speak("trying to read raw chromatic light curves from {0}".format(self.rawlightcurvedirectory))
+	def w2bin(self, w):
+		''' return the bin index of a particular wavelength '''
+		return (self.wavelengths == w).nonzero()[0]
+
+class WithTLCs(TransmissionSpectrum):
+	"""Transmission spectrum object that also contains the light curves (needed for initial fits, not for later plotting.)"""
+
+	def __init__(self, obs=None, maskname='defaultMask', **kwargs):
+		TransmissionSpectrum.__init__(self, obs=obs, **kwargs)
+
+		# load the light curves associate with this transmission spectrum
+		self.constructBins()
+
+		self.speak('its name is {0}'.format(self))
+
+		# manage the mask, and create a default dummy mask if need be
+		self.maskname = maskname
+
+
+
+
+
+	def constructBins(self):
+		'''Populate the transmission spectrum bins with light curves.'''
+		self.speak("constructing the bins of {0}".format(self))
+
+		# what files exist?
+		possibleTLCs = glob.glob(self.rawlightcurvedirectory + '*.lightcurve')
+		self.speak('there are {0} .lightcurve files in {1}'.format(
+			len(possibleTLCs), self.rawlightcurvedirectory))
+
+		# do we have to make the light curve files from the spectroscopic cube?
+		if len(possibleTLCs) == 0:
+			self.speak("creating .lightcurve(s) from the spectroscopic cube")
+
+			# initialize a cube object for this observation
+			cube = Cube(self.obs)
+
+			# bin and save the light curves for this binsize
+			cube.makeLCs(binsize=self.binsize)
+
+			# return the list of light curve filenames now
 			possibleTLCs = glob.glob(self.rawlightcurvedirectory + '*.lightcurve')
-			if len(possibleTLCs) == 0:
-				self.speak("couldn't find any raw chromatic light curves; trying to recreate them from the spectroscopic cube")
-				cube = Cube(self.obs)
-				cube.makeLCs(binsize=self.binsize)
-				possibleTLCs = glob.glob(self.rawlightcurvedirectory + '*.lightcurve')
 
-			assert(len(possibleTLCs) > 0)
-			chunks = []
-			for file in possibleTLCs:
-				chunks.append((file.split('/')[-1].split('.lightcurve')[0]).split('_')[-1])
+		# make sure at least one TLC exists
+		assert(len(possibleTLCs) > 0)
 
+		# pull out the ????to???? strings from the .lightcurve filenames
+		chunks = []
+		for file in possibleTLCs:
+			chunks.append((file.split('/')[-1].split('.lightcurve')[0]).split('_')[-1])
+
+		# populate bins (and their central wavelengths)
 		bins = []
 		wavelengths = []
 		for trimmed in chunks:
+			# figure out the boundaries of this bin
 			left = np.int(trimmed.split('to')[0])
 			right = np.int(trimmed.split('to')[-1])
-			try:
-				bins.append(WavelengthBin(self, left=left, right=right))
-				wavelengths.append(bins[-1].wavelength)
-			except IOError:
-				pass
+			# create a wavelength bin (but don't load its lightcurve yet)
+			bins.append(WavelengthBin(self, left=left, right=right))
+			wavelengths.append(bins[-1].wavelength)
+
+		# assign the bins to this spectrum, sorted by wavelength
 		self.bins = np.array(bins)[np.argsort(wavelengths)]
 		self.wavelengths = np.array(wavelengths)[np.argsort(wavelengths)]
 
-		# construct a dictionary to link wavelength to list index
-		self.w2bin = {}
-		for i in range(len(self.wavelengths)):
-			self.w2bin[self.wavelengths[i]] = i
 
-		self.bins[0].readTLC()
+
+		# loop over the bins, and load the light curve for each
+		self.loadLCs()
+
 		# read the first bin (necessary for setting up initial conditions for fits)
 		self.speak("spectrum contains {0} bins covering {1} to {2}{3} at {4}{3} resolution".format(len(self.bins), self.bins[0].left/self.unit, self.bins[-1].right/self.unit, self.unitstring, self.binsize/self.unit))
 
-
 	def loadLCs(self):
+		'''Loop over bins, load their light curves.'''
 		self.speak('loading all the light curves for all the bins''')
 		for b in self.bins:
 			b.readTLC()
@@ -574,7 +601,7 @@ class TransmissionSpectrum(Talker):
 
 		if label == 'floatingLD':
 			kw['ldpriors'] = False
-			
+
 		assert(self.label == label)
 		for b in self.bins:
 			b.fit(plot=plot, slow=slow, remake=remake, label=label, maskname=maskname, **kw)

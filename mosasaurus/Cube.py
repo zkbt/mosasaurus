@@ -109,7 +109,7 @@ class Cube(Talker):
           except:
               # if we've run out of spectra to load, then truncate
               truncate = True
-              breakf
+              break
 
           # loop over the measurement types and populate the cubes
           for key in self.cubekeys:

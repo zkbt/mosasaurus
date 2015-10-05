@@ -5,7 +5,6 @@ class WavelengthBin(Talker):
 	'''Bin object to store everything for one transmission spectrum bin.'''
 	def __init__(self, ts, left=None, right=None):
 		'''Initialize a Bin object.'''
-
 		Talker.__init__(self)
 
 		# a Bin has wavelength definitions
@@ -18,8 +17,7 @@ class WavelengthBin(Talker):
 		self.unit = self.TS.unit
 		self.unitstring = self.TS.unitstring
 
-		# give an update
-		#self.speak("Initializing a spectroscopic bin covering {left} to {right} {unitstring}, as part of {ts}".format(left=self.left/self.unit, right=self.right/self.unit, unitstring=self.unitstring, ts=self.TS))
+
 
 
 	def __repr__(self):
@@ -48,13 +46,18 @@ class WavelengthBin(Talker):
 	def readProcessedLC(self):
 		'''read a light curve that has already been loaded and saved as a TLC object'''
 		self.speak( "attempting to load a processed light curve from {0}".format( self.datadirectory))
-		self.tlc = TLC(directory=self.datadirectory, name=self.TS.name, left=self.left, right=self.right)
+
+		self.tlc = TLC(directory=self.datadirectory, name=self.TS.name, left=self.left, right=self.right, telescope=self.identifier)
 		assert(self.tlc is not None)
 		self.speak( "   ...success!")
 
+	@property
+	def identifier(self):
+		return "{0:05.0f}to{1:05.0f}".format(self.left, self.right)
+
 	def readRawLC(self):#, filtersize=3):
 		'''read a raw light curve from a .lightcurve text file'''
-		lcFile = self.TS.rawlightcurvedirectory + "{0:05.0f}to{1:05.0f}.lightcurve".format(self.left, self.right)
+		lcFile = self.TS.rawlightcurvedirectory + self.identifier + ".lightcurve"
 		self.speak("attempting to load a raw light curve from {0}".format(lcFile))
 		table = astropy.io.ascii.read(lcFile)
 		arrays = {}
@@ -62,22 +65,23 @@ class WavelengthBin(Talker):
 			if 'col' not in k:
 				arrays[k] = table[k].data
 		self.speak('before')
-		self.tlc = TLC(name=self.TS.name, left=self.left, right=self.right, directory=self.datadirectory, **arrays)
+		self.tlc = TLC(name=self.TS.name, left=self.left, right=self.right, directory=self.datadirectory,  telescope=self.identifier, **arrays)
 		self.speak('after')
 		self.speak('...success!')
 		self.tlc.save(self.datadirectory)
 
 	@property
 	def datadirectory(self):
-		dd = self.TS.lightcurvedirectory + "{0:05.0f}to{1:05.0f}/".format(self.left, self.right)
+		dd = self.TS.lightcurvedirectory + self.identifier + '/'
 		zachopy.utils.mkdir(dd)
 		return dd
 
 	@property
 	def fittingdirectory(self):
-		md = self.TS.fitdirectory + "{0:05.0f}to{1:05.0f}/".format(self.left, self.right)
+		md = self.TS.fitdirectory + self.identifier + '/'
 		zachopy.utils.mkdir(md)
 		return md
+
 
 
 
