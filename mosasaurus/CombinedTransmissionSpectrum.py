@@ -5,12 +5,18 @@ import transit
 
 class CombinedObs(Talker):
 
-	def __init__(self, name):
-		self.name = name
+	def __init__(self, listofobs):
+		obs = listofobs[0]
+		self.name = obs.name
 		self.night = 'combined'
+		self.baseDirectory = obs.baseDirectory
+		self.workingDirectory = obs.baseDirectory + 'working/combinationof{0}observations/'.format(len(listofobs))
+		zachopy.utils.mkdir(self.workingDirectory)
+		self.extractionDirectory = self.workingDirectory + obs.extractionDirectory.split('/')[-2] + '/'
+		zachopy.utils.mkdir(self.extractionDirectory)
 
 class CombinedTransmissionSpectrum(TransmissionSpectrum):
-	def __init__(self, method='lm', label='fixedGeometry', files=['wasp94_140801.obs', 'wasp94_140805.obs', 'wasp94_140809.obs'], binsize=100):
+	def __init__(self, method='lm', label='fixedGeometry', maskname='defaultMask', files=['wasp94_140801.obs', 'wasp94_140805.obs', 'wasp94_140809.obs'], binsize=100):
 		Talker.__init__(self)
 
 
@@ -22,7 +28,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 
 
 		# set the mask and label names
-		self.mask = 'defaultMask'
+		self.maskname = maskname
 		self.label = label
 
 		# loop over spectra, loading each
@@ -33,7 +39,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			self.spectra.append(spectrum)
 
 		# create a night-agnostic observation, that ties them all together
-		self.obs = CombinedObs(self.spectra[0].obs.name)
+		self.obs = CombinedObs([s.obs for s in self.spectra])
 
 		# set the binsize
 		self.setBinsize(self.spectra[0].binsize)
@@ -65,11 +71,16 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 				except KeyError:
 					self.archiveoftlcs[w] = [b.tlc]
 
-	def fitMonochromatic(self, w, initialConditions=None):
+	def fitMonochromatic(self, w, initialConditions=None, wobbly=True,  remake=False):
 		''' fit a wavelength bin, across all observations, given some initial conditions '''
 
 		# create an empty list of tlcs
 		tlcs = []
+
+		if wobbly:
+			self.label = 'floatingGeometry'
+		else:
+			self.label = 'fixedGeometry'
 
 		# loop over the tlcs, and create a model for each
 		for orig in self.archiveoftlcs[w]:
@@ -77,22 +88,27 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			# define the input objects
 			planet = transit.Planet(**initialConditions.planetkw)
 
+			synthesizerdirectory = '{0}{1}/'.format(self.fitdirectory,self.bins[self.w2bin(w)][0].identifier)
+			zachopy.utils.mkdir(synthesizerdirectory)
+			
 			# assign an epoch to the TLC
-			tlc = orig.splitIntoEpochs(planet)[0]
+			tlc = orig.splitIntoEpochs(planet,
+				newdirectory=synthesizerdirectory)[0]
 			tlcs.append(tlc)
 
 			# float the planetary parameters
 			planet.k.float(limits=[0.05, 0.15])
 			planet.b.float(limits=[0.0, 1.0])
 			planet.rsovera.float(limits=[0.01, 0.5])
+			planet.period.float(limits=[planet.period.value-1e-5, planet.period.value+1e-5])
 
 			instrument = transit.Instrument(tlc=tlc, **initialConditions.instrumentkw)
 
 			# a constant baseline
 			instrument.C.float(value=1.0,limits=[0.9, 1.1])
 			# instrument rotator angle (seems to matter!)
-			'''instrument.rotatore_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			'''
+			instrument.rotatore_tothe1.float(value=0.002, limits=[-0.005, 0.005])
+
 
 			# width of the whole spectrum, and the width in the wavelength range
 			instrument.width_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
@@ -109,7 +125,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			# the sky brightness in
 			instrument.sky_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
 			instrument.peak_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			
+
 			# pull out the limbdarkening coefficients
 			u1, u2 = initialConditions.ld.quadratic(tlc.left, tlc.right)
 			star = transit.Star(u1=u1, u2=u2)
@@ -118,7 +134,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			tm = transit.TM(planet, star, instrument, directory=tlc.directory)
 			tm.linkLightCurve(tlc)
 
-		self.synthesizer = transit.LM(tlcs=tlcs)
+		self.synthesizer = transit.LM(tlcs=tlcs, directory=synthesizerdirectory)
 		for thing in ['period', 't0',  'b', 'rsovera', 'semiamplitude']:
 			self.synthesizer.tieAcrossEpochs(thing)
 			self.synthesizer.tieAcrossTelescopes(thing)
@@ -128,6 +144,15 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 
 		self.synthesizer.speak('the starting parameters are')
 		self.synthesizer.printParameters()
+
+		try:
+			self.archiveofpdfs
+		except AttributeError:
+			self.archiveofpdfs = {}
+
+		self.synthesizer.fit(remake=remake)
+		self.archiveofpdfs[w] = self.synthesizer.pdf
+
 
 	def load(self, method='lm'):
 		self.speak('loading all spectra')

@@ -1,5 +1,7 @@
 from imports import *
 from transit import TLC, TM
+from SpectrumPlot import Gradient
+howtocolor = Gradient(bottom='indigo', top='orange', range=[400,1050])
 
 class WavelengthBin(Talker):
 	'''Bin object to store everything for one transmission spectrum bin.'''
@@ -47,7 +49,7 @@ class WavelengthBin(Talker):
 		'''read a light curve that has already been loaded and saved as a TLC object'''
 		self.speak( "attempting to load a processed light curve from {0}".format( self.datadirectory))
 
-		self.tlc = TLC(directory=self.datadirectory, name=self.TS.name, left=self.left, right=self.right, telescope=self.identifier)
+		self.tlc = TLC(directory=self.datadirectory, name=self.TS.name, left=self.left, right=self.right, telescope=self.identifier, color=howtocolor)
 		assert(self.tlc is not None)
 		self.speak( "   ...success!")
 
@@ -65,7 +67,7 @@ class WavelengthBin(Talker):
 			if 'col' not in k:
 				arrays[k] = table[k].data
 		self.speak('before')
-		self.tlc = TLC(name=self.TS.name, left=self.left, right=self.right, directory=self.datadirectory,  telescope=self.identifier, **arrays)
+		self.tlc = TLC(name=self.TS.name, left=self.left, right=self.right, directory=self.datadirectory,  telescope=self.identifier, color=howtocolor, **arrays)
 		self.speak('after')
 		self.speak('...success!')
 		self.tlc.save(self.datadirectory)

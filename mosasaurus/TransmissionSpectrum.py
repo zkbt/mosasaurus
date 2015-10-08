@@ -106,9 +106,7 @@ class WithTLCs(TransmissionSpectrum):
 
 		# manage the mask, and create a default dummy mask if need be
 		self.maskname = maskname
-
-
-
+		self.applyMask()
 
 
 	def constructBins(self):
