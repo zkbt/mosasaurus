@@ -153,8 +153,8 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			star = transit.Star(u1=u1, u2=u2)
 
 			if floatLD:
-				star.u1.float(u1, [0,1])
-				star.u2.float(u2, [0,1])
+				star.u1.float(u1, [0,1], shrink=1000.0)
+				star.u2.float(u2, [0,1], shrink=1000.0)
 
 			# create the transit model
 			tm = transit.TM(planet, star, instrument, directory=tlc.directory)
@@ -192,7 +192,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 								wobbly=True, everything=False,
 								figsize=(30,10), dpi=72,
 								mintimespan=0.5, binsize=15/60./24.0)
-
+			plt.savefig(self.synthesizer.directory + 'lightcurves.pdf')
 
 	def load(self, method='lm'):
 		self.speak('loading all spectra')
