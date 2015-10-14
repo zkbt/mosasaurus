@@ -1,5 +1,5 @@
 from imports import *
-import zachocolor.cmaps
+import zachopy.cmaps
 
 class Color(Talker):
     def __init__(self, range=[400,1050]):
@@ -16,7 +16,7 @@ class Eye(Color):
 class Gradient(Color):
     def __init__(self, bottom='indigo', top='orange', **kwargs):
         Color.__init__(self, **kwargs)
-        self.cmap = zachocolor.cmaps.one2another(bottom, top)
+        self.cmap = zachopy.cmaps.one2another(bottom, top)
         self.normalizer = plt.Normalize(*self.range)
 
     def color(self, nm):
