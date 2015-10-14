@@ -72,7 +72,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 				except KeyError:
 					self.archiveoftlcs[w] = [b.tlc]
 
-	def fitMonochromatic(self, w, initialConditions=None, wobbly=True, gp=False, mcmc=False, remake=False, plot=True, verbose=False, **kw):
+	def fitMonochromatic(self, w, initialConditions=None, wobbly=True, gp=False, mcmc=False, remake=False, plot=True, verbose=False, floatLD=True, **kw):
 		''' fit a wavelength bin, across all observations, given some initial conditions '''
 
 		# create an empty list of tlcs
@@ -82,6 +82,11 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			self.label = 'floatingGeometry'
 		else:
 			self.label = 'fixedGeometry'
+
+		if floatLD:
+			self.label += '_floatingLD'
+		else:
+			self.label += '_fixedLD'
 		self.gp = gp
 		# loop over the tlcs, and create a model for each
 		for i, orig in enumerate(self.archiveoftlcs[w]):
@@ -101,6 +106,8 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 
 			if verbose:
 				tlc.pithy=False
+			else:
+				tlc.pithy=True
 
 			# float the planetary parameters
 			planet.k.float(limits=[0.05, 0.15])
@@ -145,6 +152,10 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			u1, u2 = initialConditions.ld.quadratic(tlc.left, tlc.right)
 			star = transit.Star(u1=u1, u2=u2)
 
+			if floatLD:
+				star.u1.float(u1, [0,1])
+				star.u2.float(u2, [0,1])
+
 			# create the transit model
 			tm = transit.TM(planet, star, instrument, directory=tlc.directory)
 			tm.linkLightCurve(tlc)
@@ -158,7 +169,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			self.synthesizer.tieAcrossEpochs(thing)
 			self.synthesizer.tieAcrossTelescopes(thing)
 
-		for thing in ['k', 'u1', 'u2']:
+		for thing in ['k', 'u1', 'u2', 'gplna', 'gplntau']:
 			self.synthesizer.tieAcrossEpochs(thing)
 
 		self.synthesizer.speak('the starting parameters are')
@@ -170,7 +181,10 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			self.archiveofpdfs = {}
 
 		self.synthesizer.fit(remake=remake, fromcovariance=False, **kw)
-		self.synthesizer.pdf.calculateUncertainties(style='covariance')
+		if mcmc:
+			pass
+		else:
+			self.synthesizer.pdf.calculateUncertainties(style='covariance')
 		self.archiveofpdfs[w] = self.synthesizer.pdf
 
 		if plot:
