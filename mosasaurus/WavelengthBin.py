@@ -19,6 +19,8 @@ class WavelengthBin(Talker):
 		self.unit = self.TS.unit
 		self.unitstring = self.TS.unitstring
 
+		self.color = howtocolor.color(self.wavelength/10.0)
+
 
 
 

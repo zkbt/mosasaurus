@@ -2,6 +2,7 @@ from imports import *
 from TransmissionSpectrum import WithTLCs, TransmissionSpectrum
 from WavelengthBin import WavelengthBin
 import transit
+from zachopy.painting import ink_errorbar
 
 class CombinedObs(Talker):
 
@@ -71,7 +72,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 				except KeyError:
 					self.archiveoftlcs[w] = [b.tlc]
 
-	def fitMonochromatic(self, w, initialConditions=None, wobbly=True,  remake=False):
+	def fitMonochromatic(self, w, initialConditions=None, wobbly=True, gp=False, mcmc=False, remake=False, plot=True, verbose=False, **kw):
 		''' fit a wavelength bin, across all observations, given some initial conditions '''
 
 		# create an empty list of tlcs
@@ -81,28 +82,40 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			self.label = 'floatingGeometry'
 		else:
 			self.label = 'fixedGeometry'
-
+		self.gp = gp
 		# loop over the tlcs, and create a model for each
-		for orig in self.archiveoftlcs[w]:
+		for i, orig in enumerate(self.archiveoftlcs[w]):
+
 
 			# define the input objects
 			planet = transit.Planet(**initialConditions.planetkw)
 
 			synthesizerdirectory = '{0}{1}/'.format(self.fitdirectory,self.bins[self.w2bin(w)][0].identifier)
 			zachopy.utils.mkdir(synthesizerdirectory)
-			
+
 			# assign an epoch to the TLC
 			tlc = orig.splitIntoEpochs(planet,
 				newdirectory=synthesizerdirectory)[0]
+			self.archiveoftlcs[w][i] = tlc
 			tlcs.append(tlc)
+
+			if verbose:
+				tlc.pithy=False
 
 			# float the planetary parameters
 			planet.k.float(limits=[0.05, 0.15])
-			planet.b.float(limits=[0.0, 1.0])
-			planet.rsovera.float(limits=[0.01, 0.5])
-			planet.period.float(limits=[planet.period.value-1e-5, planet.period.value+1e-5])
+			if wobbly:
+				planet.b.float(limits=[0.0, 1.0], shrink=1000.0)
+				planet.rsovera.float(limits=[0.01, 0.5], shrink=1000.0)
+				planet.dt.float(0.0, limits=[-15.0/60.0/24.0, 15.0/60.0/24.0])
 
-			instrument = transit.Instrument(tlc=tlc, **initialConditions.instrumentkw)
+			#
+			if gp:
+				instrument = transit.Instrument(tlc=tlc, gplna=-10, gplntau=-5, **initialConditions.instrumentkw)
+				instrument.gplna.float(-10,[-20,0])
+				instrument.gplntau.float(-5, [-10,0])
+			else:
+				instrument = transit.Instrument(tlc=tlc, **initialConditions.instrumentkw)
 
 			# a constant baseline
 			instrument.C.float(value=1.0,limits=[0.9, 1.1])
@@ -126,6 +139,8 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			instrument.sky_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
 			instrument.peak_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
 
+
+
 			# pull out the limbdarkening coefficients
 			u1, u2 = initialConditions.ld.quadratic(tlc.left, tlc.right)
 			star = transit.Star(u1=u1, u2=u2)
@@ -134,7 +149,11 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			tm = transit.TM(planet, star, instrument, directory=tlc.directory)
 			tm.linkLightCurve(tlc)
 
-		self.synthesizer = transit.LM(tlcs=tlcs, directory=synthesizerdirectory)
+		if mcmc:
+			self.synthesizer = transit.MCMC(tlcs=tlcs, directory=synthesizerdirectory, gp=self.gp)
+		else:
+			self.synthesizer = transit.LM(tlcs=tlcs, directory=synthesizerdirectory)
+
 		for thing in ['period', 't0',  'b', 'rsovera', 'semiamplitude']:
 			self.synthesizer.tieAcrossEpochs(thing)
 			self.synthesizer.tieAcrossTelescopes(thing)
@@ -150,8 +169,15 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 		except AttributeError:
 			self.archiveofpdfs = {}
 
-		self.synthesizer.fit(remake=remake)
+		self.synthesizer.fit(remake=remake, fromcovariance=False, **kw)
+		self.synthesizer.pdf.calculateUncertainties(style='covariance')
 		self.archiveofpdfs[w] = self.synthesizer.pdf
+
+		if plot:
+			transit.MultiplexPlot(self.synthesizer.tlcs, transit.DiagnosticsPlots,
+								wobbly=True, everything=False,
+								figsize=(30,10), dpi=72,
+								mintimespan=0.5, binsize=15/60./24.0)
 
 
 	def load(self, method='lm'):
@@ -237,6 +263,60 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			# use the transmission spectrum's applyMask method to load the appropriate mask and apply it to the light curves
 			spectrum.applyMask(value)
 
+	def spectrumOf(self, name):
+		wavelengths,  epochs = [], []
+		values, uncertainties = [], []
+		for w in self.wavelengths:
+			pdf = self.archiveofpdfs[w]
+			for parameter in pdf.parameters:
+				parametername, telescope, epoch = parameter.name.split('@')
+				if parametername == name:
+					wavelengths.append(w)
+					epochs.append(epoch)
+					values.append(parameter.value)
+					uncertainties.append(parameter.uncertainty)
+				elif (name == 'depth')&(parametername == 'k'):
+					wavelengths.append(w)
+					epochs.append(epoch)
+					values.append(parameter.value**2)
+					uncertainties.append(2*parameter.uncertainty*parameter.value)
+
+		return np.array(wavelengths), np.array(values), np.array(uncertainties), np.array(epochs)
+
+	def findGeometry(self):
+		w, b, ub, e = self.spectrumOf('b')
+		w, rsovera, ursovera, e = self.spectrumOf('rsovera')
+		wdt, dt, udt, edt = self.spectrumOf('dt')
+
+		colors = np.array([np.array(bin.color) for bin in self.bins])
+		ok = ub > 0
+		weight = ((ub)**2 + (ursovera/rsovera)**2)**(-1)
+		ink_errorbar(b[ok], rsovera[ok], xerr=ub[ok], yerr=ursovera[ok], colors=colors[ok], alpha=weight[ok]/max(weight[ok]))
+
+		bestb = np.sum(b[ok]/ub[ok]**2)/np.sum(1.0/ub[ok]**2)
+		bestrsovera = np.sum(rsovera[ok]/ursovera[ok]**2)/np.sum(1.0/ursovera[ok]**2)
+
+		plt.plot(bestb, bestrsovera, 'o', markersize=20, alpha=0.5)
+
+		ok = udt > 0.0
+		bestdt = np.sum(dt[ok]/udt[ok]**2)/np.sum(1.0/udt[ok]**2)
+
+		return bestb, bestrsovera, bestdt
+
+	def performance(self):
+		wavelengths = np.sort(self.archiveoftlcs.keys())
+		for w in wavelengths:
+			listoftlcs = self.archiveoftlcs[w]
+			d = {}
+			l = []
+			d['wavelength'] = w
+			for i,tlc in enumerate(listoftlcs):
+				if i ==0:
+					print tlc.name.split(',')[0]
+				print '   {0} {1:>6.0f} {2:>6.0f}'.format(tlc.name.split(',')[1], np.mean(tlc.effective_uncertainty[tlc.ok])*1e6, np.std(tlc.residuals()[tlc.ok])*1e6)
+				l.append(np.mean(tlc.effective_uncertainty[tlc.ok])*1e6)
+			print np.mean(l)
+			print
 	@property
 	def label(self):
 		"Indicate the fit being used for all spectra."

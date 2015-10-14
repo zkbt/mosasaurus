@@ -28,13 +28,13 @@ class SpectrumPlot(Talker):
     def __init__(self, xlim=[400,1050]):
         Talker.__init__(self)
 
-        self.toplot = ['spectrum', 'lightcurves', 'depth']#, 'rs_over_a', 'b']
+        self.toplot = [ 'lightcurves', 'depth']#,'spectrum', 'rs_over_a', 'b']
 
         # populate the plots
         self.panels = {}
-        self.panels['spectrum'] = StellarSpectrum(self)
-        self.panels['lightcurves'] = LightCurves(self)
-        self.panels['depth'] = TransitDepths(self)
+        #self.panels['spectrum'] = StellarSpectrum(self)
+        #self.panels['lightcurves'] = LightCurves(self)
+        #self.panels['depth'] = TransitDepths(self)
         #self.panels['u1'] = FittedParameter(self, key='u1', ylabel='Limb Darkening u1')
         #self.panels['u2'] = FittedParameter(self, key='u2', ylabel='Limb Darkening u2')
         #self.panels['rs_over_a'] = FittedParameter(self, key='rs_over_a', ylabel='Rs/a')
@@ -127,8 +127,9 @@ class StellarSpectrum(Plottable):
         self.preface()
 
         spectrum = self.parent.spectrum
-        wavelength, stellarSpectrum = np.load(spectrum.obs.extractionDirectory + 'medianSpectrum.npy')
-        ax.plot(wavelength/spectrum.unit, stellarSpectrum*spectrum.unit, linewidth=3, alpha=0.5, color='black')
+        for s in spectrum.spectra:
+            wavelength, stellarSpectrum = np.load(s.obs.extractionDirectory + 'medianSpectrum.npy')
+            ax.plot(wavelength/spectrum.unit, stellarSpectrum*spectrum.unit, linewidth=3, alpha=0.5, color='black')
 
 
 class LightCurves(Plottable):
@@ -142,24 +143,27 @@ class LightCurves(Plottable):
 
         spectrum = self.parent.spectrum
         wavelengths = spectrum.wavelengths/spectrum.unit
-        depths = spectrum.fitted['k']**2
+
+        w, k, kuncertainty, epochs = spectrum.spectrumOf('k')
+        depths = k**2
 
         # function to normalize lightcurves onto a rotated wavelength scale
         def normalize(flux):
-            ratio = 0.8
+            ratio = 0.5
             one = (flux-1.0)/np.mean(depths)
             return spectrum.binsize/spectrum.unit*ratio*(one+0.5)
 
-        for i in range(len(wavelengths)):
-            b = spectrum.bins[i]
-            ok = b.tlc.bad == False
-            x = normalize(b.tlc.corrected()[ok]) + wavelengths[i]
-            y = b.tlc.timefrommidtransit()[ok]
+        for w, listoftlcs in spectrum.archiveoftlcs.iteritems():
+            for tlc in listoftlcs:
+                i = spectrum.w2bin(w)[0]
+                b = spectrum.bins[i]
+                ok = tlc.bad == False
+                x = normalize(tlc.corrected()[ok]) + wavelengths[i]
+                y = tlc.timefrommidtransit()[ok]
 
-            ax.plot(x, y,
-                    marker=self.parent.marker, markeredgewidth=0, linewidth=0, alpha=0.25,
-                    color=self.parent.color([b.left/b.unit, b.right/b.unit]))
-
+                ax.plot(x, y,
+                        marker='.', markerfacecolor=b.color, markeredgecolor=b.color,
+                        linewidth=0, alpha=1, markersize=1)
 
 
 
@@ -179,60 +183,51 @@ class FittedParameter(Plottable):
 
         spectrum = self.parent.spectrum
         key = self.key
-        parameter = spectrum.fitted[key]
-        uncertainty = spectrum.uncertainty[key]
-        wavelengths = spectrum.wavelengths/spectrum.unit
+        self.wavelengths, self.parameter, self.uncertainty, epochs = spectrum.spectrumOf(key)
 
         width = 3
-        for i in range(len(spectrum.wavelengths)):
-            b = spectrum.bins[i]
-            ax.errorbar(wavelengths[i], parameter[i], uncertainty[i],
+        for i, w in enumerate(self.wavelengths):
+
+            b = spectrum.bins[spectrum.w2bin(w)[0]]
+            ax.errorbar(w/spectrum.unit, self.parameter[i], self.uncertainty[i],
                 marker=self.parent.marker, markersize=10, alpha=self.parent.alpha,
-                color=self.parent.color([b.left/b.unit, b.right/b.unit]),
+                color=b.color,
                 linewidth=width, elinewidth=width, capthick=width, capsize=5, markeredgewidth=0)
         ax.set_ylim(*self.ylim)
 
-class TransitDepths(FittedParameter):
-    height = 1.0
-    ylabel = 'Transit Depth (%)'
-    def __init__(self, parent, ylabel=ylabel, height=height):
-        FittedParameter.__init__(self, parent, key='depth', ylabel=ylabel, height=height)
-
-    def plot(self, ax):
-        spectrum = self.parent.spectrum
-        spectrum.fitted['depth'] = 100*spectrum.fitted['k']**2
-        spectrum.uncertainty['depth'] = 100*2*spectrum.uncertainty['k']*spectrum.fitted['k']
-        FittedParameter.plot(self, ax)
 
 class FloatingGeometry(SpectrumPlot):
     def __init__(self, **kwargs):
         SpectrumPlot.__init__(self, **kwargs)
 
-        self.toplot = ['spectrum', 'lightcurves', 'depth', 'rs_over_a', 'b']
+        self.toplot = ['spectrum', 'lightcurves', 'depth', 'rsovera', 'b', 'dt']
 
         # populate the plots
         self.panels = {}
         self.panels['spectrum'] = StellarSpectrum(self)
         self.panels['lightcurves'] = LightCurves(self)
-        self.panels['depth'] = TransitDepths(self)
+        self.panels['depth'] = FittedParameter(self, key='depth', ylabel='Depth')
         #self.panels['u1'] = FittedParameter(self, key='u1', ylabel='Limb Darkening u1')
         #self.panels['u2'] = FittedParameter(self, key='u2', ylabel='Limb Darkening u2')
-        self.panels['rs_over_a'] = FittedParameter(self, key='rs_over_a', ylabel='Rs/a')
+        self.panels['dt'] = FittedParameter(self, key='dt', ylabel='dt')
+
+        self.panels['rsovera'] = FittedParameter(self, key='rsovera', ylabel='Rs/a')
         self.panels['b'] = FittedParameter(self, key='b', ylabel='b', ylim=[0,1])
 
 class FixedGeometry(SpectrumPlot):
     def __init__(self, **kwargs):
         SpectrumPlot.__init__(self, **kwargs)
 
-        self.toplot = ['spectrum', 'lightcurves', 'depth', 'u1', 'u2']
+        self.toplot = ['spectrum', 'lightcurves', 'depth']
 
         # populate the plots
         self.panels = {}
         self.panels['spectrum'] = StellarSpectrum(self)
         self.panels['lightcurves'] = LightCurves(self)
-        self.panels['depth'] = TransitDepths(self)
-        self.panels['u1'] = FittedParameter(self, key='u1', ylabel='Limb Darkening u1')
-        self.panels['u2'] = FittedParameter(self, key='u2', ylabel='Limb Darkening u2')
+        self.panels['depth'] = FittedParameter(self, key='depth', ylabel='Depth')
+
+        #self.panels['u1'] = FittedParameter(self, key='u1', ylabel='Limb Darkening u1')
+        #self.panels['u2'] = FittedParameter(self, key='u2', ylabel='Limb Darkening u2')
 
 class Combined(SpectrumPlot):
     def __init__(self, **kwargs):
