@@ -72,21 +72,24 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 				except KeyError:
 					self.archiveoftlcs[w] = [b.tlc]
 
-	def fitMonochromatic(self, w, initialConditions=None, wobbly=True, gp=False, mcmc=False, remake=False, plot=True, verbose=False, floatLD=True, **kw):
+	def fitMonochromatic(self, w, initialConditions=None, wobbly=True, gp=False, mcmc=False, remake=False, plot=True, verbose=False, floatLD=True, label=None, **kw):
 		''' fit a wavelength bin, across all observations, given some initial conditions '''
 
 		# create an empty list of tlcs
 		tlcs = []
 
-		if wobbly:
-			self.label = 'floatingGeometry'
-		else:
-			self.label = 'fixedGeometry'
+		if label is None:
+			if wobbly:
+				self.label = 'floatingGeometry'
+			else:
+				self.label = 'fixedGeometry'
 
-		if floatLD:
-			self.label += '_floatingLD'
+			if floatLD:
+				self.label += '_floatingLD'
+			else:
+				self.label += '_fixedLD'
 		else:
-			self.label += '_fixedLD'
+			self.label = label
 		self.gp = gp
 		# loop over the tlcs, and create a model for each
 		for i, orig in enumerate(self.archiveoftlcs[w]):
