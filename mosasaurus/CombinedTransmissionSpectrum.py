@@ -78,11 +78,12 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 				except KeyError:
 					self.archiveoftlcs[w] = [b.tlc]
 
+
 	def fitMonochromatic(self,
 							w, # wavelength dictionary key to fit
 							initialConditions=None, # required init. conditions
 							wobbly=True,
-							gp=False,
+							likelihoodtype='white',
 							mcmc=False,
 							remake=False,
 							plot=True,
@@ -90,9 +91,16 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 							floatLD=True,
 							label=None,
 							**kw):
+
 		''' fit a wavelength bin, across all observations,
 			given some initial conditions '''
 
+		likelihoodtypes = ['white', 'gp']
+		try:
+			assert(likelihoodtype in likelihoodtypes)
+		except:
+			raise ValueError(
+				"likelihoodtype is not in {0}".format(likelihoodtypes))
 		# create an empty list of tlcs
 		tlcs = []
 
@@ -109,9 +117,6 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 				self.label += '_fixedLD'
 		else:
 			self.label = label
-
-		# do we use the GP likelihood, or not?
-		self.gp = gp
 
 		# loop over the tlcs, and create a model for each
 		for i, orig in enumerate(self.archiveoftlcs[w]):
@@ -151,7 +156,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 				planet.dt.float(0.0, limits=[-15.0/60.0/24.0, 15.0/60.0/24.0])
 
 			# float the GP hyperparameters, or simply the normal linear basis functions
-			if gp:
+			if likelihoodtype == 'gp':
 				instrument = transit.Instrument(tlc=tlc, gplna=-10, gplntau=-5, **initialConditions.instrumentkw)
 				instrument.gplna.float(-10,[-20,0])
 				instrument.gplntau.float(-5, [-10,0])
