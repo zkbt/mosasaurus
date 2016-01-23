@@ -47,10 +47,10 @@ class SpectrumPlot(Talker):
     def npanels(self):
         return len(self.toplot)
 
-    def setup(self, spectrum):
+    def setup(self, spectrum, figsize=(10,5)):
 
         # set up the gridspec
-        plt.figure(figsize=(10,5), dpi=100)
+        plt.figure(figsize=figsize, dpi=100)
         gs = plt.matplotlib.gridspec.GridSpec(self.npanels, 1,
                         hspace=0.05, wspace=0,
                         left=0.2, bottom=0.15,
@@ -132,9 +132,46 @@ class StellarSpectrum(Plottable):
             ax.plot(wavelength/spectrum.unit, stellarSpectrum*spectrum.unit, linewidth=3, alpha=0.5, color='black')
 
 
+class VerticalLightCurves(Plottable):
+    height = 0.5
+    xlabel = 'Time from Mid-Transit\n(days)'
+    ylabel = 'Relative Flux (offset to wavelength, in nm)'
+
+    def plot(self, ax):
+        self.preface()
+
+
+
+        spectrum = self.parent.spectrum
+        wavelengths = spectrum.wavelengths/spectrum.unit
+
+        w, k, kuncertainty, epochs = spectrum.spectrumOf('k')
+        depths = k**2
+
+        # function to normalize lightcurves onto a rotated wavelength scale
+        def normalize(flux):
+            ratio = 0.5
+            one = (flux-1.0)/np.mean(depths)
+            return spectrum.binsize/spectrum.unit*ratio*(one+0.5)
+
+        for w, listoftlcs in spectrum.archiveoftlcs.iteritems():
+            for tlc in listoftlcs:
+                i = spectrum.w2bin(w)[0]
+                b = spectrum.bins[i]
+                ok = tlc.bad == False
+                y = normalize(tlc.corrected()[ok]) + wavelengths[i]
+                x = tlc.timefrommidtransit()[ok]
+
+                ax.plot(x, y,
+                        marker='.', markerfacecolor=b.color, markeredgecolor=b.color,
+                        linewidth=0, alpha=1, markersize=1)
+
+        ax.set_xlabel(self.xlabel)
+
+
 class LightCurves(Plottable):
     height = 0.5
-    ylabel = 'Time from Mid-Transit\n(hours)'
+    ylabel = 'Time from Mid-Transit\n(days)'
 
     def plot(self, ax):
         self.preface()
@@ -213,6 +250,19 @@ class FloatingGeometry(SpectrumPlot):
 
         self.panels['rsovera'] = FittedParameter(self, key='rsovera', ylabel='Rs/a')
         self.panels['b'] = FittedParameter(self, key='b', ylabel='b', ylim=[0,1])
+
+class JustLC(SpectrumPlot):
+    def __init__(self, **kwargs):
+        SpectrumPlot.__init__(self, **kwargs)
+
+        self.toplot = ['lightcurves']
+
+        # populate the plots
+        self.panels = {}
+        self.panels['lightcurves'] = VerticalLightCurves(self)
+
+        #self.panels['u1'] = FittedParameter(self, key='u1', ylabel='Limb Darkening u1')
+        #self.panels['u2'] = FittedParameter(self, key='u2', ylabel='Limb Darkening u2')
 
 class FixedGeometry(SpectrumPlot):
     def __init__(self, **kwargs):

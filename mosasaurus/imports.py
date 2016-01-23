@@ -9,7 +9,8 @@ import astropy.io.fits, astropy.io.ascii, astropy.time
 #from astropy.time import Time
 
 import matplotlib.pyplot as plt, numpy as np, matplotlib.animation
-#from matplotlib.colors import Normalize
+# ignore errors from divide by zero
+np.seterr(divide='ignore')
 
 #import zachopy.display, zachopy.oned
 #from ds9 import *

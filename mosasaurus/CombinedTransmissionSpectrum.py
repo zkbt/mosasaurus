@@ -17,7 +17,13 @@ class CombinedObs(Talker):
 		zachopy.utils.mkdir(self.extractionDirectory)
 
 class CombinedTransmissionSpectrum(TransmissionSpectrum):
-	def __init__(self, method='lm', label='fixedGeometry', maskname='defaultMask', files=['wasp94_140801.obs', 'wasp94_140805.obs', 'wasp94_140809.obs'], binsize=100):
+	def __init__(self,
+					label='fixedGeometry',
+					maskname='defaultMask',
+					files=[	'wasp94_140801.obs',
+							'wasp94_140805.obs',
+							'wasp94_140809.obs'],
+					binsize=100):
 		Talker.__init__(self)
 
 
@@ -51,7 +57,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 		for s in self.spectra:
 			for b in s.bins:
 				binoptions.append(b.__repr__().split('|')[-1].split('>')[0])
-				print binoptions
+				#print binoptions
 		bins, wavelengths = [], []
 		# create the bins, but don't populate with light curves
 		for b in np.unique(binoptions):
@@ -72,12 +78,25 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 				except KeyError:
 					self.archiveoftlcs[w] = [b.tlc]
 
-	def fitMonochromatic(self, w, initialConditions=None, wobbly=True, gp=False, mcmc=False, remake=False, plot=True, verbose=False, floatLD=True, label=None, **kw):
-		''' fit a wavelength bin, across all observations, given some initial conditions '''
+	def fitMonochromatic(self,
+							w, # wavelength dictionary key to fit
+							initialConditions=None, # required init. conditions
+							wobbly=True,
+							gp=False,
+							mcmc=False,
+							remake=False,
+							plot=True,
+							verbose=False,
+							floatLD=True,
+							label=None,
+							**kw):
+		''' fit a wavelength bin, across all observations,
+			given some initial conditions '''
 
 		# create an empty list of tlcs
 		tlcs = []
 
+		# keep track of labels for this fit
 		if label is None:
 			if wobbly:
 				self.label = 'floatingGeometry'
@@ -90,7 +109,10 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 				self.label += '_fixedLD'
 		else:
 			self.label = label
+
+		# do we use the GP likelihood, or not?
 		self.gp = gp
+
 		# loop over the tlcs, and create a model for each
 		for i, orig in enumerate(self.archiveoftlcs[w]):
 
@@ -98,28 +120,37 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			# define the input objects
 			planet = transit.Planet(**initialConditions.planetkw)
 
-			synthesizerdirectory = '{0}{1}/'.format(self.fitdirectory,self.bins[self.w2bin(w)][0].identifier)
+			# create a synthesizer director for this bin
+			synthesizerdirectory = '{0}{1}/'.format(
+										self.fitdirectory,
+										self.bins[self.w2bin(w)][0].identifier
+										)
 			zachopy.utils.mkdir(synthesizerdirectory)
 
 			# assign an epoch to the TLC
 			tlc = orig.splitIntoEpochs(planet,
 				newdirectory=synthesizerdirectory)[0]
+
+			# store that epoch in the archive of light curves
 			self.archiveoftlcs[w][i] = tlc
+
+			# also, add it to the list to be included in this fit
 			tlcs.append(tlc)
 
+			# turn verbosity on or off for the input TLCs
 			if verbose:
 				tlc.pithy=False
 			else:
 				tlc.pithy=True
 
-			# float the planetary parameters
+			# float the planetary parameters (including geometry, if desired)
 			planet.k.float(limits=[0.05, 0.15])
 			if wobbly:
 				planet.b.float(limits=[0.0, 1.0], shrink=1000.0)
 				planet.rsovera.float(limits=[0.01, 0.5], shrink=1000.0)
 				planet.dt.float(0.0, limits=[-15.0/60.0/24.0, 15.0/60.0/24.0])
 
-			#
+			# float the GP hyperparameters, or simply the normal linear basis functions
 			if gp:
 				instrument = transit.Instrument(tlc=tlc, gplna=-10, gplntau=-5, **initialConditions.instrumentkw)
 				instrument.gplna.float(-10,[-20,0])
@@ -148,8 +179,6 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			# the sky brightness in
 			instrument.sky_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
 			instrument.peak_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-
-
 
 			# pull out the limbdarkening coefficients
 			u1, u2 = initialConditions.ld.quadratic(tlc.left, tlc.right)
@@ -243,9 +272,9 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 
 				self.uncertainty[k][i] = 1.0/np.sqrt(np.sum(1.0/u2combine[k]**2))*rescaling
 
-			print f2combine
-			print u2combine
-			print
+			#print f2combine
+			#print u2combine
+			#print
 
 				######## PICK UP HERE!
 

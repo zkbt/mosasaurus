@@ -44,8 +44,9 @@ class WavelengthBin(Talker):
 			assert(self.TS.remake == False)
 			assert(remake==False)
 			self.readProcessedLC()
-		except:
+		except (IOError,AssertionError):
 			self.readRawLC()
+		assert(len(self.tlc.flux) > 0)
 
 	def readProcessedLC(self):
 		'''read a light curve that has already been loaded and saved as a TLC object'''
@@ -63,14 +64,12 @@ class WavelengthBin(Talker):
 		'''read a raw light curve from a .lightcurve text file'''
 		lcFile = self.TS.rawlightcurvedirectory + self.identifier + ".lightcurve"
 		self.speak("attempting to load a raw light curve from {0}".format(lcFile))
-		table = astropy.io.ascii.read(lcFile)
-		arrays = {}
-		for k in table.colnames:
-			if 'col' not in k:
-				arrays[k] = table[k].data
-		self.speak('before')
-		self.tlc = TLC(name=self.TS.name, left=self.left, right=self.right, directory=self.datadirectory,  telescope=self.identifier, color=howtocolor, **arrays)
-		self.speak('after')
+
+		self.tlc = TLC(inputfilename=lcFile,
+						name=self.TS.name,
+						left=self.left, right=self.right, directory=self.datadirectory,
+						telescope=self.identifier,
+						color=howtocolor)
 		self.speak('...success!')
 		self.tlc.save(self.datadirectory)
 
