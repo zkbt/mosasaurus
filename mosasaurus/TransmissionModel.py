@@ -33,7 +33,7 @@ class TransmissionModel(Talker):
         self.teq =  self.stellar_teff/np.sqrt(2*self.a_over_r)
         self.mu = 2.2
         self.surfacegravity = u.G*self.mass*u.Mearth/(self.radius*u.Rearth)**2
-        self.scaleheight = u.k*self.teq/u.mp/self.mu/self.surfacegravity
+        self.scaleheight = u.k_B*self.teq/u.mp/self.mu/self.surfacegravity
 
         print self.__dict__
 
@@ -91,7 +91,7 @@ class Fortney(TransmissionModel):
 
         TransmissionModel.__init__(self, planet=planet)
 
-        self.original_scaleheight = u.k*self.original_teq/u.mp/self.original_mu/self.original_surfacegravity
+        self.original_scaleheight = u.k_B*self.original_teq/u.mp/self.original_mu/self.original_surfacegravity
         self.data = astropy.io.ascii.read(self.filename)
 
         sort = np.argsort(self.data['wavelength'])

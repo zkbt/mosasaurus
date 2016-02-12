@@ -95,7 +95,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 		''' fit a wavelength bin, across all observations,
 			given some initial conditions '''
 
-		likelihoodtypes = ['white', 'gp']
+		likelihoodtypes = ['white', 'red_beta', 'red_gp']
 		try:
 			assert(likelihoodtype in likelihoodtypes)
 		except:
@@ -156,12 +156,11 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 				planet.dt.float(0.0, limits=[-15.0/60.0/24.0, 15.0/60.0/24.0])
 
 			# float the GP hyperparameters, or simply the normal linear basis functions
-			if likelihoodtype == 'gp':
-				instrument = transit.Instrument(tlc=tlc, gplna=-10, gplntau=-5, **initialConditions.instrumentkw)
-				instrument.gplna.float(-10,[-20,0])
-				instrument.gplntau.float(-5, [-10,0])
-			else:
-				instrument = transit.Instrument(tlc=tlc, **initialConditions.instrumentkw)
+			#if likelihoodtype == 'gp':
+			instrument = transit.Instrument(tlc=tlc, gplna=-5, gplntau=-5, **initialConditions.instrumentkw)
+				#instrument.gplna.float(-10,[-20,0])
+				#instrument.gplntau.float(-5, [-10,0])
+
 
 			# a constant baseline
 			instrument.C.float(value=1.0,limits=[0.9, 1.1])
@@ -198,7 +197,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			tm.linkLightCurve(tlc)
 
 		if mcmc:
-			self.synthesizer = transit.MCMC(tlcs=tlcs, directory=synthesizerdirectory, gp=self.gp)
+			self.synthesizer = transit.MCMC(tlcs=tlcs, directory=synthesizerdirectory, likelihoodtype=likelihoodtype)
 		else:
 			self.synthesizer = transit.LM(tlcs=tlcs, directory=synthesizerdirectory)
 
@@ -390,3 +389,21 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			s += '{0}|'.format( repr(t))
 		s = s.strip('|') +  '>'
 		return s
+
+	def gpfit(self, w, initialConditions, **kw):
+		self.fitMonochromatic(w, initialConditions, plot=True, **kw)
+		lm = self.synthesizer
+		for tlc in lm.tlcs:
+			tlc.binto(5.0/60.0/24.0)
+		lm.trainGP(plot=True)
+
+		mcmc = transit.MCMC(tlcs=lm.tlcs,
+					directory=self.synthesizer.directory.replace('/lm/', '/mcmc/'),
+					likelihoodtype='red_gp')
+		for thing in ['period', 't0',  'b', 'rsovera', 'semiamplitude']:
+			mcmc.tieAcrossEpochs(thing)
+			mcmc.tieAcrossTelescopes(thing)
+
+		for thing in ['k', 'u1', 'u2', 'gplna', 'gplntau']:
+			mcmc.tieAcrossEpochs(thing)
+		mcmc.fit(plot=True, **kw)
