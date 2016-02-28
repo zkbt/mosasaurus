@@ -299,4 +299,4 @@ class JustDepth(SpectrumPlot):
 
         # populate the plots
         self.panels = {}
-        self.panels['depth'] = TransitDepths(self)
+        self.panels['depth'] = FittedParameter(self, key='depth', ylabel='Depth')

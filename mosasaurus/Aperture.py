@@ -164,9 +164,10 @@ class Aperture(Talker):
     except:
       self.speak("fitting to the master science image to determine the trace parameters")
       converged = False
-      old_width = 10
+      old_width = self.obs.widthGuess
       traceCoeff = [np.max(self.saxis)/2]
       width = old_width
+      attempts = 0
       while(converged == False):
 
         self.traceCenter = np.polynomial.polynomial.Polynomial(traceCoeff)
@@ -180,11 +181,12 @@ class Aperture(Talker):
         # fit a polynomial to the ridge of the spectrum
         traceCoeff = np.polynomial.polynomial.polyfit(self.waxis, fluxWeightedCentroids, self.obs.traceOrder, w=1.0/fluxWeightedWidths**2)
         fit_width = np.median(fluxWeightedWidths)
-        width = np.minimum( fit_width, 10)
+        width = np.minimum( fit_width, 10.0)
 
 
 
         self.images['RoughLSF'] = np.exp(-0.5*((self.s - self.traceCenter(self.w))/self.traceWidth)**2)
+
         converged = np.abs(fit_width - old_width) < 0.01
         self.speak( "{0} -> {1}, converged = {2}".format(old_width, width, converged))
         old_width = width
@@ -193,6 +195,14 @@ class Aperture(Talker):
 
         self.display.rgb(self.images['Subtracted'], self.images['RoughLSF'], weighting)
         self.display.one(self.images['Science'], clobber=False)
+
+        attempts += 1
+
+        if attempts > 10:
+            old_width = int(self.input('what width should we try?'))
+            width = old_width
+            attempts=0
+
       assert("n" not in self.input("like trace?").lower())
       np.save(filename, (traceCoeff, width))
       self.speak("saved trace parameters to {0}".format( filename))

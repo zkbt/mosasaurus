@@ -153,7 +153,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			if wobbly:
 				planet.b.float(limits=[0.0, 1.0], shrink=1000.0)
 				planet.rsovera.float(limits=[0.01, 0.5], shrink=1000.0)
-				planet.dt.float(0.0, limits=[-15.0/60.0/24.0, 15.0/60.0/24.0])
+			planet.dt.float(0.0, limits=[-15.0/60.0/24.0, 15.0/60.0/24.0])
 
 			# float the GP hyperparameters, or simply the normal linear basis functions
 			#if likelihoodtype == 'gp':
@@ -316,6 +316,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 	def spectrumOf(self, name):
 		wavelengths,  epochs = [], []
 		values, uncertainties = [], []
+
 		for w in self.wavelengths:
 			pdf = self.archiveofpdfs[w]
 			for parameter in pdf.parameters:

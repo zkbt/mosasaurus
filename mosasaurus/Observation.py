@@ -71,6 +71,7 @@ class Observation(Talker):
         self.nNeeded = np.concatenate((self.nUndispersed, self.nScience, self.nHe, self.nNe, self.nAr, self.nWideFlat, self.nWideMask, self.nThinMask, self.nFinder))
         self.cal_dictionary = {'He':self.nHe, 'Ne':self.nNe, 'Ar':self.nAr, 'Undispersed':self.nUndispersed, 'WideFlat':self.nWideFlat, 'Bias':self.nBias, 'Dark':self.nDark, 'Science':self.nScience}
         self.traceOrder    =  int(dictionary['traceOrder'])
+        self.widthGuess = int(dictionary['widthGuess'])
         self.nFWHM    = float(dictionary['nFWHM'])
         self.blueward = int(dictionary['blueward'])
         self.redward = int(dictionary['redward'])
