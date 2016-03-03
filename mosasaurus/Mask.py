@@ -1,15 +1,30 @@
 from imports import *
 from Aperture import Aperture
+
 class Mask(Talker):
-  '''Mask object keeps track of the collection of apertures that make up the mask.'''
+  '''Mask objects keep track of the collection of Apertures
+        that should be looked at for this observation.
+
+            This can be thought of as the mosasaurus' checklist
+            of slits to investigate, and bookkeeping tools.'''
+
   def __init__(self, calib, **kwargs):
     '''Initialize the mask object.'''
+
     # decide whether or not this Mask is chatty
     Talker.__init__(self, **kwargs)
+
+    # connect it to other parts
     self.calib = calib
     self.ccd = self.calib.ccd
     self.obs = self.calib.obs
-    self.display =  zachopy.display.ds9('mask')
+
+    # set up a display
+    self.display =  self.calib.display
+                    #zachods9('mask',
+                    #    xsize=self.obs.xsize*self.obs.displayscale,
+                    #    ysize=self.obs.ysize*self.obs.displayscale,
+                    #    rotate=90)
 
     self.setup()
 
@@ -109,9 +124,9 @@ class Mask(Talker):
 
       # loop over apertures
       for a in self.apertures:
-
           # extract the spectrum in this aperture
           a.extract(n, remake=remake)
+
           #self.input('just finished extracting all stars ({0})'.format(n))
 
 

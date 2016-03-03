@@ -1,5 +1,5 @@
 from imports import *
-import astropy.table, astropy.time, pidly
+import astropy.table, astropy.time
 
 class Headers(Talker):
     '''An object to store the timeseries of image headers for this project -- good for keeping track of various external variables.'''
@@ -71,31 +71,10 @@ class Headers(Talker):
         # calculate a JD from these times (and adding half the exposure time, assuming ut-time is the start of the exposure)
         self.headers['jd']  = astropy.time.Time(timestrings, format='iso', scale='utc').jd + 0.5*self.headers['exptime']/24.0/60.0/60.0
 
-        # call IDL for Jason Eastman's code
-        try:
-            idl = pidly.IDL('/Applications/exelis/idl/bin/idl')
-            self.headers['bjd']  = idl.func('utc2bjd', self.headers['jd'] , self.obs.ra, self.obs.dec)
-        except:
-            self.headers['bjd'] = self.headers['jd']
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('==============  NO BJD !!!! =====================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
-            self.speak('=================================================')
+        # use Jonathan Irwin's library to calculate BJD
+        import BJD
+        self.headers['bjd']  = [BJD.jdutc2bjdtdb(self.headers['jd'][i], self.obs.ra, self.obs.dec, observatory=self.obs.observatory) for i in range(len(self.headers['jd']))]
+        print self.obs.ra, self.obs.dec
+        self.headers['barycor'] = self.headers['bjd'] - self.headers['jd']
+        print self.headers[['jd', 'barycor', 'bjd']]
+        a = self.input('okay with BJD?!')

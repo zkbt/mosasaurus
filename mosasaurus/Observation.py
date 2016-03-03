@@ -40,9 +40,17 @@ class Observation(Talker):
             dictionary[key] = entries
         self.name = dictionary['name']
         self.night = dictionary['night']
+        self.grism = dictionary['grism'].lower()
         self.instrument = dictionary['instrument']
+        if "LDSS" in self.instrument:
+            self.observatory = 'lco'
         self.baseDirectory = dictionary['baseDirectory']
-        self.wavelengthFile = self.baseDirectory + dictionary['wavelengthFile']
+
+        # set up the wavelength calibration paths
+        self.referenceDirectory = mosasaurusdirectory + 'data/'
+        self.wavelength2pixelsFile = self.referenceDirectory  + '{0}_wavelength_identifications.txt'.format(self.grism)
+        self.wavelengthsFile = self.referenceDirectory + 'HeNeAr.txt'
+
         zachopy.utils.mkdir(self.baseDirectory + dictionary['workingDirectory'])
         self.workingDirectory = self.baseDirectory + dictionary['workingDirectory'] + self.name + '_' + self.night +'/'
         zachopy.utils.mkdir(self.workingDirectory)
@@ -86,8 +94,15 @@ class Observation(Talker):
         self.ysize = (self.datatop - self.databottom)
         self.ra =np.float(dictionary['ra'])
         self.dec =np.float(dictionary['dec'])
+        self.binning = np.float(dictionary['binning'])
+
+        self.correlationAnchors = [float(x) for x in dictionary['correlationAnchors']]
+        self.correlationRange = [float(x) for x in dictionary['correlationRange']]
+        self.correlationSmooth = float(dictionary['correlationSmooth'])
+        self.cosmicAbandon = float(dictionary['cosmicAbandon'])
         self.speak('parameters have been read and stored'.format(filename))
 
+        self.displayscale=0.25
     def fileprefix(self, n):
         '''Feed in a ccd number, spit out the file prefix for that CCD amplifier pair.'''
         try:

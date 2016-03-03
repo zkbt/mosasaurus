@@ -24,12 +24,13 @@ import scipy.interpolate, scipy.signal, scipy.integrate
 #from numpy.polynomial import polynomial as P
 
 # ... to use utilities from the zachopy toolbox
-import zachopy.utils, zachopy.regions, zachopy.iplot, zachopy.display, zachopy.oned, zachopy.twod
+import zachopy.utils, zachopy.regions, zachopy.iplot, zachopy.oned, zachopy.twod
+
+# load tools to interface with ds9
+from zachopy.displays.ds9 import ds9 as zachods9
 
 from  zachopy.borrowed.mpfit.mpfit import mpfit
 
-# ... to call IDL from within Python
-#import pidly
-
-
 from Tools import *
+
+mosasaurusdirectory = os.path.split(os.path.split(__file__)[0])[0] + '/'

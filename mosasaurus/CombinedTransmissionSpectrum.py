@@ -17,6 +17,7 @@ class CombinedObs(Talker):
 		zachopy.utils.mkdir(self.extractionDirectory)
 
 class CombinedTransmissionSpectrum(TransmissionSpectrum):
+
 	def __init__(self,
 					label='fixedGeometry',
 					maskname='defaultMask',
@@ -26,7 +27,10 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 					binsize=100):
 		Talker.__init__(self)
 
-
+		try:
+			self.phaseofinterest
+		except AttributeError:
+			self.phaseofinterest = 0.0
 		# keep track of the files
 		self.files = files
 
@@ -90,6 +94,8 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 							verbose=False,
 							floatLD=True,
 							label=None,
+							ploteverything=False,
+							mintimespan=0.5,
 							**kw):
 
 		''' fit a wavelength bin, across all observations,
@@ -133,8 +139,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			zachopy.utils.mkdir(synthesizerdirectory)
 
 			# assign an epoch to the TLC
-			tlc = orig.splitIntoEpochs(planet,
-				newdirectory=synthesizerdirectory)[0]
+			tlc = orig.splitIntoEpochs(planet, newdirectory=synthesizerdirectory, phaseofinterest=self.phaseofinterest)[0]
 
 			# store that epoch in the archive of light curves
 			self.archiveoftlcs[w][i] = tlc
@@ -149,7 +154,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 				tlc.pithy=True
 
 			# float the planetary parameters (including geometry, if desired)
-			planet.k.float(limits=[0.05, 0.15])
+			planet.k.float(limits=[0.02, 0.08])
 			if wobbly:
 				planet.b.float(limits=[0.0, 1.0], shrink=1000.0)
 				planet.rsovera.float(limits=[0.01, 0.5], shrink=1000.0)
@@ -225,9 +230,9 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 
 		if plot:
 			transit.MultiplexPlot(self.synthesizer.tlcs, transit.DiagnosticsPlots,
-								wobbly=True, everything=False,
+								wobbly=True, everything=ploteverything,
 								figsize=(30,10), dpi=72,
-								mintimespan=0.5, binsize=15/60./24.0)
+								mintimespan=mintimespan, binsize=15/60./24.0)
 			plt.savefig(self.synthesizer.directory + 'lightcurves.pdf')
 
 	def load(self, method='lm'):

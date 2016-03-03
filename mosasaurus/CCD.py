@@ -13,7 +13,8 @@ class CCD(Talker):
     # initialize the basic stuff we need
     self.obs = obs
     self.calib = calib
-    self.display = zachopy.display.ds9('CCD')
+    self.display = self.calib.display
+
     self.space = '  '
 
 

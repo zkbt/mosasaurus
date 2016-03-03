@@ -1,8 +1,15 @@
+
 from imports import *
 from CCD import CCD
 plt.ion()
 class Calibration(Talker):
-  '''Calibration object stores information related to the calibration for this observation.'''
+  '''Calibrations are objects that store calibration data,
+        including both afternoon exposures (biases, darks, flats)
+        and some on-sky exposures (direct images, master spectral images).
+
+            This can be thought of as bookmarked pages of
+            the reducing mosasaurus' reference books,
+            keeping track of calibrations that might be useful'''
   def __init__(self, obs, visualize=True, **kwargs):
     '''Initialize calibration object.'''
 
@@ -10,7 +17,10 @@ class Calibration(Talker):
     Talker.__init__(self, **kwargs)
 
     self.obs = obs
-    self.display = zachopy.display.ds9('calibration')
+    self.display = zachods9('mosasaurus',
+                                    xsize=self.obs.xsize*self.obs.displayscale,
+                                    ysize=self.obs.ysize*self.obs.displayscale,
+                                    rotate=90)
     self.ccd = CCD(self.obs, calib=self)
     self.visualize = visualize
     self.images = {}

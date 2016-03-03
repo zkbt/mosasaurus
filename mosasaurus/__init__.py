@@ -6,7 +6,8 @@ except NameError:
     __MOSASAURUS_SETUP__ = False
 
 if not __MOSASAURUS_SETUP__:
+    pass
     #__all__ = ['dartmouth','basti','padova',
     #           'Isochrone', 'StarModel', 'BinaryStarModel',
     #           'TripleStarModel']
-    from .Reducer import Reducer
+    # from .Reducer import Reducer

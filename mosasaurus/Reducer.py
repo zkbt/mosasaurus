@@ -1,6 +1,3 @@
-# required things to add:
-# estimate gain for amplifiers, convert everything to electrons early on
-
 from imports import *
 from Observation import Observation
 from Night import Night
@@ -11,10 +8,15 @@ from Mask import Mask
 from Aperture import Aperture
 
 class Reducer(Talker):
-    '''Object for reducing data, either interactively or not. Picture as a mosasaurus,
-        wearing a loup and carrying lots of data structures around in its knapsack.'''
+    '''Reducers are objects for reducing data, either interactively or not.
+
+        This could be pictured as a mosasaurus,
+        wearing a loup and carrying lots of
+        data structures around in its knapsack.'''
 
     def __init__(self, filename='wasp94_140805.obs', **kwargs):
+        '''initialize from a ".obs" file'''
+
         # decide whether or not this Reducer is chatty
         Talker.__init__(self, **kwargs)
 
@@ -27,7 +29,10 @@ class Reducer(Talker):
         self.speak('mosasaurus is ready to reduce')
 
     def reduce(self, remake=False):
-        self.speak('reducing observations of {0} on {1}'.format(self.obs.name, self.obs.night))
+        '''process 2D multiobject spectral images into 1D spectra'''
+
+        self.speak('reducing observations of {0} on {1}'.format(
+                        self.obs.name, self.obs.night))
 
         # load the headers for this observation
         self.obs.loadHeaders()
@@ -42,11 +47,12 @@ class Reducer(Talker):
         self.speak('setting up Calibration data')
         self.calib = Calibration(self.obs)
 
-        # loop through the CCD's needed for this observation, and make sure they are stitched
-        self.speak('stitching all science images and rejecting cosmics along the way')
+        # loop through the CCD's needed for this observation, and stitch them
+        # self.speak('stitching all science images + rejecting some cosmics')
         #self.calib.rejectCosmicRays()
 
         # create a mask
+        self.speak('setting up the Mask object')
         self.mask = Mask(self.calib)
 
         # loop over exposures and apertures
