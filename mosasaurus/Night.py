@@ -9,7 +9,6 @@ class Night(Talker):
     # decide whether or not this Reducer is chatty
     Talker.__init__(self, **kwargs)
 
-
   def obsLog(self, remake=False):
     '''Print and save an observing log, based on image headers.'''
     keys = ['ut-time', 'object','aperture', 'grism', 'filter', 'exptime']

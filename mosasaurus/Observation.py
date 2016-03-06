@@ -95,12 +95,22 @@ class Observation(Talker):
         self.ra =np.float(dictionary['ra'])
         self.dec =np.float(dictionary['dec'])
         self.binning = np.float(dictionary['binning'])
+        self.subarray = np.float(dictionary['subarray'])
+        try:
+            self.gains = [float(x) for x in dictionary['gains']]
+        except (ValueError,KeyError):
+            self.gains = None
+
+        try:
+            self.slow = bool(dictionary['slow'])
+        except KeyError:
+            self.slow = False
 
         self.correlationAnchors = [float(x) for x in dictionary['correlationAnchors']]
         self.correlationRange = [float(x) for x in dictionary['correlationRange']]
         self.correlationSmooth = float(dictionary['correlationSmooth'])
         self.cosmicAbandon = float(dictionary['cosmicAbandon'])
-        self.speak('parameters have been read and stored'.format(filename))
+        self.speak('observation parameters have been read and stored'.format(filename))
 
         self.displayscale=0.25
     def fileprefix(self, n):

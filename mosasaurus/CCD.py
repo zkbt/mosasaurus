@@ -57,8 +57,8 @@ class CCD(Talker):
     self.data = None
 
     # print status
-    if self.verbose:
-      self.speak(self.space + "set image to {0}".format(self.name))
+    #if self.verbose:
+    #  self.speak(self.space + "set image to {0}".format(self.name))
 
   def readHeader(self, n=None, imageType=None):
     '''Read in the header for this image.'''
@@ -84,6 +84,11 @@ class CCD(Talker):
 
   def writeData(self):
       self.speak('saving image to {0}'.format(self.stitched_filename))
+
+      # debugging!
+      #if self.imageType == 'Science':
+      #      self.display.one(self.data)
+      #      self.input('cosmics or no?')
       writeFitsData(self.data, self.stitched_filename)
 
   def readData(self, n=None, imageType=None):
@@ -178,7 +183,7 @@ class CCD(Talker):
 
       # stitch the CCD's together
       stitched = np.hstack([c1data, np.fliplr(c2data)])
-      self.speak("stitching images of size {0} and {1} into one {2} image".format(c1data.shape, c2data.shape, stitched.shape))
+      #self.speak("stitching images of size {0} and {1} into one {2} image".format(c1data.shape, c2data.shape, stitched.shape))
 
       if self.visualize:
           self.display.one(stitched, clobber=True)
@@ -223,14 +228,14 @@ class CCD(Talker):
           self.display.one(stitched, clobber=True)
           self.visualize = self.input('after multiplying by gain; type [s] to stop showing these').lower() != 's'
 
-      # save the stitched image into memory
+      # put the stitched image into the CCD's memory
       self.data = stitched
 
       if self.imageType == 'Science':
           self.rejectCosmicRays()
 
       # write out the image to a stitched image
-      writeFitsData(stitched, self.stitched_filename)
+      writeFitsData(self.data, self.stitched_filename)
       if self.verbose:
         self.speak(self.space + "stitched and saved {0}".format(self.name))
 
@@ -255,7 +260,7 @@ class CCD(Talker):
          #print ok
          assert(ok)
          self.speak('a cosmic-rejected stitched/Science{0:04.0f}.fits already exists!'.format(n))
-     except:
+     except (IOError,AssertionError):
          nComparison = np.arange(-nBeforeAfter + n, nBeforeAfter+n+1, 1)
          nComparison = nComparison[(nComparison >= np.min(self.obs.nScience)) & (nComparison <= np.max(self.obs.nScience))]
          comparison = self.loadImages(n=nComparison, imageType=imageType)
@@ -289,7 +294,7 @@ class CCD(Talker):
          for i in np.arange(len(labels)):
              self.set(n, labels[i])
              self.data = images[i]
-             self.writeData()
+             # self.writeData()
 
          self.speak('total corrected flux is {0}'.format(np.sum(image - corrected)))
 

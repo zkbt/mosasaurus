@@ -1,6 +1,8 @@
 from imports import *
 from Tools import *
+from Trace import Trace
 colors = dict(He='lightsalmon', Ne='red', Ar='deepskyblue')
+p = np.polynomial.polynomial
 
 class Aperture(Talker):
   '''Aperture objects handle individual apertures (e.g. slits),
@@ -18,7 +20,10 @@ class Aperture(Talker):
     self.display = self.calib.display#zachods9('aperture', xsize=800, ysize=200, rotate=90)
     self.setup(x,y)
     self.createCalibStamps()
-    self.createTrace()
+    # testing!
+    self.trace = Trace(self)
+    #self.trace.fit()
+    #self.createTrace()
     self.createSkyApertures()
     self.createWavelengthCal()
 
@@ -31,7 +36,8 @@ class Aperture(Talker):
     if self.obs.instrument == 'LDSS3C':
       self.x = x
       self.y = y
-      self.maskWidth = (self.obs.skyWidth + self.obs.skyGap)*2 #+20 +
+      self.maskWidth = self.obs.subarray
+      #(self.obs.skyWidth + self.obs.skyGap)*2 #+20 +
       self.ystart = np.maximum(y - self.obs.blueward, 0)
       self.yend = np.minimum(y + self.obs.redward, self.obs.ysize)
       self.xstart = np.maximum(x - self.maskWidth, 0)
@@ -50,14 +56,13 @@ class Aperture(Talker):
       # first index of np. array is in the wavelength (w) direction
       # second index is in the spatial (s) direction
       # we'll define these now to help keep things straight
-      self.w = self.y_sub - self.ystart
-      self.s = self.x_sub - self.xstart
+      self.w = self.y_sub - self.y#self.ystart
+      self.s = self.x_sub - self.x#self.xstart
       self.windex = 0
       self.sindex = 1 - self.windex
       if self.windex == 0:
         self.waxis = self.w[:,0]
         self.saxis = self.s[0,:]
-
 
 
       self.name = 'aperture_{0:.0f}_{1:.0f}'.format(self.x, self.y)
@@ -154,21 +159,82 @@ class Aperture(Talker):
     for i in range(len(keys)):
       self.display.replace(images[keys[i]], i)
 
-  def createTrace(self):
+  def fitTraceFromGuess(self, width, coef):
+    old_width = self.obs.widthGuess
+    # iterate through, trying to improve
+    width = old_width
+    attempts = 0
+    while(converged == False):
+      self.speak('on iteration {0} of trace-fitting'.format(attempts))
+
+      # set the trace parameters right now
+      self.traceCenter = np.polynomial.polynomial.Polynomial(coef)
+      self.traceWidth = width
+
+      self.speak(" trying trace coefficients of {0}, width of {1:.1f}".
+                        format(coef, width))
+
+      # consider points within 2.5 sigma of trace as the star
+      distancefromtrace = np.abs((self.s - self.traceCenter(self.w)))
+      buffer = 2.5*self.traceWidth
+      considerstar = distancefromtrace < buffer
+      sortofsky = (distancefromtrace < buffer + self.obs.skyWidth)
+      considersky = (considerstar == False)*sortofsky
+
+      # estimate a rough 1D spectrum
+      flattened = self.images['Science']/self.images['NormalizedFlat']
+      roughSky1d=np.average(flattened,
+                    axis=self.sindex,
+                    weights=considersky)
+      reshaped = roughSky1d.reshape((self.waxis.shape[0],1))
+      self.images['Sky'] = reshaped*np.ones_like(flattened)
+      self.images['Subtracted'] = flattened - self.images['Sky']
+
+      # use the roughly subtracted image to fit centroids
+      fluxWeightedCentroids = np.average(self.s,
+                            axis=self.sindex,
+                            weights=considerstar*self.images['Subtracted'])
+
+      fluxWeightedWidths = np.sqrt(np.average(self.s**2,
+                            axis=self.sindex,
+                            weights=considerstar*self.images['Subtracted']) - fluxWeightedCentroids**2)
+
+      fluxWeightedWidths[np.isfinite(fluxWeightedWidths) == False] = np.inf
+
+      # fit a polynomial to the ridge of the spectrum
+      traceCoeff = np.polynomial.polynomial.polyfit(self.waxis, fluxWeightedCentroids, self.obs.traceOrder, w=1.0/fluxWeightedWidths**2)
+
+      fit_width = np.median(fluxWeightedWidths)
+      width = np.minimum(fit_width, self.obs.widthGuess)
+
+      converged = np.abs(fit_width - old_width) < 0.01
+      self.speak( "  {0} -> {1}, converged = {2}".format(old_width, width, converged))
+      old_width = width
+
+      #self.input('continue?')
+      attempts += 1
+
+      if attempts > 10:
+        converged = True
+
+  def createTrace(self, inputCoef=None):
     '''Fit for the position and width of the trace.'''
 
     self.speak("populating the trace parameters")
     filename = self.directory + 'trace_{0}.npy'.format(self.name)
     try:
       traceCoeff, width = np.load(filename)
-      self.speak("loaded previously fitted trace from {0}".format(filename))
+      self.speak("loaded trace from {0}".format(filename))
     except IOError:
       self.speak("fitting master science image to determine trace parameters")
       converged = False
 
-      # start with a width guess and assuming the star is in middle of aperture
       old_width = self.obs.widthGuess
-      traceCoeff = [np.max(self.saxis)/2]
+
+      if inputCoef is None:
+          traceCoeff = [0.0]#[np.max(self.saxis)/2]
+      else:
+          traceCoeff = inputCoef
 
       # iterate through, trying to improve
       width = old_width
@@ -189,13 +255,13 @@ class Aperture(Talker):
           buffer = 2.5*self.traceWidth
           considerstar = distancefromtrace < buffer
           sortofsky = (distancefromtrace < buffer + self.obs.skyWidth)
-          considersky = (considerstar == False)*sortofsky
+          self.considersky = (considerstar == False)*sortofsky
 
           # estimate a rough 1D spectrum
           flattened = self.images['Science']/self.images['NormalizedFlat']
           roughSky1d=np.average(flattened,
                         axis=self.sindex,
-                        weights=considersky)
+                        weights=self.considersky)
           reshaped = roughSky1d.reshape((self.waxis.shape[0],1))
           self.images['Sky'] = reshaped*np.ones_like(flattened)
           self.images['Subtracted'] = flattened - self.images['Sky']
@@ -224,26 +290,76 @@ class Aperture(Talker):
           self.speak( "  {0} -> {1}, converged = {2}".format(old_width, width, converged))
           old_width = width
 
-
-
-          self.display.rgb(self.images['Subtracted'], self.images['RoughLSF'], considersky)
-          self.display.one(self.images['Science'], clobber=False)
-          self.display.tile('rows')
           #self.input('continue?')
           attempts += 1
 
           if attempts > 10:
-            old_width = int(self.input('what width should we try?'))
-            width = old_width
-            attempts=0
+            converged = True
 
-      assert("n" not in self.input("like trace?").lower())
+          self.traceCenter = np.polynomial.polynomial.Polynomial(traceCoeff)
+          self.traceWidth = width
+
+      self.displayTrace()
+      if "n" in self.input('Is the trace okay? [y,n]').lower():
+          self.interactiveTrace()
+          return
+
       np.save(filename, (traceCoeff, width))
       self.speak("saved trace parameters to {0}".format( filename))
 
-    self.traceCenter = np.polynomial.polynomial.Polynomial(traceCoeff)
-    self.traceWidth = width
+
     self.images['RoughLSF'] = np.exp(-0.5*((self.s - self.traceCenter(self.w))/self.traceWidth)**2)
+
+  def interactiveTrace(self, n=5):
+      '''if the auto-trace fitting fails, fit for it interactively'''
+
+      plt.figure('tweaking the extraction trace', figsize=(8,3), dpi=100)
+      i = zachopy.iplot.iplot(1,1)
+      aximage = i.subplot(0,0)
+
+      extent=[self.waxis.min(), self.waxis.max(),
+              self.saxis.min(), self.saxis.max()]
+      values = np.percentile(self.images['Science'], [10,90])
+      aximage.imshow(np.transpose(np.log(self.images['Science'])),
+                      cmap='gray', \
+                      extent=extent, \
+                      interpolation='nearest', aspect='auto', \
+                      vmin=np.log(values[0]), vmax=np.log(values[1]))
+
+      self.speak("please click {0} points on the trace".format(n))
+      xs, ys = [], []
+      for count in range(n):
+        clicks = i.getMouseClicks(1)
+        try:
+            x,y = clicks[0].xdata, clicks[0].ydata
+        except (AttributeError,ValueError):
+            self.createTrace(coef)
+            return
+        print x, y
+        aximage.plot(x, y, 'o', alpha=0.5, color='seagreen')
+
+        xs.append(x)
+        ys.append(y)
+
+        coef = p.polyfit(xs, ys, np.minimum(len(xs), self.obs.traceOrder))
+        traceguess = p.Polynomial(coef)
+
+        xfine = np.linspace(self.waxis.min(), self.waxis.max(), 1000)
+        try:
+            lines[0].set_data(xfine, traceguess(xfine))
+        except NameError:
+            lines = aximage.plot(xfine, traceguess(xfine),
+                                    alpha=0.5, color='mediumseagreen',
+                                    linestyle='--')
+
+      # try refitting with a better initial guess!
+      self.createTrace(inputCoef=coef)
+
+
+  def displayTrace(self):
+      self.display.rgb( self.images['Subtracted'],
+                        self.images['RoughLSF'],
+                        self.considersky)
 
 
   def createSkyApertures(self, visualize=True):
@@ -253,14 +369,21 @@ class Aperture(Talker):
     try:
       self.images['skyMask'] = np.load(filename)
       self.speak("loaded sky apertures from {0}".format(filename))
-    except:
+    except IOError:
       finished = False
-      plt.figure('sky apertures', figsize=(10,10), dpi=100)
-      i = zachopy.iplot.iplot(3,10)
-      self.aximage = i.subplot(1,0,rowspan=2,colspan=8)
-      self.axskyspectrum = i.subplot(0,0,colspan=8,sharex=self.aximage)
-      self.axskyprofile = i.subplot(1,8,rowspan=2,colspan=2)
+      plt.figure('sky apertures', figsize=(10,10), dpi=50)
+      i = zachopy.iplot.iplot(2,2,
+                                hspace=0, wspace=0,
+                                height_ratios=[.2, 1], width_ratios=[1, .2])
+
+      self.aximage = i.subplot(1,0)
+      self.axskyspectrum = i.subplot(0,0, sharex=self.aximage)
+      self.axskyprofile = i.subplot(1,1, sharey=self.aximage)
       axes = [self.aximage, self.axskyspectrum, self.axskyprofile]
+      for ax in axes:
+          plt.setp(ax.get_xticklabels(), visible=False)
+          plt.setp(ax.get_yticklabels(), visible=False)
+
       mask = np.zeros_like(self.images['Science'])
       extent=[self.waxis.min(), self.waxis.max(), self.saxis.min(), self.saxis.max()]
       finishedplotting = True
@@ -270,7 +393,7 @@ class Aperture(Talker):
 
         if first == False:
           # have user select a sky region
-          self.speak(":-D please click the start of a sky region")
+          self.speak("please click to select a sky region")
           clicks = i.getMouseClicks(n=2)
 
           # clear the axes
@@ -279,10 +402,12 @@ class Aperture(Talker):
 
 
         # display the image
-        self.aximage.imshow(np.transpose(np.log(self.images['Science'])), cmap='gray', \
+        values = np.percentile(self.images['Science'], [10,90])
+        self.aximage.imshow(np.transpose(np.log(self.images['Science'])),
+                      cmap='gray', \
                       extent=extent, \
                       interpolation='nearest', aspect='auto', \
-                      vmin=np.log(1), vmax=np.log(np.nanmax(self.images['Science'])*0.01))
+                      vmin=np.log(values[0]), vmax=np.log(values[1]))
         self.aximage.imshow(np.transpose(mask), alpha=0.1, cmap='winter_r', \
                     extent=extent, \
                     interpolation='nearest', aspect='auto')
@@ -337,7 +462,7 @@ class Aperture(Talker):
     # create a plot showing how well the lines match
     if self.visualize:
         figure_waverough = plt.figure('wavelength rough offset',
-                                            figsize=(10,5), dpi=100)
+                                            figsize=(6,4), dpi=100)
         gs = plt.matplotlib.gridspec.GridSpec(  3,2,
                                                 bottom=0.15, top=0.85,
                                                 hspace=0.1,wspace=0,
@@ -464,7 +589,6 @@ class Aperture(Talker):
 
           # create a temporary calibration to match reference wavelengths to reference pixels (so we can include additional wavelengths not recorded in the dispersion solution file)
 
-          p = np.polynomial.polynomial
           coef = p.polyfit(
                 (wavelength_ids['wave2']),
                 wavelength_ids['pixels']/self.obs.binning +  peakoffset,
@@ -526,7 +650,7 @@ class Aperture(Talker):
 
           if self.visualize:
             # plot to make sure the wavelength calibration makes sense
-            figure_wavelengthcal = plt.figure('wavelength calibration')
+            figure_wavelengthcal = plt.figure('wavelength calibration', figsize=(6,4), dpi=100)
             #gs = plt.matplotlib.gridspec.GridSpec(
 
             interactivewave = zachopy.iplot.iplot(4,1,
@@ -696,7 +820,9 @@ class Aperture(Talker):
 
             # store the 2D sky subtracted image
             intermediates['subtracted'] = image/self.images['NormalizedFlat'] - intermediates['sky']
-            writeFitsData(intermediates['subtracted'], self.extractedFilename.replace('extracted', 'subtracted').replace('npy', 'fits'))
+
+            if self.obs.slow:
+                writeFitsData(intermediates['subtracted'], self.extractedFilename.replace('extracted', 'subtracted').replace('npy', 'fits'))
 
             # store a few more diagnostics
             self.extracted['centroid'] = np.nansum(self.s*intermediates['subtracted']*intermediates['extractMask'],self.sindex)/np.nansum(intermediates['subtracted']*intermediates['extractMask'], self.sindex)

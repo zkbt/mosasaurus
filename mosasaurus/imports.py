@@ -1,7 +1,7 @@
-shortcuts = {'/Users/zkbt/Cosmos/Data/Magellan/LDSS3_2014B/working':'...'}
+shortcuts = {'/Users/zkbt/Cosmos/Data/Magellan/LDSS3':'...'}
 import zachopy.Talker
 zachopy.Talker.shortcuts = shortcuts
-zachopy.Talker.line = 200
+#zachopy.Talker.line = 200
 Talker = zachopy.Talker.Talker
 
 import astropy.io.fits, astropy.io.ascii, astropy.time
@@ -15,7 +15,7 @@ np.seterr(divide='ignore')
 #import zachopy.display, zachopy.oned
 #from ds9 import *
 
-import glob, os, string, copy
+import glob, os, string, copy, shutil
 
 # ... to use
 import scipy.interpolate, scipy.signal, scipy.integrate

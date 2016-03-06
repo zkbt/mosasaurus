@@ -8,25 +8,22 @@ class Mask(Talker):
             This can be thought of as the mosasaurus' checklist
             of slits to investigate, and bookkeeping tools.'''
 
-  def __init__(self, calib, **kwargs):
+  def __init__(self, reducer, **kwargs):
     '''Initialize the mask object.'''
 
     # decide whether or not this Mask is chatty
     Talker.__init__(self, **kwargs)
 
     # connect it to other parts
-    self.calib = calib
+    self.reducer = reducer
+    self.calib = self.reducer.calib
     self.ccd = self.calib.ccd
     self.obs = self.calib.obs
 
     # set up a display
-    self.display =  self.calib.display
-                    #zachods9('mask',
-                    #    xsize=self.obs.xsize*self.obs.displayscale,
-                    #    ysize=self.obs.ysize*self.obs.displayscale,
-                    #    rotate=90)
-
-    self.setup()
+    self.display =  self.reducer.display
+    self.speak('created a mask, to store extraction regions')
+    #self.setup()
 
   def extractCenters(self, ds9RegionString):
     '''Extract x and y pixel positions from a string of regions returned by pyds9.'''
@@ -41,18 +38,18 @@ class Mask(Talker):
     '''Open ds9 and pick the stars we want to reduce.'''
     extractionCentersFilename = self.obs.workingDirectory + 'extractionCenters.txt'
     if os.path.exists(extractionCentersFilename):
-      print "Looks like extraction centers were already defined; loading them from " + extractionCentersFilename
-      x, y = np.loadtxt(extractionCentersFilename)
+      self.speak("Etraction centers were already defined; loading them from {0}".format(extractionCentersFilename))
+      x, y = np.transpose(np.loadtxt(extractionCentersFilename))
     else:
-      print "You should pick the stars you're interested in."
+      self.speak("Please should pick the stars you're interested in.")
+
       self.display.one(self.calib.images['Undispersed'], clobber=True)
-      D = self.display.window
-      D.set("scale log")
-      D.set("regions centroid auto yes")
-      var = raw_input("Plop down regions on the stars you'd like to extract. Then hit enter:\n  (ds9 should auto-centroid)\n")
-      regions = D.get("regions")
+      self.display.scale('log', [0, np.max(self.calib.images['Undispersed'])])
+      self.display.window.set("regions centroid auto yes")
+      var = self.input("Plop down regions on the stars you'd like to extract. Then hit enter:\n  (ds9 should auto-centroid)\n")
+      regions = self.display.window.get("regions")
       x,y = self.extractCenters(regions)
-      np.savetxt(extractionCentersFilename, (x,y))
+      np.savetxt(extractionCentersFilename, np.transpose([x,y]))
     self.xextract, self.yextract = x, y
     return x, y
 

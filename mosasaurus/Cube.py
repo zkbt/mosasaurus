@@ -188,7 +188,7 @@ class Cube(Talker):
     self.spectral['dnpixelsdw'] = supersampled['dnpixelsdw']
     self.numberofwavelengths = len(self.spectral['wavelength'])
 
-    self.shiftCube(plot=visualize)
+    #self.shiftCube(plot=visualize)
     self.speak("Done loading spectral cube.")
 
     self.roughLC()
@@ -262,7 +262,7 @@ class Cube(Talker):
   def plotSpectra(self, which, remake=False, wavelengthscale=10.0):
         '''For the ith component in the cube, plot all the spectra.'''
         self.populate()
-        linekeys = ['airmass', 'rotatore', 'cosmics', 'sky', 'width', 'centroid', 'shift']#, 'lc']
+        linekeys = ['airmass', 'rotatore', 'cosmics', 'sky', 'width', 'centroid']#, 'shift']#, 'lc']
         # set up a plot window to show how the interpolation is going
         self.figure = plt.figure('spectra', figsize=(36,15), dpi=60)
         # define an empty cube that we're going to populate with spectra
