@@ -182,8 +182,10 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			instrument.dcentroid_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
 
 			# applied wavelength offset
-			instrument.shift_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-
+			try:
+				instrument.shift_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
+			except AttributeError:
+				self.speak('no shifts were found!')
 
 			# the sky brightness in
 			instrument.sky_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])

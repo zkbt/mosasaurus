@@ -195,7 +195,7 @@ class Cube(Talker):
 
     self.save()
 
-  def roughLC(self, target=None, comps=None, wavelengths=None):
+  def roughLC(self, target=None, comps=None, wavelengths=None, **kwargs):
       if target is None:
           target = self.obs.target[0]
       if comps is None:
@@ -221,7 +221,7 @@ class Cube(Talker):
       self.speak('rms is {0}'.format(np.std(self.temporal['lc'])))
 
       plt.ion()
-      plt.plot(self.temporal['lc'])
+      plt.plot(self.temporal['lc'], **kwargs)
 
   def save(self):
       self.speak('attempting to save the cube of loaded, shifted, compiled spectra to {0}'.format(self.filename))
@@ -610,10 +610,12 @@ class Cube(Talker):
 
         # pull out the star-by-star (wavelength-independent) quantities
         for key in ['width', 'centroid', 'shift']:
-            lc['{0}_target'.format(key)] = self.squares[key][target]
-            for comparison in comparisons:
-                lc['{0}_star{1:02.0f}'.format(key, comparison)] = self.squares[key][comparison]
-
+            try:
+                lc['{0}_target'.format(key)] = self.squares[key][target]
+                for comparison in comparisons:
+                    lc['{0}_star{1:02.0f}'.format(key, comparison)] = self.squares[key][comparison]
+            except KeyError:
+                self.speak("{} couldn't be found!".format(key))
         # pull out the star-by-star wavelength specific values
         for key in ['sky', 'peak']:
             lc['{0}_target'.format(key)] = self.binned_cubes[key][target,:,wave]

@@ -30,6 +30,19 @@ class Trace(Talker):
         for i in range(3):
             self.fitTrace()
         self.run()
+        self.save()
+
+    def save(self):
+        filename = self.aperture.directory + 'trace_{0}.npy'.format(self.aperture.name)
+        np.save(filename, (self.tracefitcoef, self.tracefitwidth))
+        self.speak("saved trace parameters to {0}".format(filename))
+
+        filename = self.aperture.directory + 'trace_{0}.pdf'.format(self.aperture.name)
+        self.figure.savefig(filename)
+
+        filename = self.aperture.directory + 'skyMask_{0}.npy'.format(self.aperture.name)
+        np.save(filename, self.skymask)
+        self.speak("saved a sky mask to {0}".format(filename))
 
     def run(self):
         '''interactively fit for the position of the trace of the spectrum,
@@ -162,6 +175,8 @@ class Trace(Talker):
         self.plotted['extractionmask'].set_data(self.extractionmaskimage)
         self.plotted['skymask'].set_data(self.skymaskimage)
 
+        plt.draw()
+
     def addTracePoint(self, pressed):
         '''from a KeyEvent, add a point to the list of trace guesses'''
         x,y = pressed.xdata, pressed.ydata
@@ -215,11 +230,15 @@ class Trace(Talker):
                             axis=self.aperture.sindex,
                             weights=fine*considerstar*self.images['Subtracted'])
 
+        if (np.sum(fine*considerstar*self.images['Subtracted'], self.aperture.sindex) <= 0).any():
+            return
+
         fluxWeightedCentroids = np.average(self.aperture.s,
                             axis=self.aperture.sindex,
                             weights=fine*considerstar*self.images['Subtracted'])
 
-        assert(np.isfinite(fluxWeightedCentroids).all())
+        if np.isfinite(fluxWeightedCentroids).all() == False:
+            return
         reshapedFWC = fluxWeightedCentroids[:,np.newaxis]
         weights = fine*considerstar*self.images['Subtracted']
         weights = np.maximum(weights, 0)
@@ -240,10 +259,9 @@ class Trace(Talker):
         self.tracefitcoef = np.polyfit(self.waxis, fluxWeightedCentroids,
                             self.order, w=flux/fluxWeightedWidths**2)
 
-        fit_width = np.median(fluxWeightedWidths)
-        width = np.minimum(fit_width, self.obs.widthGuess)
 
         self.tracefit = np.poly1d(self.tracefitcoef)
+        self.tracefitwidth = np.median(fluxWeightedWidths)
         #self.traceWidth = width
         self.updateMasks()
 
@@ -271,6 +289,7 @@ class Trace(Talker):
         plt.ion()
         self.figure = plt.figure('tracing the spectrum',
                                 figsize=(8,4), dpi=100)
+
         # create an interactive plot
         self.iplot = zachopy.iplot.iplot(2,2,
                                         hspace=0, wspace=0,
@@ -416,7 +435,7 @@ class Trace(Talker):
     def slices(self):
         '''return y, x of a slice along the spatial direction'''
         i = np.interp(self.crosshair['w'], self.waxis, np.arange(len(self.waxis)))
-        return self.images['Science'][i,:], self.saxis[::-1]
+        return self.images['Science'][i,:], self.saxis
 
     @property
     def slicew(self):
@@ -478,7 +497,7 @@ class Trace(Talker):
           def createSkyApertures(self, visualize=True):
             '''Let user select the best sky apertures.'''
             self.speak("setting up the sky apertures")
-            filename = self.directory + 'skyMask_{0}.npy'.format(self.name)
+            filename = self.directory + 'skyMask_{0}.npy'.format(self.aperture.name)
             try:
               self.images['skyMask'] = np.load(filename)
               self.speak("loaded sky apertures from {0}".format(filename))
