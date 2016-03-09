@@ -57,6 +57,27 @@ class Reducer(Talker):
 
         self.obs = Observation(self.filename)
 
+    def recalibrate(self):
+        '''don't extract, just recalibrate the wavelengths and resample'''
+
+        # set up the calibrations and mask
+        self.calib.setup()
+        self.mask.setup()
+
+        for aperture in self.mask.apertures:
+            aperture.createWavelengthCal(remake=True)
+
+        '''for
+              # load the (entire!) image
+              self.load(n)
+
+              # loop over apertures
+              for a in self.apertures:
+                  # extract the spectrum in this aperture
+                  a.extract(n, remake=remake)'''
+
+
+
     def reduce(self, remake=False):
         '''process 2D multiobject spectral images into 1D spectra'''
 

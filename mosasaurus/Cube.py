@@ -221,7 +221,9 @@ class Cube(Talker):
       self.speak('rms is {0}'.format(np.std(self.temporal['lc'])))
 
       plt.ion()
-      plt.plot(self.temporal['lc'], **kwargs)
+      x, y = self.temporal['bjd'], self.temporal['lc']
+      ok = self.temporal['ok']
+      plt.plot(x[ok], y[ok], **kwargs)
 
   def save(self):
       self.speak('attempting to save the cube of loaded, shifted, compiled spectra to {0}'.format(self.filename))
@@ -339,7 +341,7 @@ class Cube(Talker):
             for k in self.cubekeys:
                 fine = self.cubes['ok'][s,which,:]
                 self.ps[k][s].set_data(self.spectral['wavelength'][fine]/wavelengthscale, self.cubes[k][s,which,:][fine])
-                self.ps[k][s].set_alpha(self.temporal['ok'][which]*0.5 + 0.5)
+                #self.ps[k][s].set_alpha(self.temporal['ok'][which]*0.5 + 0.5)
             self.ax_spectra[self.cubekeys[0]][s].set_title('image {0},\nstar {1}, aperture {2}'.format(self.temporal['n'][which], s, self.stellar['aperture'][s].replace('aperture_', '')))
         self.timestamp.set_text('{0}: {1} {2}'.format(self.obs.name, self.temporal['ut-date'][which], self.temporal['ut-time'][which]))
 

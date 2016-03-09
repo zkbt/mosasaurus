@@ -1,8 +1,8 @@
 from imports import *
 from Tools import *
 from Trace import Trace
-colors = dict(He='lightsalmon', Ne='red', Ar='deepskyblue')
-p = np.polynomial.polynomial
+from WavelengthCalibrator import WavelengthCalibrator
+
 plt.ion()
 class Aperture(Talker):
   '''Aperture objects handle individual apertures (e.g. slits),
@@ -185,282 +185,37 @@ class Aperture(Talker):
                         self.images['skyMask'])
 
 
-      # cross correlate my arc spectra with reference, to find rough offset
-  def findRoughShift(self, wavelength_ids, visualize=True):
-    '''using a list of pixels matched to wavelengths, find the rough
-            offset of the this arc relative to the standard slits/setting'''
-
-    self.speak("cross correlating arcs with known wavelengths")
-
-    # create a plot showing how well the lines match
-    if self.visualize:
-        figure_waverough = plt.figure('wavelength rough offset',
-                                            figsize=(6,4), dpi=100)
-        gs = plt.matplotlib.gridspec.GridSpec(  3,2,
-                                                bottom=0.15, top=0.85,
-                                                hspace=0.1,wspace=0,
-                                                width_ratios=[1, .5])
-        ax_waverough, ax_wavecor = {}, {}
-        sharer, sharec = None, None
-        for i, e in enumerate(self.elements):
-            ax_waverough[e] = plt.subplot(gs[i,0],sharex=sharer)
-            ax_wavecor[e] = plt.subplot(gs[i,1], sharex=sharec)
-            sharer, sharec = ax_waverough[e], ax_wavecor[e]
-
-    correlationfunctions = {}
-    for count, element in enumerate(self.elements):
-      # pull out the flux and pixel coordinates from extract arc spectrum
-      flux = self.arcs[element]['raw_counts']
-      x = self.arcs[element]['w']
-
-      # find peaks in this spectrum
-      xPeak, yPeak = zachopy.oned.peaks(self.waxis, flux,
-                                        threshold=4, maskwidth=10)
-
-      # pull out the line identifications that match this element
-      this = []
-      for i in range(len(wavelength_ids)):
-        if element in wavelength_ids['name'][i]:
-          this.append(i)
-      self.obs.binning = 2
-      # create fake spectra using the line positions (both reference + new)
-      myPeaks, theirPeaks = np.zeros(len(x)), np.zeros(len(x))
-      for i in range(len(this)):
-        center = wavelength_ids['pixels'][this[i]]/self.obs.binning
-        blob = 2
-        theirPeaks += np.exp(-0.5*((x-center)/blob)**2)
-      for i in range(len(xPeak)):
-        center = xPeak[i]
-        blob = 2
-        myPeaks += np.exp(-0.5*((x-center)/blob)**2)*np.log(yPeak[i])
-
-      correlationfunctions[element] = np.correlate(myPeaks, theirPeaks, 'full')
-      if self.visualize:
-
-        ax_waverough[element].plot(x, myPeaks/myPeaks.max(),
-                                        label='extracted', alpha=0.5,
-                                        color=colors[element])
-        ax_waverough[element].set_ylim(0, 2)
-        normcor = correlationfunctions[element]
-        normcor /= np.max(correlationfunctions[element])
-        ax_wavecor[element].plot(normcor,
-                                    label=element, alpha=0.5,
-                                    color=colors[element])
-        for a in [ax_wavecor, ax_waverough]:
-            plt.setp(a[element].get_xticklabels(), visible=False)
-            plt.setp(a[element].get_yticklabels(), visible=False)
-
-      if count == 0:
-          corre = np.ones_like(correlationfunctions[element])
-      if np.isfinite(correlationfunctions[element]).all():
-          corre = corre*correlationfunctions[element]
-
-
-    # find the peak of the combined correlation function
-    peakoffset = np.where(corre == corre.max())[0][0] - len(x)
-    # to convert: len(x) - xPeak = x + peakoffset
-
-
-    if self.visualize:
-      for element in self.elements:
-        for i in range(len(wavelength_ids)):
-          if element in wavelength_ids['name'][i]:
-            center = peakoffset  + wavelength_ids['pixels'][i]/self.obs.binning
-            ax_waverough[element].axvline(center ,
-                                          alpha=0.25, color='black')
-        ax_wavecor[element].plot(corre/np.max(corre),
-                            label='combined', alpha=0.25, color='black')
-        ax_waverough[element].set_ylabel(element)
-      ax = ax_waverough[self.elements[-1]]
-      plt.setp(ax.get_xticklabels(), visible=True)
-      ax.set_xlabel('Pixel Position')
-      ax_wavecor[self.elements[0]].set_title('cross correlation peaks at \n{0} pixels ({1}x{1} binned pixels)'.format(peakoffset, self.obs.binning))
-
-      ax_waverough[self.elements[0]].set_title('Coarse Wavelength Alignment\nfor (%0.1f,%0.1f)' % (self.x, self.y))
-
-      figure_waverough.savefig(self.directory + 'roughWavelengthAlignment_{0}.pdf'.format(self.name))
-
-
-    return peakoffset
-
-  def createWavelengthCal(self, wavelengthIDFile=None, visualize=True):
+  def createWavelengthCal(self, remake=False):
     '''Populate the wavelength calibration for this aperture.'''
     self.speak("populating wavelength calibration")
 
-    self.elements = ['He', 'Ne','Ar']
     # if the wavelength cal already exists, simply reload it
     filename = self.directory + 'waveCal_{0}.npy'.format(self.name)
     try:
       # load the the thing!
       self.waveCalCoef = np.load(filename)
-    except:
-      self.speak("estimating wavelength calibration from extracted arc spectra")
-      # extract the arc lamp spectra
-
-      # extract a spectrum from the master image for each lamp
-      self.arcs = {}
-      for element in self.elements:
-        self.arcs[element] = self.extract(image=self.images[element], arc=True)
-
-      # load wavelength identifications (matched to pixels)
-      if wavelengthIDFile is None:
-          wavelengthIDFile = self.obs.wavelength2pixelsFile
-      wavelength_ids = astropy.io.ascii.read(wavelengthIDFile)
-
-      # load the complete list of wavelengths
-      allwavelengths = astropy.io.ascii.read(self.obs.wavelengthsFile)
-
-      # perform a first rough alignment, to make pixels
-      peakoffset = self.findRoughShift(wavelength_ids)
-
-      notconverged = True
-      #while(notconverged):
-      if True:
-          # empty lists, which we'll fill with pixels matched to wavelengths
-          pixel, wavelength, emissioncolors = [],[], []
-
-          wavelengthorder = 3
-
-          # create a temporary calibration to match reference wavelengths to reference pixels (so we can include additional wavelengths not recorded in the dispersion solution file)
-
-          coef = p.polyfit(
-                (wavelength_ids['wave2']),
-                wavelength_ids['pixels']/self.obs.binning +  peakoffset,
-                wavelengthorder)# + wavelength_ids['wave2'])/2.0
-          theirWavelengthstoMyPixels = p.Polynomial(coef)
-
-
-          # treat the arc lamps separately
-          for count, element in enumerate(self.elements):
-
-            # the pixel spectrum self.extracted from this arc lamp
-            flux = self.arcs[element]['raw_counts']
-            x = self.arcs[element]['w']
-
-            # identify my peaks
-            xPeak, yPeak = zachopy.oned.peaks(self.waxis, flux)
-
-
-            # pull out the wavelengths from the complete file
-            theirWavelengths = []
-            for i in range(len(allwavelengths)):
-
-              if element in allwavelengths['name'][i]:
-                theirWavelengths.append(allwavelengths['wavelength'][i])
-            theirWavelengths = np.array(theirWavelengths)
-
-            # put those peaks onto my pixel scale
-            theirPeaksOnMyPixels = theirWavelengthstoMyPixels(theirWavelengths)
-
-            iMine, iTheirs =[],[]
-
-            # pull out my peaks
-            myPeaksOnMyPixels = xPeak
-            for i in range(len(theirPeaksOnMyPixels)):
-              # find my closest peak to theirs
-              distance = xPeak - theirPeaksOnMyPixels[i]
-              closestdistance = (np.abs(distance)).min()
-
-              # if the peak matches closely, use it
-              if closestdistance < 10:
-                iMine.append(np.where(np.abs(distance) == closestdistance)[0][0])
-                iTheirs.append(i)
-
-            if len(iMine) > 0:
-                initialCoeff = np.polynomial.polynomial.polyfit(xPeak[iMine], theirWavelengths[iTheirs], 2)
-                initialFit = np.polynomial.polynomial.Polynomial(initialCoeff)
-                pixel.extend(xPeak[iMine])
-                wavelength.extend(theirWavelengths[iTheirs])
-                emissioncolors.extend([colors[element]]*len(iMine))
-
-          fit = np.polynomial.polynomial.Polynomial(np.polynomial.polynomial.polyfit(pixel, wavelength, wavelengthorder) )
-          residual = wavelength - fit(pixel)
-          good = np.abs(residual) < np.median(np.abs(residual))*3
-          bad = ~good
-          self.waveCalCoef  = np.polynomial.polynomial.polyfit(pixel, wavelength, wavelengthorder, w=good)
-          fit = np.polynomial.polynomial.Polynomial(self.waveCalCoef )
-          pixel, wavelength = np.array(pixel), np.array(wavelength)
-
-          if self.visualize:
-            # plot to make sure the wavelength calibration makes sense
-            figure_wavelengthcal = plt.figure('wavelength calibration', figsize=(6,4), dpi=100)
-            #gs = plt.matplotlib.gridspec.GridSpec(
-
-            interactivewave = zachopy.iplot.iplot(4,1,
-                    height_ratios=[.2, .2, .4, .2], hspace=0)
-
-
-            # does the wavelength2pixel code work
-            ax_w2p = interactivewave.subplot(0)
-
-            # do the lamp spectra overlap?
-            ax_walign = interactivewave.subplot(1, sharex=ax_w2p)
-
-            # what is the actual wavelength calibration
-            ax_wcal = interactivewave.subplot(2, sharex=ax_w2p)
-
-            # what are the residuals from the fit
-            ax_wres = interactivewave.subplot(3, sharex=ax_w2p)
-
-            for ax in [ax_w2p, ax_walign, ax_wcal]:
-                plt.setp(ax.get_xticklabels(), visible=False)
-            ax_w2p.set_title('Wavelength Calib. for Aperture (%0.1f,%0.1f)' % (self.x, self.y))
-
-            kw = dict(color=emissioncolors, marker='o')
-
-            # plot the backwards calibration
-            ax_w2p.scatter(wavelength_ids['pixels']/self.obs.binning + peakoffset, wavelength_ids['wave2'], **kw)
-            xfine = np.linspace(min(wavelength_ids['wave2']), max(wavelength_ids['wave2']))
-            ax_w2p.plot(theirWavelengthstoMyPixels(xfine), xfine)
-
-            # plot the overlap of the lamp spectra
-            for element in self.elements:
-
-                ax_walign.plot(self.waxis, self.arcs[element]['raw_counts'],
-                                    color=colors[element], alpha=0.5)
-                ax_walign.set_yscale('log')
-
-
-            for i,tw in enumerate(allwavelengths['wavelength']):
-                name = allwavelengths['name'][i][0:2]
-                if name in self.elements:
-                    ax_walign.axvline(theirWavelengthstoMyPixels(tw), ymin=0.9,
-                                    color=colors[name],
-                                    alpha=0.5)
-
-            # plot the new calibration
-            ax_wcal.scatter(pixel, wavelength, **kw)
-            ax_wcal.plot(pixel, fit(pixel), alpha=0.5, color='black')
-            ax_wcal.set_ylabel('Wavelength (angstroms)')
-
-            ax_wres.set_ylabel('Residuals')
-            ax_wres.scatter(pixel[good], wavelength[good] - fit(pixel[good]), **kw)
-            kw['marker'] = 'x'
-            ax_wres.scatter(pixel[bad], wavelength[bad] - fit(pixel[bad]), **kw)
-            ax_wres.set_xlabel('Pixel # (by python rules)')
-            ax_wres.set_xlim(min(pixel), max(pixel))
-
-            plt.draw()
-            if 'n' in self.input('are you okay with wavelength cal?').lower():
-                self.createWavelengthCal('/Users/zkbt/Dropbox/code/mosasaurus/data/vph-red_wavelength_identifications_blueslit.txt')
-
-            #clicks = interactivewave.getMouseClicks(n=2)
-            #print clicks
-
-            figure_wavelengthcal.savefig(self.directory + 'wavelengthCalibration_{0}.pdf'.format(self.name))
-
+      self.speak("loaded wavelength calibration from {0}".format( filename))
+      assert(remake == False)
+    except (IOError,AssertionError):
+      self.wavelengthcalibrator = WavelengthCalibrator(self)
+      self.waveCalCoef = self.wavelengthcalibrator.coef
       np.save(filename, self.waveCalCoef)
       self.speak("saved wavelength calibration to {0}".format( filename))
-    self.wavelengthCalibrate = np.polynomial.polynomial.Polynomial(self.waveCalCoef )
+
+    # create the wavelength calibration polynomial
+    self.wavelengthCalibrate = np.poly1d(self.waveCalCoef )
 
   def ones(self):
     '''Create a blank array of ones to fill this aperture.'''
     return np.ones_like(self.images['Science'])
 
+  @property
+  def extractedFilename(self):
+      return self.directory + 'extracted{0:04}.npy'.format(self.n)
+
   def extract(self, n=0, image=None, subtractsky=True, arc=False, cosmics=False, remake=False):
     '''Extract the spectrum from this aperture.'''
-
-    self.extractedFilename = self.directory + 'extracted{0:04}.npy'.format(n)
+    self.n = n
     try:
         assert(remake == False)
         assert(arc == False)
@@ -642,6 +397,22 @@ class Aperture(Talker):
             self.interpolate(remake=remake)
 
     return self.extracted
+
+  def recalibrate(self, n):
+      '''just redo the wavelength calibration'''
+      self.n = n
+      self.speak('recalibrating wavelengths for {0}'.format(self.n))
+      # load the spectrum
+      self.extracted = np.load(self.extractedFilename)
+
+      # recalibrate the spectrum
+      self.extracted['wavelength'] = self.wavelengthCalibrate(self.waxis)
+
+      # resave the new spectrum
+      np.save(self.extractedFilename, self.extracted)
+
+      # redo the interpolation
+      self.interpolate(remake=True)
 
   def interpolate(self, remake=False):
         '''Interpolate the spectra onto a common (uniform) wavelength scale.'''

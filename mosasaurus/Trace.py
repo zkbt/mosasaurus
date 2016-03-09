@@ -225,20 +225,26 @@ class Trace(Talker):
         fine = np.isfinite(self.images['Subtracted'])
 
         considerstar = self.extractionmask
+
+        weights = np.maximum(fine*considerstar*self.images['Subtracted'], 0)
+        weights += 1.0/np.sum(weights)
+
         # use the roughly subtracted image to fit centroids
         flux = np.average(self.images['Subtracted'],
                             axis=self.aperture.sindex,
-                            weights=fine*considerstar*self.images['Subtracted'])
+                            weights=weights)
 
-        if (np.sum(fine*considerstar*self.images['Subtracted'], self.aperture.sindex) <= 0).any():
-            return
+        if (np.sum(weights, self.aperture.sindex) <= 0).any():
+            self.speak('weights were wonky')
+            assert(False)
 
         fluxWeightedCentroids = np.average(self.aperture.s,
                             axis=self.aperture.sindex,
                             weights=fine*considerstar*self.images['Subtracted'])
 
         if np.isfinite(fluxWeightedCentroids).all() == False:
-            return
+            self.speak('centroids were wacky')
+            assert(False)
         reshapedFWC = fluxWeightedCentroids[:,np.newaxis]
         weights = fine*considerstar*self.images['Subtracted']
         weights = np.maximum(weights, 0)
