@@ -188,19 +188,11 @@ class Aperture(Talker):
   def createWavelengthCal(self, remake=False):
     '''Populate the wavelength calibration for this aperture.'''
     self.speak("populating wavelength calibration")
+    self.wavelengthcalibrator = WavelengthCalibrator(self)
+    self.waveCalCoef = self.wavelengthcalibrator.coef
 
-    # if the wavelength cal already exists, simply reload it
-    filename = self.directory + 'waveCal_{0}.npy'.format(self.name)
-    try:
-      # load the the thing!
-      self.waveCalCoef = np.load(filename)
-      self.speak("loaded wavelength calibration from {0}".format( filename))
-      assert(remake == False)
-    except (IOError,AssertionError):
-      self.wavelengthcalibrator = WavelengthCalibrator(self)
-      self.waveCalCoef = self.wavelengthcalibrator.coef
-      np.save(filename, self.waveCalCoef)
-      self.speak("saved wavelength calibration to {0}".format( filename))
+
+
 
     # create the wavelength calibration polynomial
     self.wavelengthCalibrate = np.poly1d(self.waveCalCoef )
