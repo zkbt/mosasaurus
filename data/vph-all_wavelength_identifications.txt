@@ -1,4 +1,4 @@
-pixels wave1 wave2 name
+pixel wave1 wavelength name
 	        643.82   3888.646   3888.646 HeI
 	       1089.36 4713.16425   4713.143 HeI
 	       1197.65 4921.87054   4921.929 HeI

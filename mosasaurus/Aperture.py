@@ -17,7 +17,8 @@ class Aperture(Talker):
     self.mask = mask
     self.calib = self.mask.calib
     self.obs = self.calib.obs
-    self.display = self.calib.display#zachods9('aperture', xsize=800, ysize=200, rotate=90)
+    self.display = self.calib.display
+    #zachods9('aperture', xsize=800, ysize=200, rotate=90)
     self.setup(x,y)
     self.createCalibStamps()
     # testing!
@@ -69,6 +70,7 @@ class Aperture(Talker):
       self.speak("created a spectroscopic aperture at ({0:.1f}, {1:.1f})".format(self.x, self.y))
     else:
       self.speak("*!$!%()@! no cameras besides LDSS3C have been defined yet!")
+
 
   def stamp(self, image):
     '''Return a postage stamp of an image, appropriate for this aperture.'''
@@ -189,13 +191,6 @@ class Aperture(Talker):
     '''Populate the wavelength calibration for this aperture.'''
     self.speak("populating wavelength calibration")
     self.wavelengthcalibrator = WavelengthCalibrator(self)
-    self.waveCalCoef = self.wavelengthcalibrator.coef
-
-
-
-
-    # create the wavelength calibration polynomial
-    self.wavelengthCalibrate = np.poly1d(self.waveCalCoef )
 
   def ones(self):
     '''Create a blank array of ones to fill this aperture.'''
@@ -260,7 +255,7 @@ class Aperture(Talker):
 
         # wavelength calibrate the spectrum, if you can
         try:
-          self.extracted['wavelength'] = self.wavelengthCalibrate(self.waxis)
+          self.extracted['wavelength'] = self.wavelengthcalibrator.pixelstowavelengths(self.waxis)
         except AttributeError:
           self.extracted['wavelength'] = None
 
@@ -395,10 +390,10 @@ class Aperture(Talker):
       self.n = n
       self.speak('recalibrating wavelengths for {0}'.format(self.n))
       # load the spectrum
-      self.extracted = np.load(self.extractedFilename)
+      self.extracted = np.load(self.extractedFilename)[()]
 
       # recalibrate the spectrum
-      self.extracted['wavelength'] = self.wavelengthCalibrate(self.waxis)
+      self.extracted['wavelength'] = self.wavelengthcalibrator.pixelstowavelengths(self.waxis)
 
       # resave the new spectrum
       np.save(self.extractedFilename, self.extracted)

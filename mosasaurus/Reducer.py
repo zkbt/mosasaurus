@@ -64,17 +64,14 @@ class Reducer(Talker):
         self.calib.setup()
         self.mask.setup()
 
-        for aperture in self.mask.apertures:
-            aperture.createWavelengthCal(remake=True)
+        #for aperture in self.mask.apertures:
+        #    aperture.createWavelengthCal(remake=True)
 
-        '''for
-              # load the (entire!) image
-              self.load(n)
-
-              # loop over apertures
-              for a in self.apertures:
-                  # extract the spectrum in this aperture
-                  a.extract(n, remake=remake)'''
+        for n in self.obs.nScience:
+            # load the CCD
+            self.mask.load(n)
+            for a in self.mask.apertures:
+                a.recalibrate(n)
 
 
 

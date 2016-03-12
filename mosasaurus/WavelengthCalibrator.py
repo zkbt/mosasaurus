@@ -1,40 +1,135 @@
 '''Wavelength Calibrator defines the wavelength calibration, and '''
 
 from imports import *
+from numpy.polynomial import Legendre
 colors = dict(He='lightsalmon', Ne='red', Ar='deepskyblue')
 shortcuts = {'h':'He', 'n':'Ne', 'a':'Ar'}
 
 class WavelengthCalibrator(Talker):
-    def __init__(self, aperture):
+    def __init__(self,  aperture,
+                        elements=['He', 'Ne','Ar'],
+                        polynomialdegree=3,
+                        matchdistance=100):
         Talker.__init__(self)
+
+        # keep track of the aperture this belongs to
         self.aperture = aperture
-        self.filename = self.aperture.directory + 'waveCal_{0}.npy'.format(self.aperture.name)
 
-        self.waveids =  astropy.io.ascii.read(self.aperture.obs.wavelength2pixelsFile)
+        # set up the some defaults
+        self.elements = elements
+        self.polynomialdegree = polynomialdegree
+        self.matchdistance = matchdistance
 
-        self.elements = ['He', 'Ne','Ar']
+        # either load a previous wavecal, or create a new one
+        self.populate()
 
-        self.wavelengthorder = 3
-        self.matchdistance = 20
-        self.load()
+    @property
+    def wavelengthprefix(self):
+        return self.aperture.directory + '{0}_'.format(self.aperture.name)
+
+    @property
+    def calibrationfilename(self):
+        return self.wavelengthprefix + 'wavelengthcalibration.npy'
+
+    @property
+    def waveidfilename(self):
+        return self.wavelengthprefix + 'waveids.txt'
+
+    def loadWavelengthIdentifications(self, restart=False):
+        ''' Try loading a custom stored wavelength ID file
+            from the aperture's directory, and if that
+            doesn't work, load the default one for this grism.'''
+
+        try:
+            # try to load a custom wavelength id file
+            assert(restart == False)
+
+            self.speak('checking for a custom wavelength-to-pixel file')
+            self.waveids = astropy.io.ascii.read(self.waveidfilename)
+
+            # keep track of which waveid file is used
+            self.whichwaveid = 'Aperture-Specific ({0})'.format(
+                self.waveidfilename.split('/')[-1])
+
+        except (IOError,AssertionError):
+            self.speak('no custom wavelength-to-pixel files found')
+
+            # load the default for this grism, as set in obs. file
+            d = astropy.io.ascii.read(self.aperture.obs.wavelength2pixelsFile)
+            self.rawwaveids = d[['pixel', 'wavelength', 'name']]
+            self.rawwaveids['pixel'] /= self.aperture.obs.binning
+
+            # use a cross-corrlation to find the rough offset
+            #  (the function call will define waveids)
+            # pull out the peaks from extracted arc spectra
+            self.findPeaks()
+
+            # perform a first rough alignment, to make pixels
+            self.findRoughShift()
+
+
+            # keep track of whcih waveid file is used
+            self.whichwaveid = 'Default ({0})'.format(
+                self.aperture.obs.wavelength2pixelsFile.split('/')[-1])
+
+
+        self.speak('loaded {0}:'.format(self.whichwaveid))
+        self.findKnownWavelengths()
+        self.guessMatches()
+
+    def saveWavelengthIdentification(self):
+        '''store the wavelength-to-pixel identifications'''
+
+        self.waveids.write( self.waveidfilename,
+                            format='ascii.fixed_width',
+                            delimiter='|',
+                            bookend=False)
+        self.speak('saved wavelength-to-pixel matches to '+self.waveidfilename)
 
     def save(self):
-        np.save(filename, self.waveCalCoef)
-        self.speak("saved wavelength calibration to {0}".format(self.filename))
 
-    def load(self):
+        self.speak('saving all aspects of the wavelength calibration')
+
+        # the wavelength identifications
+        self.saveWavelengthIdentification()
+
+        # the actual matches used (with outliers, etc...)
+        self.saveMatches()
+
+        # save the coefficients (and domain) of the calibration
+        self.saveCalibration()
+
+        # save the figure
+        self.figcal.savefig(self.wavelengthprefix + 'calibration.pdf')
+
+    def loadCalibration(self):
+
+        coef, domain = np.load(self.calibrationfilename)
+        self.pixelstowavelengths = Legendre(coef, domain)
+        self.polynomialdegree = self.pixelstowavelengths.degree()
+        self.speak("loaded wavelength calibration"
+                "from {0}".format(self.calibrationfilename))
+
+    def saveCalibration(self):
+        np.save(self.calibrationfilename, (self.pixelstowavelengths.coef, self.pixelstowavelengths.domain))
+        self.speak("saved wavelength calibration coefficients to {0}".format(self.calibrationfilename))
+
+    def populate(self, restart=False):
+
+        # populate the wavelength identifications
+        self.loadWavelengthIdentifications(restart=restart)
         try:
-            self.coef = np.load(self.filename)
-            self.speak("loaded wavelength calibration from {0}".format(self.filename))
+            # populate the wavelength calibration polynomial
+            assert(restart==False)
+            self.loadCalibration()
             self.justloaded = True
-
-            # need the inverse relation for making the plots make sense
-            inversecoef = np.polyfit(self.pixelstowavelengths(self.aperture.waxis), self.aperture.waxis, self.wavelengthorder)
-            self.wavelengthstopixels = np.poly1d(inversecoef)
-
-        except IOError:
+            self.loadMatches()
+            self.plotWavelengthFit(interactive=False)
+            unhappy = ('n' in self.input('Are you happy with the wavelength calibration? [Y,n]').lower())
+            assert(unhappy == False)
+        except (IOError, AssertionError):
             self.justloaded = False
-        self.create()
+            self.create()
 
 
     def findRoughShift(self, blob=2.0):
@@ -71,10 +166,11 @@ class WavelengthCalibrator(Talker):
 
             myPeaks, theirPeaks = np.zeros(len(x)), np.zeros(len(x))
             # create fake spectrum of their peaks
-            for i in range(len(self.waveids)):
-                if element in self.waveids['name'][i]:
-                    center = self.waveids['pixels'][i]/self.aperture.obs.binning
+            for i in range(len(self.rawwaveids)):
+                if element in self.rawwaveids['name'][i]:
+                    center = self.rawwaveids['pixel'][i]
                     theirPeaks += np.exp(-0.5*((x-center)/blob)**2)
+
             # create fake spectrum of my peaks
             for i in range(len(xPeak)):
                 center = xPeak[i]
@@ -112,12 +208,15 @@ class WavelengthCalibrator(Talker):
         self.peakoffset = np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)
         # (old?) to convert: len(x) - xPeak = x + peakoffset
 
+        # define the new, shifted, waveids array
+        self.waveids = copy.deepcopy(self.rawwaveids)
+        self.waveids['pixel'] += self.peakoffset
+
         # plot the shifted wavelength ids, and combined corfuncs
         for element in self.elements:
-            for i in range(len(self.waveids)):
-                if element in self.waveids['name'][i]:
-                      center = self.waveids['pixels'][i]/self.aperture.obs.binning
-                      center += self.peakoffset
+            for i in range(len(self.rawwaveids)):
+                if element in self.rawwaveids['name'][i]:
+                      center = self.waveids['pixel'][i]
                       self.ax_waverough[element].axvline(center, alpha=0.25, color='black')
             # plot the combined correlation function
             normedcombined = self.corre['combined']/np.max(self.corre['combined'])
@@ -139,6 +238,14 @@ class WavelengthCalibrator(Talker):
             self.aperture.directory + 'roughWavelengthAlignment_{0}.pdf'.format(
             self.aperture.name))
 
+    @property
+    def peaks(self):
+        try:
+            return self._peaks
+        except AttributeError:
+            self.findPeaks()
+            return self._peaks
+
     def findPeaks(self):
         '''identify peaks in the extracted arc spectrum'''
 
@@ -149,11 +256,10 @@ class WavelengthCalibrator(Talker):
                                 image=self.aperture.images[element],
                                 arc=True)
 
-        # load the complete list of wavelengths (with no pixels)
-        self.waveall=astropy.io.ascii.read(self.aperture.obs.wavelengthsFile)
+
 
         # find the peaks in my spectra
-        self.peaks = {}
+        self._peaks = {}
 
         for count, element in enumerate(self.elements):
 
@@ -161,7 +267,17 @@ class WavelengthCalibrator(Talker):
             flux = self.aperture.arcs[element]['raw_counts']
 
              # identify my peaks
-            xPeak, yPeak = zachopy.oned.peaks(self.aperture.waxis, flux)
+            xPeak, yPeak, xfiltered, yfiltered = zachopy.oned.peaks(
+                                                self.aperture.waxis,
+                                                flux,
+                                                plot=False,
+                                                xsmooth=30,
+                                                threshold=100,
+                                                edgebuffer=10,
+                                                widthguess=1,
+                                                maskwidth=3,
+                                                returnfiltered=True)
+            self.aperture.arcs[element]['filtered'] = yfiltered
 
             # for some reason, need to trim peaks outside range
             pad = 25
@@ -173,7 +289,7 @@ class WavelengthCalibrator(Talker):
             n = len(xPeak)
 
             # store those peaks
-            self.peaks[element] = []
+            self._peaks[element] = []
             for i in range(n):
                 peak =  {
                         'w':xPeak[i],
@@ -181,16 +297,12 @@ class WavelengthCalibrator(Talker):
                         'handpicked':False,
                         'outlier':False
                         }
-                self.peaks[element].append(peak)
+                self._peaks[element].append(peak)
 
-    def findKnownWavelengths(self, extrapolateorder=3):
+    def findKnownWavelengths(self):
         # create a temporary calibration to match reference wavelengths to reference pixels (so we can extrapolate to additional wavelengths not recorded in the dispersion solution file)
 
-        coef = np.polyfit(
-            (self.waveids['wave2']),
-            self.waveids['pixels']/self.aperture.obs.binning+self.peakoffset,
-            extrapolateorder)
-        self.wavelengthstopixels = np.poly1d(coef)
+
 
 
         self.knownwavelengths = {}
@@ -199,15 +311,28 @@ class WavelengthCalibrator(Talker):
         for count, element in enumerate(self.elements):
             # pull out the wavelengths from the complete file
             self.knownwavelengths[element] = []
-            for i in range(len(self.waveall)):
-                if element in self.waveall['name'][i]:
-                    wave = self.waveall['wavelength'][i]
+            for i in range(len(self.waveids)):
+                if element in self.waveids['name'][i]:
+                    wave = self.waveids['wavelength'][i]
+                    pixel = self.waveids['pixel'][i]
                     known = {
                             'element':element,
                             'wavelength':wave,
-                            'pixelguess':self.wavelengthstopixels(wave)
+                            'pixelguess':pixel
                             }
                     self.knownwavelengths[element].append(known)
+
+    @property
+    def matchesfilename(self):
+        return self.wavelengthprefix + 'wavelengthmatches.npy'
+
+    def saveMatches(self):
+        self.speak('saving wavelength dictionaries to {}'.format(self.matchesfilename))
+        np.save(self.matchesfilename, (self.matches, self.knownwavelengths))
+
+    def loadMatches(self):
+        (self.matches, self.knownwavelengths) = np.load(self.matchesfilename)
+        self.speak('loaded wavelength matches from {0}'.format(self.matchesfilename))
 
     def guessMatches(self):
         self.matches = []
@@ -266,30 +391,26 @@ class WavelengthCalibrator(Talker):
 
         self.speak("populating wavelength calibration")
 
-        # pull out the peaks from extracted arc spectra
-        self.findPeaks()
 
-        # perform a first rough alignment, to make pixels
-        self.findRoughShift()
-
-        self.findKnownWavelengths()
 
         # loop through
         self.notconverged = True
         while(self.notconverged):
 
             # set an initial guess matching wavelengths to my pixles
-            self.guessMatches()
+            #self.guessMatches()
 
             # do a fit
             if self.justloaded:
                 self.justloaded = False
             else:
                 # do an initial fit
-                self.coef = np.polyfit(     self.pixel,
-                                            self.wavelength,
-                                            self.wavelengthorder,
-                                            w=self.weights)
+                self.pixelstowavelengths = Legendre.fit(
+                                                    x=self.pixel,
+                                                    y=self.wavelength,
+                                                    deg=self.polynomialdegree,
+                                                    w=self.weights
+                                                    )
             # identify outliers
             limit = 1.48*zachopy.oned.mad(self.residuals[self.good])*4
             limit = np.maximum(limit, 1.0)
@@ -299,25 +420,21 @@ class WavelengthCalibrator(Talker):
             for i, m in enumerate(self.matches):
                 self.matches[i]['mine']['outlier'] = outlier[i]
             self.speak('points beyond {0} are outliers ({1})'.format(limit, i))
-            self.coef = np.polyfit(     self.pixel,
-                                        self.wavelength,
-                                        self.wavelengthorder,
-                                        w=self.weights)
+
+            self.pixelstowavelengths = Legendre.fit(
+                                                    x=self.pixel,
+                                                    y=self.wavelength,
+                                                    deg=self.polynomialdegree,
+                                                    w=self.weights)
 
             self.plotWavelengthFit()
-            self.updatew2p()
+            #self.updatew2p()
 
     @property
     def weights(self):
         return self.good+self.handpicked*10
 
-    def updatew2p(self):
-        coef = np.polyfit(self.wavelength, self.pixel,
-                            self.wavelengthorder, w=self.weights)
-        self.wavelengthstopixels = np.poly1d(coef)
-        #self.matchdistance = 2*np.std((self.pixel - self.wavelengthstopixels(self.wavelength))[self.good])
-        #self.matchdistance = np.maximum(self.matchdistance, 10)
-        self.speak('match distance is {0}'.format(self.matchdistance))
+
 
     @property
     def residuals(self):
@@ -328,10 +445,6 @@ class WavelengthCalibrator(Talker):
         isntoutlier = np.array([m['mine']['outlier'] == False for m in self.matches])
         ishandpicked = np.array([m['mine']['handpicked'] for m in self.matches])
         return (isntoutlier + ishandpicked) > 0
-
-    @property
-    def pixelstowavelengths(self):
-        return np.poly1d(self.coef)
 
     @property
     def pixel(self):
@@ -353,81 +466,113 @@ class WavelengthCalibrator(Talker):
     def emissioncolor(self):
         return np.array([colors[m['theirs']['element']] for m in self.matches])
 
-    def plotWavelengthFit(self):
+    def plotWavelengthFit(self, interactive=True):
         # plot to make sure the wavelength calibration makes sense
 
-        figure_wavelengthcal = plt.figure('wavelength calibration',
-                                        figsize=(10,4), dpi=100)
+        self.speak('{}, {}'.format(self.pixelstowavelengths, self.pixelstowavelengths.domain, self.pixelstowavelengths.window))
+        self.figcal = plt.figure('wavelength calibration',
+                                        figsize=(15,6), dpi=72)
         self.interactivewave = zachopy.iplot.iplot(4,1,
-                height_ratios=[0.1, 0.4, 0.2, .2], hspace=0)
+                height_ratios=[0.1, 0.4, 0.2, .2], hspace=0.1,
+                bottom=0.15)
 
-        self.ax_w2p = self.interactivewave.subplot(0)
+        self.ax_header = self.interactivewave.subplot(0)
 
         # do the lamp spectra overlap?
-        self.ax_walign = self.interactivewave.subplot(1, sharex=self.ax_w2p)
+        self.ax_walign = self.interactivewave.subplot(1)
 
         # what is the actual wavelength calibration
-        self.ax_wcal = self.interactivewave.subplot(2, sharex=self.ax_w2p)
+        self.ax_wcal = self.interactivewave.subplot(2, sharex=self.ax_walign)
 
         # what are the residuals from the fit
-        self.ax_wres = self.interactivewave.subplot(3, sharex=self.ax_w2p)
+        self.ax_wres = self.interactivewave.subplot(3, sharex=self.ax_walign)
 
-        for ax in [self.ax_w2p, self.ax_walign, self.ax_wcal]:
+        for ax in [self.ax_header, self.ax_walign, self.ax_wcal]:
             plt.setp(ax.get_xticklabels(), visible=False)
 
-        self.ax_w2p.set_title("Wavelength Calib. for Aperture"
+        self.ax_header.set_title("Wavelength Calib. for Aperture"
             " (%0.1f,%0.1f)" % (self.aperture.x, self.aperture.y))
 
-        kw = dict(marker='o')
+        # print information about the wavelength calibration
+        self.ax_header.set_xlim(0,1)
+        self.ax_header.set_ylim(0,1)
+        plt.setp(self.ax_header.get_yticklabels(), visible=False)
+        self.ax_header.patch.set_visible(False)
+        text = 'Wavelength-to-pixel guesses are {0}\n'.format(self.whichwaveid)
+        text += 'Hand-picked matches are from {0}.\n'.format(self.matchesfilename.split('/')[-1])
+        text += 'Pixel-to-wavelength calibration is '
+        if self.justloaded:
+            text += 'from ' + self.calibrationfilename.split('/')[-1]
+        else:
+            text += '[new!]'
+        self.ax_header.text(0.025, 0.5, text,
+                                    va='center', ha='left', fontsize=10)
+        for i, e in enumerate(self.elements):
+            self.ax_header.text(0.98,
+                                1.0-(i+1.0)/(len(self.elements)+1),
+                                e,
+                                ha='right', va='center',
+                                color=colors[e],
+                                fontsize=6)
 
         # plot the backwards calibration
         for e in self.elements:
             ok = np.nonzero([e in self.waveids['name'][i] for i in range(len(self.waveids))])[0]
 
-            xvals = self.waveids['pixels'][ok]/self.aperture.obs.binning + self.peakoffset
-            yvals = self.waveids['wave2'][ok]
+            xvals = self.waveids['pixel'][ok]
+            yvals = self.waveids['wavelength'][ok]
 
-            self.ax_w2p.scatter(xvals, yvals,
+            self.ax_header.scatter(xvals, yvals,
                             marker='o', color=colors[e], alpha=0.3)
-            xfine = np.linspace(min(self.waveids['wave2']), max(self.waveids['wave2']))
-            self.ax_w2p.plot(self.wavelengthstopixels(xfine), xfine,
-                                alpha=0.3)
+            xfine = np.linspace(min(self.waveids['wavelength']), max(self.waveids['wavelength']))
+            #self.ax_header.plot(self.waveids, xfine,
+            #                    alpha=0.3)
 
         # plot the overlap of the lamp spectra
+        scatterkw = dict(   marker='o', linewidth=0,
+                            alpha=0.5, color=self.emissioncolor)
         for element in self.elements:
 
             self.ax_walign.plot(self.aperture.waxis,
-                                self.aperture.arcs[element]['raw_counts'],
+                                self.aperture.arcs[element]['filtered'],
                                 color=colors[element], alpha=0.5)
-            self.ax_walign.scatter(self.pixel, self.intensity,
-                                    marker='o', linewidth=0,
-                                    alpha=0.5, color=self.emissioncolor)
+            self.ax_walign.scatter(self.pixel, self.intensity, **scatterkw)
 
             self.ax_walign.set_yscale('log')
+            self.ax_walign.set_ylim(1, None)
 
 
         # plot tick marks for the known wavelengths
         for e in self.elements:
             for tw in self.knownwavelengths[e]:
-                pix = self.wavelengthstopixels(tw['wavelength'])
+                pix = tw['pixelguess']
                 self.ax_walign.axvline(pix,
                                         ymin=0.9,
                                         color=colors[e],
                                         alpha=0.5)
 
-        # plot the new calibration
-        self.ax_wcal.scatter(self.pixel, self.wavelength, color=self.emissioncolor, **kw)
-        self.ax_wcal.plot(self.pixel, self.pixelstowavelengths(self.pixel), alpha=0.5, color='black')
+
+        # plot the calibration
+        x = np.linspace(*zachopy.oned.minmax(self.aperture.waxis),num=200)
+        self.ax_wcal.plot(x, self.pixelstowavelengths(x), alpha=0.5, color='black')
         self.ax_wcal.set_ylabel('Wavelength (angstroms)')
 
         self.ax_wres.set_ylabel('Residuals')
-        self.ax_wres.scatter(self.pixel[self.good], self.residuals[self.good], color=self.emissioncolor[self.good], **kw)
-        kw['marker'] = 'x'
+        scatterkw['color'] = self.emissioncolor[self.good]
+        self.ax_wcal.scatter(   self.pixel[self.good],
+                                self.wavelength[self.good],
+                                **scatterkw)
+        self.ax_wres.scatter(   self.pixel[self.good],
+                                self.residuals[self.good],
+                                **scatterkw)
+        scatterkw['marker'] = 'x'
         bad = self.good == False
-        self.ax_wres.scatter(self.pixel[bad], self.residuals[bad], color=self.emissioncolor[bad], **kw)
+        scatterkw['color'] = self.emissioncolor[bad]
+        self.ax_wcal.scatter(self.pixel[bad], self.wavelength[bad], **scatterkw)
+        self.ax_wres.scatter(self.pixel[bad], self.residuals[bad], **scatterkw)
         self.ax_wres.set_xlabel('Pixel # (by python rules)')
 
-        self.ax_wres.set_xlim(min(self.aperture.waxis), max(self.aperture.waxis))
+        self.ax_wres.set_xlim(*zachopy.oned.minmax(self.aperture.waxis))
 
         self.ax_walign.scatter(   self.pixel[self.handpicked],
                                 self.intensity[self.handpicked],
@@ -442,37 +587,112 @@ class WavelengthCalibrator(Talker):
                                 marker='+', color='black')
 
         self.ax_wres.axhline(0, linestyle='--', color='gray', zorder=-100)
+
+
+        rms = np.std(self.residuals[self.good])
+        performance = 'using a {}-degree {}'.format(self.polynomialdegree,
+                            self.pixelstowavelengths.__class__.__name__)
+        performance += ' the calibration has an RMS of {0:.2f}A'.format(rms)
+        performance += ' with {0:.0f} good points'.format(np.sum(self.good))
+        performance += ' from {:.0f} to {:.0f}'.format(*zachopy.oned.minmax(self.pixel[self.good]))
+        self.ax_wres.text(0.98, 0.05, performance,
+                            fontsize=10,
+                            ha='right', va='bottom',
+                            transform=self.ax_wres.transAxes)
+
         self.ax_wres.set_ylim(*np.array([-1,1])*np.maximum(zachopy.oned.mad(self.residuals[self.good])*10, 1))
         plt.draw()
         self.speak('check out the wavelength calibration')
+
+        if interactive == False:
+            return
+
+        options = {}
+        options['q'] = dict(description='[q]uit without writing',
+                            function=self.quit,
+                            requiresposition=False)
+
+        options['w'] = dict(description='[w]rite the new calibration',
+                            function=self.saveandquit,
+                            requiresposition=False)
+
+        options['h'] = dict(description='match up a [h]elium line',
+                            function=self.see,
+                            requiresposition=True)
+        options['n'] = dict(description='match up a [n]eon line',
+                            function=self.see,
+                            requiresposition=True)
+        options['a'] = dict(description='match up a [a]rgon line',
+                            function=self.see,
+                            requiresposition=True)
+
+        options['d'] = dict(description='change the polynomial [d]egree',
+                            function=self.changedegree,
+                            requiresposition=True)
+
+        options['z'] = dict(description='[z]ap a previously matched line',
+                            function=self.zap,
+                            requiresposition=True)
+
+        options['u'] = dict(description='[u]ndo all changes made this session',
+                                    function=self.undo,
+                                    requiresposition=False)
+
+        options['r'] = dict(description='[r]estart from all defaults',
+                                    function=self.restart,
+                                    requiresposition=False)
+
+        options['!'] = dict(description='raise an error[!]',
+                                    function=self.freakout,
+                                    requiresposition=False)
+
+        self.speak('your options include:')
+        for v in options.values():
+            self.speak('   ' + v['description'])
         pressed = self.interactivewave.getKeyboard()
 
-        if pressed.key == 'q':
-            # quit, deciding this was great
-            self.notconverged = False
-            figure_wavelengthcal.savefig(self.aperture.directory + 'wavelengthCalibration_{0}.pdf'.format(self.aperture.name))
-        elif pressed.key in ['h', 'n', 'a']:
-            # see that a line could be made to line up
-            self.see(pressed)
-        elif pressed.key == 'o':
-            self.wavelengthorder = int(self.input('please enter a new order!'))
-        elif pressed.key == 'z':
-            # zap a previously pinned point
-            self.zap(pressed)
-        elif pressed.key == 'r':
-            # zap a previously pinned point
-            self.create()
-        elif pressed.key == '!':
-            # quit, and raise an error
-            assert(False)
-        else:
+        try:
+            options[pressed.key.lower()]['function'](pressed)
+        except KeyError:
+            self.speak("nothing yet defined for [{}]".format(pressed.key))
             return
+
+    def freakout(self, *args):
+        raise RuntimeError('Breaking here, for debugginng')
+
+    def undo(self, *args):
+        self.populate()
+
+    def restart(self, *args):
+        self.populate(restart=True)
+
+    def changedegree(self, pressed):
+        '''change the degree of the polynomial'''
+        self.speak('please enter a new polynomial degree (1-9)')
+        new = self.interactivewave.getKeyboard()
+
+        self.polynomialdegree = int(new.key)
+
+    def quit(self, *args):
+        '''quit without saving'''
+        self.speak('finished!')
+        self.notconverged = False
+
+    def saveandquit(self, *args):
+        '''save and quit'''
+        self.speak('saving the wavelength calibration')
+        self.save()
+        self.quit()
+
+
 
     @property
     def handpicked(self):
         return np.array([m['mine']['handpicked'] for m in self.matches])
 
     def selectpeak(self, pressed):
+
+
         #print pressed.xdata, pressed.ydata
         element = shortcuts[pressed.key]
         self.speak('matching for the closest {0} line'.format(element))
@@ -489,16 +709,28 @@ class WavelengthCalibrator(Talker):
         closest = ((pixguess - pressed.xdata)**2).argmin()
         return self.knownwavelengths[element][closest]
 
+    def checkvalid(self, pressed):
+        if pressed.xdata is None:
+            self.speak('''you typed "{0}", but the window didn't return a coordinate, please try again!'''.format(pressed.key))
+            return False
+        else:
+            return True
 
     def zap(self, pressed):
+        if self.checkvalid(pressed) == False:
+            return
         closest = ((self.pixel - pressed.xdata)**2).argmin()
         self.matches[closest]['mine']['handpicked'] = False
 
 
     def see(self, pressed):
+        if self.checkvalid(pressed) == False:
+            return
+
         closest = self.selectpeak(pressed)
         if closest is None:
             return
+
         match = self.matches[closest]
 
         pixel = match['mine']['w']
