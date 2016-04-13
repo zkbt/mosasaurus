@@ -23,8 +23,8 @@ class Aperture(Talker):
     self.createCalibStamps()
     # testing!
     #self.trace.fit()
-    self.createTrace()
-    self.createWavelengthCal()
+    #self.createTrace()
+    #self.createWavelengthCal()
 
   def stampFilename(n):
 	'''Spit out the right stamp filename for this aperture, cut out of CCDn.'''
@@ -208,7 +208,23 @@ class Aperture(Talker):
         assert(arc == False)
         self.extracted = np.load(self.extractedFilename)
         self.speak('loaded extracted spectrum from {0}'.format(self.extractedFilename))
-    except:
+    except (AssertionError, IOError):
+
+
+        try:
+            self.traceCenter
+        except AttributeError:
+            self.createTrace()
+
+        try:
+            self.wavelengthcalibrator
+        except AttributeError:
+            if arc == False:
+                self.createWavelengthCal()
+
+
+        # reassign the image number for this, because createwavelength cal probably reset it
+        self.n = n
 
         # make sure we don't subtract the sky, if the arcs are set
         subtractsky = subtractsky & (arc == False)
@@ -262,10 +278,11 @@ class Aperture(Talker):
 
         # keep track of the cosmics that were rejected along the important columns
         try:
-            intermediates['smearedcosmics'] = self.mask.ccd.cosmicdiagnostic[self.xstart:self.xend].reshape(1,self.xend - self.xstart)*np.ones_like(image)/(self.yend - self.ystart).astype(np.float)
-            self.extracted['cosmicdiagnostic'] = (intermediates['smearedcosmics']*intermediates['extractMask']).sum(self.sindex)
-            self.speak('the cosmic over-correction diagnostic is {0}'.format(np.sum(self.extracted['cosmicdiagnostics'])))
-        except:
+            if arc == False:
+                intermediates['smearedcosmics'] = self.mask.ccd.cosmicdiagnostic[self.xstart:self.xend].reshape(1,np.round(self.xend - self.xstart).astype(np.int))*np.ones_like(image)/(self.yend - self.ystart).astype(np.float)
+                self.extracted['cosmicdiagnostic'] = (intermediates['smearedcosmics']*intermediates['extractMask']).sum(self.sindex)
+                self.speak('the cosmic over-correction diagnostic is {0}'.format(np.sum(self.extracted['cosmicdiagnostic'])))
+        except (IOError, AttributeError):
             self.speak("couldn't find any cosmic over-correction diagnostics for this frame")
 
         # subtract the sky, if requested

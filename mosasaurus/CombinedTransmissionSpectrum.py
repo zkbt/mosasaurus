@@ -174,12 +174,12 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 
 
 			# width of the whole spectrum, and the width in the wavelength range
-			instrument.width_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			instrument.dwidth_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
+			#instrument.width_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
+			#instrument.dwidth_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
 
 			# cross-dispersion centroid of the whole spectrum, and in the wavelength range
-			instrument.centroid_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			instrument.dcentroid_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
+			#instrument.centroid_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
+			#instrument.dcentroid_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
 
 			# applied wavelength offset
 			try:

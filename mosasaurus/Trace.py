@@ -27,8 +27,8 @@ class Trace(Talker):
         self.traceguess = np.poly1d(0.0)
         self.setup()
         #self.updateMasks()
-        for i in range(3):
-            self.fitTrace()
+        #for i in range(3):
+        #    self.fitTrace()
         self.run()
         self.save()
 
@@ -238,10 +238,13 @@ class Trace(Talker):
             self.speak('weights were wonky')
             assert(False)
 
-        fluxWeightedCentroids = np.average(self.aperture.s,
-                            axis=self.aperture.sindex,
-                            weights=fine*considerstar*self.images['Subtracted'])
-
+        try:
+            fluxWeightedCentroids = np.average(self.aperture.s,
+                        axis=self.aperture.sindex,
+                        weights=fine*considerstar*self.images['Subtracted'])
+        except ZeroDivisionError:
+            self.speak('UH-OH, got zero-division error')
+            return
         if np.isfinite(fluxWeightedCentroids).all() == False:
             self.speak('centroids were wacky')
             assert(False)

@@ -5,7 +5,7 @@ import astropy.table, astropy.time
 plt.ion()
 class Cube(Talker):
   '''Cube object stores a -wavelength-flux datacube.'''
-  def __init__(self, obs, remake=False, max=None, **kwargs):
+  def __init__(self, obs, remake=False, max=None, shift=True, **kwargs):
     '''Initialize a data cube and populate it with data.'''
     Talker.__init__(self, line=200, **kwargs)
 
@@ -22,7 +22,7 @@ class Cube(Talker):
     self.tindex = 1
     self.windex = 2
     self.goodComps = self.obs.goodComps
-
+    self.shift = shift
 
   def populate(self, remake=False, max=None, visualize=True):
     try:
@@ -44,7 +44,10 @@ class Cube(Talker):
 
   @property
   def filename(self):
-    return self.obs.extractionDirectory + 'spectralCube_{0}stars_{1}spectra.npy'.format(self.numberofstars, self.numberoftimes)
+    if self.shift:
+        return self.obs.extractionDirectory + 'shifted_spectralCube_{0}stars_{1}spectra.npy'.format(self.numberofstars, self.numberoftimes)
+    else:
+        return self.obs.extractionDirectory + 'unshifted_spectralCube_{0}stars_{1}spectra.npy'.format(self.numberofstars, self.numberoftimes)
 
   def loadSpectra(self, remake=False, visualize=True, max=None):
     """Opens all the spectra in a working directory, lumps them into a cube, and returns it:
@@ -188,7 +191,8 @@ class Cube(Talker):
     self.spectral['dnpixelsdw'] = supersampled['dnpixelsdw']
     self.numberofwavelengths = len(self.spectral['wavelength'])
 
-    #self.shiftCube(plot=visualize)
+    if self.shift:
+        self.shiftCube(plot=visualize)
     self.speak("Done loading spectral cube.")
 
     self.roughLC()
@@ -244,12 +248,112 @@ class Cube(Talker):
       self.numberofwavelengths = len(self.spectral)
       self.numberoftimes = len(self.temporal)
 
+  def doubleplot(self,
+                    binsize=500,
+                    wavemin=4500, wavemax=9000,
+                    divide=False, ylim=None,
+                    median=False,
+                    title=None):
+
+        self.populate()
+        c = self
+        name = c.obs.name
+        date = c.obs.night
+        wavelengths = np.arange(wavemin, wavemax, binsize)
+
+
+
+        lcs = []
+
+        import zachopy.cmaps
+        blue, red = 'indigo', 'darkorange'
+        cmap = zachopy.cmaps.one2another(blue, red)
+
+        plt.ioff()
+        for i, w in enumerate(wavelengths):
+            c.roughLC(wavelengths=[w-binsize/2, w+binsize/2])
+            ok = np.array(c.temporal['ok'])
+            lc = c.temporal['bjd']+0.0, c.temporal['lc'] +0.0, ok
+            lcs.append(lc)
+
+        offset = int(c.temporal['bjd'][0])
+        plt.figure(name, figsize=(8,6), dpi=70)
+        if median:
+            gs = plt.matplotlib.gridspec.GridSpec(3,1,
+                        height_ratios=[1,1,.5], hspace=0.02)
+        else:
+            gs = plt.matplotlib.gridspec.GridSpec(2,1,
+                        height_ratios=[1,.5], hspace=0.02)
+        axlc = plt.subplot(gs[-1])
+
+        plt.xlabel('BJD - {0}'.format(offset))
+        plt.ylabel('Relative Flux')
+
+
+        n, m = len(lc[2]), len(wavelengths)
+        image, imageok = np.zeros((n,m)),  np.zeros((n,m))
+
+        for i, lc in enumerate(lcs):
+            fraction = i/(len(wavelengths) - 1.0)
+            t = lc[0] - offset
+            flux = lc[1]
+            ok = lc[2]
+            image[:,i] = flux + 0.0
+            imageok[:,i] = ok + 0
+            print ok
+            plt.plot(t[ok], flux[ok], alpha=binsize/500.0, linewidth=1,color=cmap(fraction))
+
+        if ylim is None:
+            valid = np.nonzero((imageok*np.isfinite(image)).flatten())[0]
+            ylim = np.percentile(image.flatten()[valid], [1,99])
+
+
+        plt.ylim(*ylim)
+        plt.xlim(t.min(), t.max())
+
+
+        if divide:
+            image /= np.median(image, 1)[:,np.newaxis]
+
+        axim = plt.subplot(gs[0])
+        kw = dict(interpolation='nearest', cmap='gray',
+                                vmin=ylim[0], vmax=ylim[1], aspect='auto',
+                                extent=[min(t), max(t),
+                                        (min(wavelengths) - binsize/2.0)/10, (max(wavelengths) + binsize/2.0)/10],
+                                origin='lower')
+        axim.imshow(image.T, **kw)
+
+
+        plt.setp(axim.get_xticklabels(), visible=False)
+        if title is None:
+            title = '{name} with {instrument}\n[from {0}nm ({blue}) to {1}nm ({red}) in {2}nm-wide bins]'.format( wavemin/10, wavemax/10, binsize/10, name=name,blue=blue, red=red, instrument=c.obs.instrument)
+        plt.title(title)
+        plt.ylabel('Wavelength (nm)')
+
+        if median:
+            axmed = plt.subplot(gs[1])
+            divided = (image/np.median(image, 1)[:,np.newaxis])
+            kw['vmin'], kw['vmax'] = np.percentile(divided, [5,95])
+            axmed.imshow(divided.T, **kw)
+            plt.setp(axmed.get_xticklabels(), visible=False)
+
+        plt.draw()
+
+        if divide:
+            filename = '{0}_binto{1}_{2}_normalized.pdf'.format(name,binsize, date)
+        else:
+            filename = '{0}_binto{1}_{2}.pdf'.format(name,binsize, date)
+        plt.savefig(filename)
+
   def movieCube(self, fps=30, bitrate=1800*20, stride=10):
       '''Create movie of the spectral cube.'''
 
       metadata = dict(artist='Z.K.B.-T.')
       self.writer = matplotlib.animation.FFMpegWriter(fps=fps, metadata=metadata, bitrate=bitrate)
-      filename = self.obs.extractionDirectory + 'cube_{0}stars_{1}spectra_{2}stride.mp4'.format(self.numberofstars, self.numberoftimes, stride)
+      if self.shift:
+          filename = self.obs.extractionDirectory + 'shifted_cube_{0}stars_{1}spectra_{2}stride.mp4'.format(self.numberofstars, self.numberoftimes, stride)
+      else:
+          filename = self.obs.extractionDirectory + 'cube_{0}stars_{1}spectra_{2}stride.mp4'.format(self.numberofstars, self.numberoftimes, stride)
       plt.ioff()
       self.plotSpectra(0, remake=True)
       with self.writer.saving(self.figure, filename, self.figure.get_dpi()):

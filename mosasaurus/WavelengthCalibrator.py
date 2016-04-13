@@ -205,7 +205,7 @@ class WavelengthCalibrator(Talker):
             self.corre['combined'] *= self.corre[element]
 
         # find the peak of the combined correlation function
-        self.peakoffset = np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)
+        self.peakoffset = -1024 # KLUDGE KLUDGE KLUDGE! np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)
         # (old?) to convert: len(x) - xPeak = x + peakoffset
 
         # define the new, shifted, waveids array
