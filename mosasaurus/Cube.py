@@ -895,3 +895,69 @@ class LC():
 
     plt.draw()
     bla = raw_input(self.filename + '?')
+
+  def help(self):
+      print '''
+Independental measured variables:
+
+=======================
+stored in cube.temporal
+=======================
+airmass(time)
+this is the overall average airmass of the field
+
+rotatore(time)
+this the instrument rotator angle -- it probably tells us something about the
+instrument's changing illumination and flexure.
+
+=======================
+stored in cube.squares
+=======================
+
+centroid(star,time)
+the centroid of the star in the cross-dispersion direction. this variable is the
+median of the centroids across all wavelengths, representing an overall shift of
+the star's position through the spectrograph's optics
+
+width(star,time)
+the width of the star in the cross-dispersion direction. this variable is the
+median of the widths across all wavelengths, representing an overall change,
+most likely due to seeing.
+
+shift(star,time)
+by how much did we have to shift the star in the wavelength direction, to
+make its spectral features line up with a reference spectrum. as the zeropoint
+of the wavelength calibration is set by the position of the star in the focal
+plane, this tracks the motion of the star in the dispersion direction (and
+probably other stuff too)
+
+=======================
+stored in cube.cubes
+=======================
+
+raw_counts(star,time,wavelength)
+the flux from each star, integrated over the cross-dispersion direction and with
+flux from the diffuse sky subtracted. this is what we use to make light curves!
+
+sky(star,time,wavelength)
+the extracted sky brightness, which was subtracted in an average sense, from the
+the 1D stellar spectrum. if this value was estimated incorrectly, it could
+influence the chromatic light curves.
+
+dcentroid(star,time,wavelength)
+the centroid of the star in the cross-dispersion direction, measured at a
+particular wavelength, relative to "centroid" (see above). this represents
+changes in the position on the detection caused by things like internal flexure
+or atmospheric refraction.
+
+dwidth(star,time,wavelength)
+the width of the star in the cross-dispersion direction, measured at a
+particular wavelength, relative to "width". flux correlations with dwidth
+could be diagnostic of problems with the sky subtraction, or the extraction
+
+peak(star,time,wavelength)
+the brightness of the brightest pixel in the cross-dispersion direction,
+at each wavelength, for each star. it will correlate strongly with seeing,
+but is a slightly different tracer. correlations with "peak" that cannot be
+explained by seeing alone might point to problems in the detector non-linearity
+'''
