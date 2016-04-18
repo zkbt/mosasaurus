@@ -21,7 +21,7 @@ class Observation(Talker):
 
 
     def loadHeaders(self, remake=False):
-        self.headers = Headers(self, mute=self.mute, pithy=self.pithy)
+        self.headers = Headers(self, mute=self._mute, pithy=self._pithy)
         self.headers.load(remake=remake)
 
     def readParameters(self, filename):
@@ -45,6 +45,8 @@ class Observation(Talker):
         if "LDSS" in self.instrument:
             self.observatory = 'lco'
         self.baseDirectory = dictionary['baseDirectory']
+        if '/media/hannah/Seagate' in self.baseDirectory:
+            self.baseDirectory = ' '.join(dictionary['baseDirectory'])
 
         # set up the wavelength calibration paths
         self.referenceDirectory = mosasaurusdirectory + 'data/'
