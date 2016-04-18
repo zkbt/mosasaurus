@@ -88,7 +88,7 @@ class Mask(Talker):
         filename = self.obs.extractionDirectory + 'apertures.reg'
         r.write(filename)
         self.display.one(imageDispersed, clobber=True)
-        self.display.window.set("regions load {0}".format(filename))
+        #self.display.window.set("regions load {0}".format(filename))
 
 
   def createStamps(self, n):

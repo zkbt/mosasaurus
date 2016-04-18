@@ -93,6 +93,14 @@ class Trace(Talker):
                 '''
         stillgoing = True
         while stillgoing:
+            self.speak('Please refine the extraction aperture.')
+            self.speak(' Your options are:')
+            self.speak('  [q] save and quit')
+            self.speak('  [c] move the crosshair, and plot slices along it')
+            self.speak('  [t] add a trace point, somewhere along the star')
+            self.speak('  [e] extend a sky region (twice to define the start and stop)')
+            self.speak('  [r] remove area from a sky region (twice to start and stop)')
+            self.speak("  [f] to fit the trace, using the star's centroids and the sky areas")
             pressed = self.iplot.getKeyboard()
             if pressed.key == 'q':
                 stillgoing = False
@@ -413,6 +421,8 @@ class Trace(Talker):
                                                 linewidth=1,
                                                 color='darkcyan',
                                                 alpha=1.0)[0]
+
+        plt.draw()
 
     def moveCrosshair(self, pressed=None, w=None, s=None):
         '''use new values of w and s to move the crosshair and replot'''
