@@ -1,48 +1,94 @@
 '''Trace defines the extraction and sky subtraction regions for an Aperture'''
 
 from imports import *
-
+from zachopy.cmaps import one2another
 
 class Trace(Talker):
+    '''trace object defines the extraction trace and sky region'''
     def __init__(self, aperture):
         Talker.__init__(self)
         self.aperture = aperture
         self.obs = self.aperture.obs
 
+        # keep track of the spatial and wavelength axis (in pixels)
         self.saxis = self.aperture.saxis
         self.waxis = self.aperture.waxis
 
-        # pull out values from the aperture
+        # what degree polynomial should be used?
         self.order = self.obs.traceOrder
-        self.traceWidth = self.obs.extractionWidth
 
+        # define a grid of extraction widths, (can be changed later, if desired)
+        self.setSizes(default=True)
+        self.traceWidth = np.min(self.extractionwidths)
+
+        # keep track of where the crosshair is pointing
         self.crosshair = dict(s=0.0, w=0.0)
-        o = self.obs
-        inner = o.extractionWidth + o.skyGap
-        outer = inner + o.skyWidth
-        self.skyoffsets = [ dict(top=outer, bottom=inner, whattodo=1),
-                            dict(top=-inner, bottom=-outer, whattodo=1)]
 
-        self.tracepoints = {'w':[], 's':[]}
-        self.traceguess = np.poly1d(0.0)
-        self.setup()
-        #self.updateMasks()
-        #for i in range(3):
-        #    self.fitTrace()
-        self.run()
+        try:
+            self.load()
+        except IOError:
+            # set up the initial sky offsets
+            inner = np.min(self.extractionwidths) + self.obs.skyGap
+            outer = inner + self.obs.skyWidth
+            self.skyoffsets = [ dict(top=outer, bottom=inner, whattodo=1),
+                                dict(top=-inner, bottom=-outer, whattodo=1)]
+
+            # an array of custom-selected trace points (for forcing a particular fit)
+            self.tracepoints = {'w':[], 's':[]}
+
+            # and the initial guess for the trace
+            self.traceguess = np.poly1d(0.0)
+
+            # set up the intial bits of the trace object
+            self.setup()
+
+            # run the interactive loop
+            self.run()
+
+        # save the defined properties of the trace
+        # self.save() # (don't need, because user will be quitting with "w"?)
+
+    def writeandquit(self, *args):
+        '''write out all the parameters to a file, and stop the interaction loop'''
+        # save the parameters
         self.save()
+        self.quit()
+
+    def quit(self, *args):
+        self.notconverged = False
+        plt.close(self.figure)
 
     def save(self):
+        '''save all properties of this trace to a file'''
+
+        # save the parameters of the trace
         filename = self.aperture.directory + 'trace_{0}.npy'.format(self.aperture.name)
         np.save(filename, (self.tracefitcoef, self.tracefitwidth))
         self.speak("saved trace parameters to {0}".format(filename))
 
-        filename = self.aperture.directory + 'trace_{0}.pdf'.format(self.aperture.name)
+        # save the extraction and sky masks
+        filename = self.aperture.directory + 'extractionmasks_{0}.npy'.format(self.aperture.name)
+        np.save(filename, (self.skyoffsets, self.extractionwidths))
+        self.speak("saved extraction mask parameters to {0}".format(filename))
+
+        # save a PDF of the trace definition
+        filename = self.aperture.directory + 'tracedefinition_{0}.pdf'.format(self.aperture.name)
         self.figure.savefig(filename)
 
-        filename = self.aperture.directory + 'skyMask_{0}.npy'.format(self.aperture.name)
-        np.save(filename, self.skymask)
-        self.speak("saved a sky mask to {0}".format(filename))
+    def load(self):
+
+        # load the parameters of the trace
+        filename = self.aperture.directory + 'trace_{0}.npy'.format(self.aperture.name)
+        (self.tracefitcoef, self.tracefitwidth) = np.load(filename)
+        self.speak("loaded trace parameters to {0}".format(filename))
+        self.tracefit = np.poly1d(self.tracefitcoef)
+
+        # save the extraction and sky masks
+        filename = self.aperture.directory + 'extractionmasks_{0}.npy'.format(self.aperture.name)
+        (self.skyoffsets, self.extractionwidths) = np.load(filename)
+        self.speak("saved extraction mask parameters to {0}".format(filename))
+        self.numberofapertures = len(self.extractionwidths)
+        self.narrowest, self.widest = zachopy.oned.minmax(self.extractionwidths)
 
     def run(self):
         '''interactively fit for the position of the trace of the spectrum,
@@ -59,16 +105,16 @@ class Trace(Talker):
                         widths will be calculated to determine
                         the optimal trace coefficients.
 
-                    press and hold "e" at a point on the sky,
-                    and release at a different point on the sky
+                    press "e" at a point on the sky,
+                    and again at a different point on the sky
 
                         "Extend" the sky subtraction region.
                         All this cares about is the offset
                         in the cross-dispersion direction
                         away from the spectral trace.
 
-                    press and hold "r" at a point on the sky,
-                    and release at a different point on the sky
+                    press "r" at a point on the sky,
+                    and again at a different point on the sky
 
                         "Remove" from the sky subtraction region.
                         All this cares about is the offset
@@ -91,45 +137,108 @@ class Trace(Talker):
 
                     (something to change the plotting scale)
                 '''
-        stillgoing = True
-        while stillgoing:
+        self.notconverged = True
+        while self.notconverged:
             self.speak('Please refine the extraction aperture.')
-            self.speak(' Your options are:')
-            self.speak('  [w] write and quit')
-            self.speak('  [c] move the crosshair, and plot slices along it')
-            self.speak('  [t] add a trace point, somewhere along the star')
-            self.speak('  [e] extend a sky region (twice to define the start and stop)')
-            self.speak('  [r] remove area from a sky region (twice to start and stop)')
-            self.speak("  [f] to fit the trace, using the star's centroids and the sky areas")
+
+            options = {}
+            options['w'] = dict(description='[w]rite and quit',
+                                function=self.writeandquit,
+                                requiresposition=False)
+            options['q'] = dict(description='[q]uit without writing',
+                                function=self.quit,
+                                requiresposition=False)
+            options['c'] = dict(description='move the [c]rosshair, and plot slices along it',
+                                function=self.moveCrosshair,
+                                requiresposition=True)
+            options['t'] = dict(description='add a guess for a [t]race point',
+                                function=self.addTracePoint,
+                                requiresposition=True)
+            options['e'] = dict(description='[e]xtend a sky region (twice for start and stop)',
+                                function=self.modifySky,
+                                requiresposition=True)
+            options['r'] = dict(description='[r]emove a sky region (twice for start and stop)',
+                                function=self.modifySky,
+                                requiresposition=True)
+            options['f'] = dict(description="[f]it the trace, using the star's centroids and sky areas",
+                                function=self.fitTrace,
+                                requiresposition=False)
+            options['s'] = dict(description="[s]et the [s]ize of the [s]tar's smallest extraction region",
+                                function=self.setSizes,
+                                requiresposition=False)
+
+
+
+            # print the options
+            self.speak('your options include:')
+            for v in options.values():
+                self.speak('   ' + v['description'])
+
+            # get the keyboard input
             pressed = self.iplot.getKeyboard()
-            if pressed.key == 'w':
-                stillgoing = False
-                break
-            elif pressed.inaxes == None:
-                continue
-            elif pressed.key == 'c':
-                self.moveCrosshair(pressed)
-            elif pressed.key == 't':
-                self.addTracePoint(pressed)
-                self.moveCrosshair(pressed)
-            elif pressed.key == 'e':
-                self.modifySky(pressed)
-            elif pressed.key == 'r':
-                self.modifySky(pressed)
-            elif pressed.key == 'f':
-                self.fitTrace()
-            else:
-                self.speak('Hmmm, nothing has be defined for "{}"...'.format(pressed.key))
+
+            # process the keyboard input
+            try:
+                # figure out which option we're on
+                thing = options[pressed.key.lower()]
+                # check that it's a valid position, if need be
+                if thing['requiresposition']:
+                    assert(pressed.inaxes is not None)
+                # execute the function associated with this option
+                thing['function'](pressed)
+            except KeyError:
+                self.speak("nothing yet defined for [{}]".format(pressed.key))
+            except AssertionError:
+                self.speak("that didn't seem to be at a valid position!")
+
+
             plt.draw()
 
     @property
     def traceCenter(self):
+        '''return a function that gives the s-value of the trace center, given an input w'''
         try:
             return self.tracefit
         except AttributeError:
             return self.traceguess
 
+    def setSizes(self, pressed=None, default=False):
+        '''prompt the user to select range of aperture sizes for extraction'''
+        if default:
+            self.narrowest = self.obs.narrowest
+            self.widest = self.obs.widest
+            self.numberofapertures = self.obs.numberofapertures
+        else:
+            self.speak('Please redefine the aperture sizes.')
+            self.speak(' (The old aperture sizes were {}.)'.format(self.extractionwidths))
+            self.speak(' ["d" for any of these for defaults]')
+
+            try:
+                self.narrowest = np.float(self.input("What is the narrowest aperture?"))
+            except ValueError:
+                self.narrowest = self.obs.narrowest
+
+            try:
+                self.widest = np.float(self.input("What is the widest aperture?"))
+            except ValueError:
+                self.widest = self.obs.widest
+
+            try:
+                self.numberofapertures = np.int(self.input('How many apertures do you want?'))
+            except ValueError:
+                self.numberofapertures = self.obs.numberofapertures
+
+        self.extractionwidths = np.linspace(self.narrowest, self.widest, self.numberofapertures)
+        self.speak(' The current aperture sizes are {}.'.format(self.extractionwidths))
+
+        # update the plotting, to reflect the new extraction apertures
+        try:
+            self.updateMasks()
+        except AttributeError:
+            pass
+
     def modifySky(self, pressed, whattodo=None):
+        '''from a KeyEvent, extend or remove regions from the sky'''
         try:
             # if we've clicked once before, add to those positions
             self.skykeys.append(pressed)
@@ -159,18 +268,17 @@ class Trace(Talker):
             d = {   'top':offsets.max(),
                     'bottom':offsets.min(),
                     'whattodo':whattodo}
-            print d
+
             try:
                 self.skyoffsets.append(d)
             except AttributeError:
                 self.skyoffsets = [d]
 
             self.updateMasks()
-            #ma = np.ma.MaskedArray(self.images['Science'], mask==0)
-            #skyspectrum = np.ma.median(ma, self.aperture.sindex)
 
             # remove the dictionary, to start over again for the next
             del self.skykeys
+
         elif len(self.skykeys) == 1:
             self.speak('Please do another "{}" again to edit the sky.'.format(pressed.key))
         else:
@@ -180,13 +288,34 @@ class Trace(Talker):
         '''update the sky mask (because either the sky offsets have changed),
             or the trace center has changed), and update the plots'''
 
+
+        # update the extraction edges
+        for line in self.plotted['extractionedges']:
+            line.remove()
+        offsets = (np.array([-1,1])[np.newaxis, :]*self.extractionwidths[:,np.newaxis]).flatten()
+        x = self.waxis
+        y = self.traceCenter(x)[:,np.newaxis] + offsets[np.newaxis, :]
+        self.plotted['extractionedges'] = self.ax['2d'].plot(x, y,
+                                            linewidth=1,
+                                            alpha=0.5,
+                                            color='darkgreen',
+                                            zorder = 1000)
+
         self.plotted['extractionmask'].set_data(self.extractionmaskimage)
         self.plotted['skymask'].set_data(self.skymaskimage)
 
+        for t in self.plotted['widthlabels']:
+            t.remove()
+
+
+        self.labelWidths()
         plt.draw()
 
     def addTracePoint(self, pressed):
-        '''from a KeyEvent, add a point to the list of trace guesses'''
+        '''from a KeyEvent, add a point to the list of trace guesses.
+        this will also update the trace to fit the guesses, and not the centroids.
+        run "f" again to snap back to the centroiding fit'''
+
         x,y = pressed.xdata, pressed.ydata
         self.speak('adding trace guess point at {0}'.format((x,y)))
 
@@ -209,36 +338,34 @@ class Trace(Talker):
         print xfine
         print self.traceguess(xfine)
 
+        # set the trace fit to be the guess!
+        self.tracefit = self.traceguess
+        self.moveCrosshair(pressed)
+
         # the sky moves, if the trace does
         self.updateMasks()
 
-    @property
-    def images(self):
-        return self.aperture.images
-
-    def fitTrace(self):
+    def fitTrace(self, *args):
         '''using the guess of the trace, and the sky subtraction regions,
             fit for trace using actual centroids'''
 
-
-
         # estimate a rough 1D spectrum
-        flattened = self.images['Science']/self.images['NormalizedFlat']
+        flattened = self.aperture.images['Science']/self.aperture.images['NormalizedFlat']
         roughSky1d=np.average(flattened,
                                 axis=self.aperture.sindex,
-                                weights=self.skymask)
+                                weights=self.skymask(np.median(self.extractionwidths)))
         reshaped = roughSky1d.reshape((self.waxis.shape[0],1))
-        self.images['Sky'] = reshaped*np.ones_like(flattened)
-        self.images['Subtracted'] = flattened - self.images['Sky']
-        fine = np.isfinite(self.images['Subtracted'])
+        self.aperture.images['Sky'] = reshaped*np.ones_like(flattened)
+        self.aperture.images['Subtracted'] = flattened - self.aperture.images['Sky']
+        fine = np.isfinite(self.aperture.images['Subtracted'])
 
-        considerstar = self.extractionmask
+        considerstar = self.extractionmask(np.max(self.extractionwidths))
 
-        weights = np.maximum(fine*considerstar*self.images['Subtracted'], 0)
+        weights = np.maximum(fine*considerstar*self.aperture.images['Subtracted'], 0)
         weights += 1.0/np.sum(weights)
 
         # use the roughly subtracted image to fit centroids
-        flux = np.average(self.images['Subtracted'],
+        flux = np.average(self.aperture.images['Subtracted'],
                             axis=self.aperture.sindex,
                             weights=weights)
 
@@ -249,7 +376,7 @@ class Trace(Talker):
         try:
             fluxWeightedCentroids = np.average(self.aperture.s,
                         axis=self.aperture.sindex,
-                        weights=fine*considerstar*self.images['Subtracted'])
+                        weights=fine*considerstar*self.aperture.images['Subtracted'])
         except ZeroDivisionError:
             self.speak('UH-OH, got zero-division error')
             return
@@ -257,7 +384,7 @@ class Trace(Talker):
             self.speak('centroids were wacky')
             assert(False)
         reshapedFWC = fluxWeightedCentroids[:,np.newaxis]
-        weights = fine*considerstar*self.images['Subtracted']
+        weights = fine*considerstar*self.aperture.images['Subtracted']
         weights = np.maximum(weights, 0)
         weights += 1.0/np.sum(weights)
         assert(weights.sum() > 0)
@@ -279,37 +406,21 @@ class Trace(Talker):
 
         self.tracefit = np.poly1d(self.tracefitcoef)
         self.tracefitwidth = np.median(fluxWeightedWidths)
-        #self.traceWidth = width
+        self.traceWidth = self.tracefitwidth*3
         self.updateMasks()
 
-        ''' # create a rough LSF
-        self.images['RoughLSF'] = np.exp(-0.5*((self.s - self.traceCenter(self.w))/self.traceWidth)**2)
-
-        converged = np.abs(fit_width - old_width) < 0.01
-        self.speak( "  {0} -> {1}, converged = {2}".format(old_width, width, converged))
-        old_width = width
-
-        #self.input('continue?')
-        attempts += 1
-
-        if attempts > 10:
-        converged = True
-
-        self.traceCenter = np.polynomial.polynomial.Polynomial(self.tracefitcoef)
-        self.traceWidth = width'''
-
-
-
-    def setup(self, percentiles=[10,90]):
+    def setup(self, percentiles=[1,99]):
         '''make the plotting window and interactive tools'''
 
         plt.ion()
         self.figure = plt.figure('tracing the spectrum',
-                                figsize=(8,4), dpi=100)
+                                    figsize=(8,4), dpi=100)
 
         # create an interactive plot
         self.iplot = zachopy.iplot.iplot(2,2,
                                         hspace=0, wspace=0,
+                                        left=0.05, right=0.95,
+                                        bottom=0.05, top=0.95,
                                         width_ratios=[1.0, 0.1],
                                         height_ratios=[0.1, 1.0])
 
@@ -324,6 +435,7 @@ class Trace(Talker):
         plt.setp(self.ax['2d'].get_yticklabels(), **labelkw)
         # for displaying cuts along the dispersion direction
         self.ax['slicew'] = self.iplot.subplot(0,0,sharex=self.ax['2d'])
+        self.ax['slicew'].set_title(self.aperture.name, fontsize=8)
         plt.setp(self.ax['slicew'].get_xticklabels(), visible=False)
         plt.setp(self.ax['slicew'].get_yticklabels(), **labelkw)
         # for display cuts along the cross-dispersion direction
@@ -342,7 +454,7 @@ class Trace(Talker):
         self.plotted = {}
 
         # plot the image
-        self.plotted['2d'] = self.ax['2d'].imshow(self.image,
+        self.plotted['2d'] = self.ax['2d'].imshow(self.imagetoplot,
                                                   cmap='gray',
                                                   extent=self.extent,
                                                   interpolation='nearest',
@@ -367,8 +479,7 @@ class Trace(Talker):
 
         # add the sky subtraction mask
         self.plotted['skymask'] =  self.ax['2d'].imshow(self.skymaskimage,
-                                            alpha=0.5,
-                                            cmap='winter_r',
+                                            cmap=one2another('deepskyblue', 'deepskyblue', alphabottom=0.0, alphatop=1.0),
                                             extent=self.extent,
                                             interpolation='nearest',
                                             aspect='auto',
@@ -376,17 +487,28 @@ class Trace(Talker):
                                             vmin=0.5, vmax=1.5,
                                             origin='lower')
 
+
+        offsets = (np.array([-1,1])[np.newaxis, :]*self.extractionwidths[:,np.newaxis]).flatten()
+        x = self.waxis
+        y = self.traceCenter(x)[:,np.newaxis] + offsets[np.newaxis, :]
+        self.plotted['extractionedges'] = self.ax['2d'].plot(x, y,
+                                            linewidth=1,
+                                            alpha=0.25,
+                                            color='turquoise',
+                                            zorder = 1000)
+
         # add the sky subtraction mask
         self.plotted['extractionmask'] =  self.ax['2d'].imshow(
                                             self.extractionmaskimage,
-                                            alpha=0.5,
-                                            cmap='summer_r',
+                                            cmap=one2another('aquamarine', 'aquamarine', alphabottom=0.0, alphatop=1.0),
                                             extent=self.extent,
                                             interpolation='nearest',
                                             aspect='auto',
                                             zorder=100,
                                             vmin=0.5, vmax=1.5,
                                             origin='lower')
+
+        self.labelWidths()
 
         # add crosshair
         crosskw = dict(alpha=0.5, color='darkorange', linewidth=1)
@@ -419,10 +541,25 @@ class Trace(Talker):
         for x in ['up', 'down']:
             self.plotted['fittedwidths{0}'.format(x)]=self.ax['2d'].plot([],[],
                                                 linewidth=1,
-                                                color='darkcyan',
+                                                color='mediumorchid',
                                                 alpha=1.0)[0]
 
+        # start off unconverged
+        self.notconverged = True
         plt.draw()
+
+    def labelWidths(self):
+        self.plotted['widthlabels'] = [
+                self.ax['2d'].text(
+                        (i+0.5)/float(self.numberofapertures), 0.1,
+                        'extract\n{:.1f} pixels\nfrom center'.format(self.extractionwidths[i]),
+                        fontsize=8,
+                        color='aquamarine',
+                        alpha=0.5,
+                        ha='center',
+                        va='center',
+                        transform=self.ax['2d'].transAxes)
+                for i in range(self.numberofapertures)]
 
     def moveCrosshair(self, pressed=None, w=None, s=None):
         '''use new values of w and s to move the crosshair and replot'''
@@ -454,151 +591,92 @@ class Trace(Talker):
     def slices(self):
         '''return y, x of a slice along the spatial direction'''
         i = np.interp(self.crosshair['w'], self.waxis, np.arange(len(self.waxis)))
-        return self.images['Science'][i,:], self.saxis
+        return self.aperture.images['Science'][i,:], self.saxis
 
     @property
     def slicew(self):
         '''return x, y of a slice along the wavelength direction'''
         i = np.interp(self.crosshair['s'], self.saxis, np.arange(len(self.saxis)))
-        return self.waxis, self.images['Science'][:,i]
+        return self.waxis, self.aperture.images['Science'][:,i]
 
     @property
-    def image(self):
-        return np.transpose(np.log(self.images['Science']))
+    def imagetoplot(self):
+        '''for plotting, the science image'''
+        return np.transpose(np.log(self.aperture.images['Science']))
 
-    @property
-    def vmin(self):
-        ok = np.isfinite(self.image)
-        return np.percentile(self.image[ok], self.percentiles[0])
+    def extractionmask(self, width):
+        '''to define those pixels that fall within the default extraction mask,
+            and, for those along the edges, their fractional weights'''
 
-    @property
-    def vmax(self):
-        ok = np.isfinite(self.image)
-        return np.percentile(self.image[ok], self.percentiles[1])
+        distancefromtrace = np.abs(self.aperture.s - self.traceCenter(self.aperture.w))
 
-    @property
-    def extractionmask(self):
-        fromtrace = self.aperture.s - self.traceCenter(self.aperture.w)
-        return np.abs(fromtrace) < self.traceWidth
+        # create an empty mask
+        mask = np.zeros_like(self.aperture.s)
 
-    @property
-    def skymask(self):
-        mask = np.zeros_like(self.images['Science'])
+        # assign 1.0 to all those pixels that are entirely within the aperture
+        definitelyin = distancefromtrace <= np.floor(width)
+        mask[definitelyin] = 1.0
+        # assign fractional weight to those pixels on the border
+        fraction = distancefromtrace - np.floor(width)
+        border = (fraction > 0)*(fraction < 1)
+        mask[border] = 1.0 - fraction[border]
+
+        return mask
+
+    def skymask(self, width):
+        '''to define those pixels that are considered sky'''
+
+        # create a blank mask
+        mask = np.zeros_like(self.aperture.images['Science'])
+
+        # loop through the sky offsets, and use them to add and subtract
         for d in self.skyoffsets:
             top, bottom, whattodo = d['top'], d['bottom'], d['whattodo']
-            # modify the sky mask
+            # identifiy pixels that been selected
             ok  = self.aperture.s > (self.traceCenter(self.aperture.w) + bottom)
             ok *= self.aperture.s < (self.traceCenter(self.aperture.w) + top)
+            # either add or remove them from the sky mask
             mask[ok] = whattodo
+
+        absolutedistancefromtrace = np.abs(self.aperture.s - self.traceCenter(self.aperture.w))
+        mask[absolutedistancefromtrace < (width + self.obs.skyGap)] = 0
+        #self.speak('')
+        #self.speak('{}'.format(width + self.obs.skyGap))
+        # return the populated map
         return mask
 
     @property
+    def vmin(self):
+        '''for plotting, the minimum value, for the imshow grayscale'''
+        ok = np.isfinite(self.imagetoplot)
+        return np.percentile(self.imagetoplot[ok], self.percentiles[0])
+
+    @property
+    def vmax(self):
+        '''for plotting, the maximum value, for the imshow grayscale'''
+        ok = np.isfinite(self.imagetoplot)
+        return np.percentile(self.imagetoplot[ok], self.percentiles[1])
+
+    @property
     def skymaskimage(self):
-        skymasktoplot = np.ma.masked_where(self.skymask == 0, self.skymask)
-        return np.transpose(skymasktoplot)
+        '''for plotting, a masked array of the sky mask'''
+        image = np.zeros_like(self.imagetoplot)
+        chunksize = image.shape[1]/self.numberofapertures
+
+        for i,width in enumerate(self.extractionwidths):
+            mask = self.skymask(width).T
+            image[:,i*chunksize:] = mask[:,i*chunksize:]*(1.0 - 0.2*(i%2))
+
+        return image/image.max()
 
     @property
     def extractionmaskimage(self):
-        extractionmasktoplot = np.ma.masked_where(self.extractionmask == 0, self.extractionmask)
-        return np.transpose(extractionmasktoplot)
+        '''for plotting, a masked array of the extraction mask'''
+        image = np.zeros_like(self.imagetoplot)
+        chunksize = image.shape[1]/self.numberofapertures
 
-    """
-              # try refitting with a better initial guess!
-              self.createTrace(inputCoef=coef)
+        for i,width in enumerate(self.extractionwidths):
+            mask = self.extractionmask(width).T
+            image[:,i*chunksize:] = mask[:,i*chunksize:]*(1.0 - 0.2*(i%2))
 
-
-          def displayTrace(self):
-              self.display.rgb( self.images['Subtracted'],
-                                self.images['RoughLSF'],
-                                self.considersky)
-
-
-          def createSkyApertures(self, visualize=True):
-            '''Let user select the best sky apertures.'''
-            self.speak("setting up the sky apertures")
-            filename = self.directory + 'skyMask_{0}.npy'.format(self.aperture.name)
-            try:
-              self.images['skyMask'] = np.load(filename)
-              self.speak("loaded sky apertures from {0}".format(filename))
-            except IOError:
-              finished = False
-              plt.figure('sky apertures', figsize=(10,10), dpi=50)
-              i = zachopy.iplot.iplot(2,2,
-                                        hspace=0, wspace=0,
-                                        height_ratios=[.2, 1], width_ratios=[1, .2])
-
-              self.aximage = i.subplot(1,0)
-              self.axskyspectrum = i.subplot(0,0, sharex=self.aximage)
-              self.axskyprofile = i.subplot(1,1, sharey=self.aximage)
-              axes = [self.aximage, self.axskyspectrum, self.axskyprofile]
-              for ax in axes:
-                  plt.setp(ax.get_xticklabels(), visible=False)
-                  plt.setp(ax.get_yticklabels(), visible=False)
-
-              mask = np.zeros_like(self.images['Science'])
-              extent=[self.waxis.min(), self.waxis.max(), self.saxis.min(), self.saxis.max()]
-              finishedplotting = True
-              first = True
-              while(finished == False):
-
-
-                if first == False:
-                  # have user select a sky region
-                  self.speak("please click to select a sky region")
-                  clicks = i.getMouseClicks(n=2)
-
-                  # clear the axes
-                  for a in axes:
-                    a.cla()
-
-
-                # display the image
-                values = np.percentile(self.images['Science'], [10,90])
-                self.aximage.imshow(np.transpose(np.log(self.images['Science'])),
-                              cmap='gray', \
-                              extent=extent, \
-                              interpolation='nearest', aspect='auto', \
-                              vmin=np.log(values[0]), vmax=np.log(values[1]))
-                self.aximage.imshow(np.transpose(mask), alpha=0.1, cmap='winter_r', \
-                            extent=extent, \
-                            interpolation='nearest', aspect='auto')
-
-                # overlay the trace
-                self.aximage.plot(self.waxis, self.traceCenter(self.waxis), color='blue', alpha=0.3, linewidth=4)
-                self.aximage.set_xlim(self.waxis.min(), self.waxis.max())
-
-
-                if first == False:
-                  # calculate offsets from the trace
-                  offsets = (clicks[0].ydata - self.traceCenter(clicks[1].xdata), clicks[1].ydata - self.traceCenter(clicks[1].xdata))
-                  bottom = np.min(offsets)
-                  top = np.max(offsets)
-
-                  # display the most recent
-                  self.aximage.plot(self.waxis, self.traceCenter(self.waxis) + bottom , color='green', alpha=0.3, linewidth=4)
-                  self.aximage.plot(self.waxis, self.traceCenter(self.waxis) + top , color='green', alpha=0.3, linewidth=4)
-                  mask[(self.s > self.traceCenter(self.w) + bottom) * (self.s < self.traceCenter(self.w) + top)] += 1.0
-                  mask = mask > 0
-
-                  ma = np.ma.MaskedArray(self.images['Science'], mask==0)
-                  skyspectrum = np.ma.median(ma, self.aperture.sindex)
-                  self.axskyspectrum.plot(skyspectrum)
-                  click = clicks[-1]
-                  self.axskyprofile.cla()
-                  self.axskyprofile.plot(self.images['Science'][click.xdata,:], self.saxis)
-                  self.axskyprofile.plot((self.images['Science']*mask)[click.xdata,:], self.saxis, linewidth=3)
-                  self.axskyprofile.set_xlim((self.images['Science']*mask)[click.xdata,:].min(), (self.images['Science']*mask)[click.xdata,:].max()*2)
-                  self.axskyprofile.set_ylim(self.saxis.min(), self.saxis.max())
-                  plt.draw()
-                  self.speak("Are you happy with the sky subtraction apertures? (default = no)")
-                  answer = self.input("  (y)es, (n)o, (r)edo")
-                  if "y" in answer:
-                    finished = True
-                  elif "r" in answer:
-                    mask *= 0
-                  else:
-                    finished = False
-                first = False
-              self.images['skyMask'] = mask
-              np.save(filename, self.images['skyMask'])
-              self.speak("saved a sky mask to {0}".format(filename))"""
+        return image/image.max()

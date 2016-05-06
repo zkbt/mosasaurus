@@ -60,7 +60,11 @@ class Observation(Talker):
         zachopy.utils.mkdir(self.dataDirectory)
         self.extractionDirectory = self.workingDirectory + dictionary['extractionDirectory']
         zachopy.utils.mkdir(self.extractionDirectory)
-        self.extractionWidth = int(dictionary['extractionWidth'])
+        #self.extractionWidth = int(dictionary['extractionWidth'])
+        self.narrowest = float(dictionary['narrowest'])
+        self.widest = float(dictionary['widest'])
+        self.numberofapertures = int(dictionary['numberofapertures'])
+
         self.skyGap = int(dictionary['skyGap']    )
         self.skyWidth = int(dictionary['skyWidth'])
         self.cosmicThreshold = float(dictionary['cosmicThreshold'])
@@ -81,7 +85,6 @@ class Observation(Talker):
         self.nNeeded = np.concatenate((self.nUndispersed, self.nScience, self.nHe, self.nNe, self.nAr, self.nWideFlat, self.nWideMask, self.nThinMask, self.nFinder))
         self.cal_dictionary = {'He':self.nHe, 'Ne':self.nNe, 'Ar':self.nAr, 'Undispersed':self.nUndispersed, 'WideFlat':self.nWideFlat, 'WideMask':self.nWideMask, 'ThinMask':self.nThinMask, 'Bias':self.nBias, 'Dark':self.nDark, 'Science':self.nScience, 'Finder':self.nFinder}
         self.traceOrder    =  int(dictionary['traceOrder'])
-        self.widthGuess = int(dictionary['widthGuess'])
         self.nFWHM    = float(dictionary['nFWHM'])
         self.blueward = int(dictionary['blueward'])
         self.redward = int(dictionary['redward'])

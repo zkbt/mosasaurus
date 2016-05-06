@@ -2,6 +2,27 @@ from imports import *
 from Tools import *
 from Trace import Trace
 from WavelengthCalibrator import WavelengthCalibrator
+from zachopy.cmaps import one2another
+
+ignorekw = dict(cmap=one2another('palevioletred', 'palevioletred', alphatop=0.75, alphabottom=0.0),
+                    interpolation='nearest',
+                    aspect='auto',
+                    zorder=1,
+                    origin='lower',
+                    vmin=0.0, vmax=1.0,)
+
+extractedgekw = dict(linewidth=4, color='darkorange', alpha=0.75, zorder=2)
+extractmaskkw = dict(cmap=one2another('aquamarine', 'aquamarine', alphabottom=0.0, alphatop=1.0),
+                        interpolation='nearest',
+                        aspect='auto',
+                        zorder=100,
+                        vmin=0.0, vmax=1.0,
+                        origin='lower')
+def imscale(x):
+    l = np.log(x)
+    l[np.isfinite(l) == False] = np.min(l[np.isfinite(l)]) - 1.0
+    return l
+
 
 plt.ion()
 class Aperture(Talker):
@@ -130,23 +151,6 @@ class Aperture(Talker):
       self.images['NormalizedFlat'] /= np.median(self.images['NormalizedFlat'], self.sindex).reshape(self.waxis.shape[0], 1)
 
 
-
-
-      '''
-      if self.visualize:
-        try:
-            self.ax.cla()
-        except:
-            self.fi, self.ax = plt.subplots(1,1)
-        self.ax.cla()
-        self.ax.plot(self.waxis, envelope)
-        self.ax.plot(self.waxis, spline(self.waxis))
-
-      if self.visualize:
-        self.displayStamps(self.images, keys = ['Science', 'Sky', 'Subtracted', 'WideFlat', 'NormalizedFlat'])
-        assert("n" not in self.input('Do you like the calibration stamps?').lower())
-
-      '''
       np.save(filename, self.images)
       self.speak("saved calibration stamps to {0}".format( filename))
 
@@ -165,26 +169,20 @@ class Aperture(Talker):
     self.speak("populating the trace parameters")
     tracefilename = self.directory + 'trace_{0}.npy'.format(self.name)
     skyfilename = self.directory + 'skyMask_{0}.npy'.format(self.name)
-    try:
-        traceCoeff, width = np.load(tracefilename)
-        self.speak("loaded trace from {0}".format(tracefilename))
 
-        self.images['skyMask'] = np.load(skyfilename)
-        self.speak("loaded sky apertures from {0}".format(skyfilename))
-    except IOError:
-        self.trace = Trace(self)
-        traceCoeff, width = self.trace.tracefitcoef, self.trace.tracefitwidth
-        self.images['skyMask'] = self.trace.skymask
+    # define the trace object (will either load saved, or remake)
+    self.trace = Trace(self)
 
-    self.traceCenter = np.poly1d(traceCoeff)
-    self.traceWidth = width
-    self.images['RoughLSF'] = np.exp(-0.5*((self.s - self.traceCenter(self.w))/self.traceWidth)**2)
-    self.displayTrace()
+
+    self.images['RoughLSF'] = np.exp(-0.5*((self.s - self.trace.traceCenter(self.w))/self.trace.tracefitwidth)**2)
+    #self.displayTrace()
 
   def displayTrace(self):
-      self.display.rgb( self.images['Science'],
-                        self.images['RoughLSF'],
-                        self.images['skyMask'])
+      for i, width in enumerate(self.trace.extractionwidths):
+          self.display.new(frame=i)
+          self.display.rgb( self.images['Science'],
+                            self.trace.extractionmask(width),
+                            self.trace.skymask(width))
 
 
   def createWavelengthCal(self, remake=False):
@@ -202,20 +200,24 @@ class Aperture(Talker):
 
   def extract(self, n=0, image=None, subtractsky=True, arc=False, cosmics=False, remake=False):
     '''Extract the spectrum from this aperture.'''
+
+    # make sure this aperture is pointed at the desired image
     self.n = n
     try:
+        # try to load a previously saved spectrum
         assert(remake == False)
         assert(arc == False)
-        self.extracted = np.load(self.extractedFilename)
+        self.extracted = np.load(self.extractedFilename)[()]
         self.speak('loaded extracted spectrum from {0}'.format(self.extractedFilename))
     except (AssertionError, IOError):
-
-
+        self.speak('extracting spectrum from image {}'.format(self.n))
+        # make sure the trace is defined
         try:
-            self.traceCenter
+            self.trace.traceCenter
         except AttributeError:
             self.createTrace()
 
+        # unless this is an arc, make sure there is a wavelength calibrator
         try:
             self.wavelengthcalibrator
         except AttributeError:
@@ -243,31 +245,11 @@ class Aperture(Talker):
             raw = image
 
         # create a dictionary to store some of the intermediate images
-        intermediates = {}
-        intermediates['original'] = raw
-
+        self.intermediates = {}
+        self.intermediates['original'] = raw
 
         # remove cosmic rays (now moved to an earlier stage)
         image = raw
-
-        # define an image marking the distance from the ridge of the trace
-        distanceFromTrace = np.abs(self.s - self.traceCenter(self.w))
-
-        # define the extraction aperture (Gaussian profile for wavelength extraction, boxcar for stellar flux)
-        self.speak('defining the extraction mask')
-        if arc:
-          intermediates['extractMask'] = self.images['RoughLSF']
-          subtractsky = False
-          self.speak('using a Gaussian approximation to the line-spread function (for arc extraction)', 2)
-        else:
-          intermediates['extractMask'] = self.ones()
-          self.speak('using a boxcar', 2)
-
-        # replaced self.obs.nFWHM*width with "obs.extractionWidth"
-        intermediates['extractMask'][distanceFromTrace > self.obs.extractionWidth] = 0
-
-        # load the (custom-defined) sky estimation mask
-        intermediates['skyMask'] = self.images['skyMask']
 
         # wavelength calibrate the spectrum, if you can
         try:
@@ -275,132 +257,303 @@ class Aperture(Talker):
         except AttributeError:
           self.extracted['wavelength'] = None
 
+        # define the extraction aperture (Gaussian profile for wavelength extraction, boxcar for stellar flux)
+        for i, width in enumerate(self.trace.extractionwidths):
+            # create a dictionary to store this extraction width
+            self.extracted[width], self.intermediates[width] = {}, {}
+            self.speak('extracting spectrum for width of {}'.format(width))
+            self.intermediates[width]['extractMask'] = self.trace.extractionmask(width)
+            if arc:
+                self.intermediates[width]['extractMask'] *= self.images['RoughLSF']
+                self.speak('using a Gaussian approximation to the line-spread function (for arc extraction)', 2)
 
-        # keep track of the cosmics that were rejected along the important columns
-        try:
-            if arc == False:
-                intermediates['smearedcosmics'] = self.mask.ccd.cosmicdiagnostic[self.xstart:self.xend].reshape(1,np.round(self.xend - self.xstart).astype(np.int))*np.ones_like(image)/(self.yend - self.ystart).astype(np.float)
-                self.extracted['cosmicdiagnostic'] = (intermediates['smearedcosmics']*intermediates['extractMask']).sum(self.sindex)
-                self.speak('the cosmic over-correction diagnostic is {0}'.format(np.sum(self.extracted['cosmicdiagnostic'])))
-        except (IOError, AttributeError):
-            self.speak("couldn't find any cosmic over-correction diagnostics for this frame")
+            # load the appropriate sky estimation mask
+            self.intermediates[width]['skyMask'] = self.trace.skymask(width)
 
-        # subtract the sky, if requested
-        if subtractsky:
-            # estimate a 1D sky spectrum by summing over the masked region
-            self.speak('estimating a sky background image')
+            # keep track of the cosmics that were rejected along the important columns
+            try:
+                if arc == False:
+                    self.intermediates[width]['smearedcosmics'] = self.mask.ccd.cosmicdiagnostic[self.xstart:self.xend].reshape(1,np.round(self.xend - self.xstart).astype(np.int))*np.ones_like(image)/(self.yend - self.ystart).astype(np.float)
+                    self.extracted[width]['cosmicdiagnostic'] = (self.intermediates[width]['smearedcosmics']*self.intermediates[width]['extractMask']).sum(self.sindex)
+                    self.speak('the cosmic over-correction diagnostic is {0}'.format(np.sum(self.extracted[width]['cosmicdiagnostic'])))
+            except (IOError, AttributeError):
+                self.speak("couldn't find any cosmic over-correction diagnostics for this frame")
 
-            # currently taking median of a masked array -- would be better to fit low-order polynomial to each column
-            ma = np.ma.MaskedArray(image*intermediates['skyMask']/self.images['NormalizedFlat'], intermediates['skyMask']==0)
-            skyperpixel = np.ma.median(ma, self.sindex).data
+            # subtract the sky, if requested
+            if subtractsky:
 
-            # store the sky estimation (in both 1D and 2D)
-            self.extracted['sky_median'] = skyperpixel*intermediates['extractMask'].sum(self.sindex)
-            intermediates['sky_median'] = np.ones_like(image)*skyperpixel.reshape((self.waxis.shape[0],1))
+                # estimate a 1D sky spectrum by summing over the masked region
+                self.speak('estimating a sky background image')
 
-            # try a better sky estimation
-            #self.display.one(image*intermediates['skyMask']/self.images['NormalizedFlat'])
-            intermediates['sky'] = zachopy.twod.polyInterpolate(image/self.images['NormalizedFlat'], intermediates['skyMask'] == 0, order=2, visualize=False)
-            self.extracted['sky'] = (intermediates['sky']*intermediates['extractMask']).sum(self.sindex)
+                # do polynomial interpolation along each column to estimate sky
+                self.intermediates[width]['sky'] = zachopy.twod.polyInterpolate(image/self.images['NormalizedFlat'], self.intermediates[width]['skyMask'] == 0, order=2, visualize=False)
+                self.extracted[width]['sky'] = (self.intermediates[width]['sky']*self.intermediates[width]['extractMask']).sum(self.sindex)
 
-            # for raw counts, weight by extraction mask, divide by flat, subtract the sky
-            self.extracted['raw_counts'] = (intermediates['extractMask']*image/self.images['NormalizedFlat']).sum(self.sindex) - self.extracted['sky']
+                # for raw counts, weight by extraction mask, divide by flat, subtract the sky
+                self.extracted[width]['raw_counts'] = (self.intermediates[width]['extractMask']*image/self.images['NormalizedFlat']).sum(self.sindex) - self.extracted[width]['sky']
 
-            # for testing, save a non-flatfielded version extraction, just to make sure
-            self.extracted['no_flat'] =  (intermediates['extractMask']*(image - intermediates['sky']*self.images['NormalizedFlat'])).sum(self.sindex)
+                # for testing, save a non-flatfielded version extraction, just to make sure
+                self.extracted[width]['no_flat'] =  (self.intermediates[width]['extractMask']*(image - self.intermediates[width]['sky']*self.images['NormalizedFlat'])).sum(self.sindex)
 
+                # store the 2D sky subtracted image
+                self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat'] - self.intermediates[width]['sky']
 
-            # store the 2D sky subtracted image
-            intermediates['subtracted'] = image/self.images['NormalizedFlat'] - intermediates['sky']
+                #if self.obs.slow:
+                #    writeFitsData(self.intermediates['subtracted'], self.extractedFilename.replace('extracted', 'subtracted').replace('npy', 'fits'))
 
-            if self.obs.slow:
-                writeFitsData(intermediates['subtracted'], self.extractedFilename.replace('extracted', 'subtracted').replace('npy', 'fits'))
+                # store a few more diagnostics
+                fine = np.isfinite(self.intermediates[width]['subtracted'])
 
-            # store a few more diagnostics
-            self.extracted['centroid'] = np.nansum(self.s*intermediates['subtracted']*intermediates['extractMask'],self.sindex)/np.nansum(intermediates['subtracted']*intermediates['extractMask'], self.sindex)
-            self.extracted['width'] = np.sqrt(np.nansum(self.s**2*intermediates['subtracted']*intermediates['extractMask'], self.sindex)/np.nansum(intermediates['subtracted']*intermediates['extractMask'], self.sindex) - self.extracted['centroid']**2)
-            self.extracted['peak'] = np.max(intermediates['extractMask']*image, self.sindex)
-            #if self.visualize:
-            #    self.plot()
+                self.extracted[width]['centroid'] = np.average(
+                                        self.s,
+                                        axis=self.sindex,
+                                        weights=fine*self.intermediates[width]['subtracted']*self.intermediates[width]['extractMask'])
 
-        else:
-            self.extracted['raw_counts'] = np.nansum(intermediates['extractMask']*image/self.images['NormalizedFlat'], self.sindex)
+                reshapedFWC = self.extracted[width]['centroid'][:,np.newaxis]
+                weights = fine*self.intermediates[width]['subtracted']*self.intermediates[width]['extractMask']
+                weights = np.maximum(weights, 0)
+                weights += 1.0/np.sum(weights)
+                self.extracted[width]['width'] = np.sqrt(
+                    np.average((self.s-reshapedFWC)**2, axis=self.sindex, weights=weights))
 
+                self.extracted[width]['peak'] = np.max(self.intermediates[width]['extractMask']*image, self.sindex)
 
-        '''if True:
-            self.figure = plt.figure(figsize=(1.0, ))
-                                self.aximage.imshow(np.transpose(np.log(self.images['Science'])), cmap='gray', \
-                                              extent=extent, \
-                                              interpolation='nearest', aspect='auto', \
-                                              vmin=np.log(1), vmax=np.log(np.nanmax(self.images['Science'])*0.01))
-                                self.aximage.imshow(np.transpose(mask), alpha=0.1, cmap='winter_r', \
-                                            extent=extent, \
-                                            interpolation='nearest', aspect='auto')
-        '''
-        if False:#(arc == False):
-            shape = intermediates['original'].shape
-            aspect = shape[0]/(self.obs.extractionWidth*6.0)
+                for k in ['centroid', 'width', 'peak']:
+                    assert(np.isfinite(self.extracted[width][k]).all())
+            else:
+                self.extracted[width]['raw_counts'] = np.nansum(self.intermediates[width]['extractMask']*image/self.images['NormalizedFlat'], self.sindex)
+                # this is a kludge, to make the plotting look better for arcs
+                self.intermediates[width]['sky']  = np.zeros_like(self.intermediates['original'])# + np.percentile(self.extracted[width]['raw_counts'] , 1)
 
-            plt.ioff()
-            dpi = 100
-            plt.figure('extraction', figsize=(shape[0]*1.0/dpi,self.obs.extractionWidth*6.0/dpi), dpi=dpi)
-            gs = plt.matplotlib.gridspec.GridSpec(2,1,left=0, right=1, bottom=0, top=1, wspace=0, hspace=0)
-            axorig = plt.subplot(gs[0])
-            axsubt = plt.subplot(gs[1], sharex=axorig, sharey=axorig)
-            plt.cla()
+        if arc==False:
+            self.visualizeExtraction(width)
+        #plt.draw()
+        #a = self.input('???')
 
-            def scale(x):
-                l = np.log(x)
-                l[np.isfinite(l) == False] = 0.0
-                return l
+    # save the extracted spectra for all apertures
+    np.save(self.extractedFilename, self.extracted)
+    self.speak('saved extracted spectra to {0}'.format(self.extractedFilename))
 
-            axorig.imshow(np.transpose(scale(intermediates['original'])), interpolation='nearest', cmap='gray', aspect='equal', vmin=np.log(1), vmax=np.log(50000.0), extent=[self.waxis.min(), self.waxis.max(), self.saxis.min(), self.saxis.max()])
+    # create a supersampled version of the extracted spectra
+    if False:#arc == False:
+        self.interpolate(remake=remake)
 
-
-            axsubt.imshow(np.transpose(scale(intermediates['subtracted'])), interpolation='nearest', cmap='gray', aspect='equal', vmin=np.log(1), vmax=np.log(50000.0), extent=[self.waxis.min(), self.waxis.max(), self.saxis.min(), self.saxis.max()])
-
-            axorig.set_xlim(self.waxis.min(), self.waxis.max())
-            axorig.set_ylim((self.traceCenter(self.waxis) - 1.5*self.obs.extractionWidth).min(), (self.traceCenter(self.waxis) + 1.5*self.obs.extractionWidth).max())
-
-            for ax in [axorig, axsubt]:
-                plt.sca(ax)
-                plt.plot(self.waxis, self.traceCenter(self.waxis), alpha=0.5, linewidth=3, color='seagreen')
-                plt.plot(self.waxis, self.traceCenter(self.waxis) + self.obs.extractionWidth, alpha=1, linewidth=3, color='springgreen')
-                plt.plot(self.waxis, self.traceCenter(self.waxis) - self.obs.extractionWidth, alpha=1, linewidth=3, color='springgreen')
-                plt.setp(ax.get_xticklabels(), visible=False)
-                plt.setp(ax.get_yticklabels(), visible=False)
-
-            figfilename = self.extractedFilename.replace('extracted', 'image').replace('npy', 'png')
-            plt.savefig(figfilename)
-            self.speak('saved image to {0}'.format(figfilename))
-
-
-            # display the calibration stamps
-            '''
-            self.display.window.set("frame 0")
-            self.display.rgb(intermediates['original'], intermediates['extractMask'], intermediates['skyMask'])
-            self.displayStamps(intermediates)
-            answer = 'y'#self.input('Do you like the extraction intermediates for aperture {0}?'.format( self.name)).lower()
-            assert("n" not in answer)
-            if 'y' in answer:
-                self.visualize=False
-            '''
-
-        # KLUDGE to prevent turnover in the wavelength calibration
-        #w = self.extracted['wavelength']
-        #slopeofwavelength = w[1:] - [:-1]
-
-        #ok = slope
-
-        #np.save(self.extractedFilename.replace('self.extracted', 'intermediates'), intermediates)
-        np.save(self.extractedFilename, self.extracted)
-        self.speak('saved extracted spectrum to {0}'.format(self.extractedFilename))
-
-        if arc == False:
-            #    self.visualize=True
-            self.interpolate(remake=remake)
-
+    # return the extracted spectrum
     return self.extracted
+
+  def setupVisualization(self):
+        self.thingstoplot = ['raw_counts']#['sky', 'width',  'raw_counts']
+        height_ratios = np.ones(len(self.thingstoplot) + 2)
+        suptitletext = '{}, CCD{:04.0f}'.format(self.name, self.n)
+        try:
+            self.suptitle.set_text(suptitletext)
+            self.plotted
+        except AttributeError:
+            self.figure = plt.figure(figsize=(20,12), dpi=50)
+            gs = plt.matplotlib.gridspec.GridSpec(len(self.thingstoplot) + 2, self.trace.numberofapertures,
+                                                    hspace=0.1, wspace=0.05,
+                                                    height_ratios = height_ratios )
+            self.suptitle = self.figure.suptitle(suptitletext, fontsize=17)
+            # create all the axes
+            self.ax = {}
+            self.plotted = {}
+            sharex = None
+            shareapertures, sharesubtracted = None, None
+            sharey = {}
+            for thing in self.thingstoplot:
+                sharey[thing] = None
+            for i, width in enumerate(self.trace.extractionwidths):
+                self.ax[width], self.plotted[width] = {}, {}
+                self.ax[width]['apertures'] = plt.subplot(gs[-2, i], sharex=sharex, sharey=shareapertures)
+                sharex = self.ax[width]['apertures']
+                shareapertures=self.ax[width]['apertures']
+                self.ax[width]['subtracted'] = plt.subplot(gs[-1, i], sharex=sharex, sharey=sharesubtracted)
+                sharesubtracted = self.ax[width]['subtracted']
+                self.ax[width]['subtracted'].set_xlabel('Pixels')
+                self.ax[width]['apertures'].set_ylim(*zachopy.oned.minmax(self.saxis))
+                if i == 0:
+                    self.ax[width]['apertures'].set_ylabel('extraction apertures')
+                    self.ax[width]['subtracted'].set_ylabel('sky-subtracted, and coarsely rectified')
+                else:
+                    plt.setp(self.ax[width]['subtracted'].get_yticklabels(), visible=False)
+                    plt.setp(self.ax[width]['apertures'].get_yticklabels(), visible=False)
+                plt.setp(self.ax[width]['apertures'].get_xticklabels(), visible=False)
+
+                for j, thing in enumerate(self.thingstoplot):
+                    self.ax[width][thing] = plt.subplot(gs[j,i], sharex=sharex, sharey=sharey[thing])
+                    self.ax[width][thing].locator_params(nbins=3)
+                    sharey[thing] = self.ax[width][thing]
+
+                    if j == 0:
+                        self.ax[width][thing].set_title('{} pix.'.format(width))
+                    if i == 0:
+                        self.ax[width][thing].set_ylabel(thing)
+                    else:
+                        plt.setp(self.ax[width][thing].get_yticklabels(), visible=False)
+                    plt.setp(self.ax[width][thing].get_xticklabels(), visible=False)
+
+                    if thing == 'width':
+                        self.ax[width][thing].set_ylim(0,np.max(self.trace.extractionwidths)/3.5)
+                    if thing == 'centroid':
+                        self.ax[width][thing].set_ylim(np.min(self.trace.traceCenter(self.waxis))-5, np.max(self.trace.traceCenter(self.waxis))+5)
+                    if thing == 'raw_counts':
+                        self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width]['raw_counts'], 99)*1.5)
+
+
+  def visualizeExtraction(self, width):
+        # make sure the axes have been setup
+        self.setupVisualization()
+
+        widths = [k for k in self.extracted.keys() if type(k) != str]
+        for width in widths:
+            try:
+                self.plotRectified(width)
+            except KeyError:
+                self.speak('skipping sky-subtracted plot')
+            self.plotApertures(width)
+            self.plotExtracted(width)
+
+        self.figure.savefig(self.extractedFilename.replace('npy', 'pdf'))
+
+  @property
+  def widths(self):
+        return np.array([k for k in self.extracted.keys() if type(k) != str])
+
+  def plotRectified(self, width, ax=None):
+        '''plot the rectified, sky-subtracted image'''
+        if ax is None:
+            ax = self.ax[width]['subtracted']
+
+        # create interpolators to get indices from coordinates
+        #wtoindex = scipy.interpolate.interp1d(self.waxis, np.arange(len(self.waxis)))
+        #stoindex = scipy.interpolate.interp1d(self.saxis, np.arange(len(self.saxis)))
+
+        # create grid of coordinates
+        ok = self.intermediates[width]['skyMask'] > 0
+        offsets = self.s[ok] - self.trace.traceCenter(self.w[ok])
+        ylim = zachopy.oned.minmax(offsets)
+
+        rectifiedw, rectifieds = np.meshgrid(self.waxis, np.arange(*ylim))
+        rectifieds += self.trace.traceCenter(rectifiedw)
+
+        indexw = np.interp(rectifiedw, self.waxis, np.arange(len(self.waxis))).astype(np.int)
+        indexs = np.interp(rectifieds, self.saxis, np.arange(len(self.saxis))).astype(np.int)
+        #indexw, indexs = wtoindex(rectifiedw).astype(np.int), stoindex(rectifieds).astype(np.int)
+        # the s coordinate might be outside the size of the subarray
+        indexs = np.maximum(np.minimum(indexs, len(self.saxis)-1), 0)
+        rectified = self.intermediates[width]['subtracted'][indexw, indexs]#.reshape(rectifiedw.shape)
+        ignore = ((self.intermediates[width]['skyMask'] + self.intermediates[width]['extractMask']) == 0)[indexw, indexs]
+        ignore += (indexs == 0)
+        ignore += (indexs == len(self.saxis)-1)
+        ignore = ignore > 0
+
+        #interpolator = scipy.interpolate.RectBivariateSpline(self.waxis, self.saxis, self.intermediates[width]['subtracted'])
+
+        #rectifiedw, rectifieds = np.meshgrid(self.waxis, )
+        #rectified = interpolator(rectifiedw, self.trace.traceCenter(rectifiedw) + rectifieds)
+        #x, y = rectifiedw, self.trace.traceCenter(rectifiedw) + rectifieds
+        #rectified = np.zeros_like(x)
+        # why do I have to do this?
+        #for i in range(y.shape[1]):
+        #    rectified[:,i] = interpolator(x[:,i], y[:,i].T)
+
+
+
+        # try updating an existing plot
+        try:
+            self.plotted[width]['subtractedandrectified'].set_data(rectified)
+        except KeyError:
+            nbackgrounds = 3
+            vmin = -nbackgrounds*np.min([1.48*zachopy.oned.mad(self.intermediates[onewidth]['subtracted'][self.intermediates[width]['skyMask'] > 0]) for onewidth in self.widths])
+            vmax = 0.001*np.percentile(self.extracted[width]['raw_counts'], 99)
+            extent =[ rectifiedw.min(), rectifiedw.max(), ylim[0], ylim[1]]
+            self.plotted[width]['subtractedandrectified'] = ax.imshow(rectified,
+                     cmap='gray',
+                     extent=extent,
+                     interpolation='nearest',
+                     aspect='auto',
+                     zorder=0,
+                     origin='lower',
+                     vmin=vmin, vmax=vmax)
+
+            self.plotted[width]['subtractedandrectified_toignore'] = ax.imshow(ignore,
+                        extent=extent,
+                        **ignorekw
+                    )
+
+            for side in [-1,1]:
+                ax.axhline(side*width, **extractedgekw)
+
+
+
+            ax.set_xlim(*zachopy.oned.minmax(rectifiedw))
+            ax.set_ylim(*ylim)
+
+            '''offsets = np.array([-1,1])*width
+            x = self.waxis
+            y = self.trace.traceCenter(x)[:,np.newaxis] + offsets[np.newaxis, :]
+            self.plotted[thiswidth]['extractionedges'] = self.ax[thiswidth]['subtracted'].plot(x, y,
+                                                linewidth=1,
+                                                alpha=0.5,
+                                                color='darkgreen',
+                                                zorder = 1000)'''
+
+
+  def plotApertures(self, width, ax=None):
+        '''plot the extraction and sky apertures on top of the 2D exposure'''
+        if ax is None:
+            ax = self.ax[width]['apertures']
+
+        image = self.intermediates['original']
+        ignore = (self.intermediates[width]['skyMask'] + self.intermediates[width]['extractMask']) == 0
+
+        # try updating an existing plot
+        try:
+            self.plotted[width]['apertures'].set_data(self.imscale(image.T))
+        except KeyError:
+            extent = [self.waxis.min(), self.waxis.max(), self.saxis.min(), self.saxis.max()]
+            skylevel = np.percentile(self.intermediates[width]['sky'], 1)
+            peaklevel = np.percentile(self.intermediates['original']*self.intermediates[width]['extractMask'], 99)
+            vmin, vmax = skylevel, peaklevel, #np.percentile(imscale(image), [1,99])
+            def imscale(z):
+                buffer = 0.0001
+                x = np.maximum((z - vmin)/(vmax - vmin), buffer)
+                return np.log(x)
+                #return np.sqrt(np.maximum(z - vmin, 0.0))
+            self.imscale = imscale
+            self.plotted[width]['apertures'] = ax.imshow(self.imscale(image.T),
+                     cmap='gray',
+                     extent=extent,
+                     interpolation='nearest',
+                     aspect='auto',
+                     zorder=0,
+                     origin='lower',
+                     vmin=self.imscale(vmin), vmax=self.imscale(vmax))
+
+            self.plotted[width]['apertures_toignore'] = ax.imshow(ignore.T,
+                        extent=extent,
+                        **ignorekw
+                    )
+
+            for side in [-1,1]:
+                ax.plot(self.waxis, self.trace.traceCenter(self.waxis)[:,np.newaxis]+np.array([[-width, width]]), **extractedgekw)
+
+  def plotExtracted(self, width, axes=None):
+        '''plot the extract spectra and parameters'''
+
+        if axes is None:
+            axes = self.ax[width]
+
+        for j, thing in enumerate(self.thingstoplot):
+            if thing in self.extracted[width].keys():
+                try:
+                    self.plotted[width][thing][0].set_data(self.extracted['w'], self.extracted[width][thing])
+                except KeyError:
+                    self.plotted[width][thing] = \
+                        axes[thing].plot(
+                            self.extracted['w'],
+                            self.extracted[width][thing],
+                            linewidth=1, color='black')
 
   def recalibrate(self, n):
       '''just redo the wavelength calibration'''
@@ -481,7 +634,10 @@ class Aperture(Talker):
                         self.ax_supersampled[key].cla()
 
                 # supersample onto the grid
-                self.supersampled[key] = zachopy.oned.supersample(wavelength, self.extracted[key], self.supersampled['wavelength'])
+                self.supersampled[key] = {}
+                widths = [k for k in self.extracted.keys() if type(k) != str]
+                for width in widths:
+                    self.supersampled[key][width] = zachopy.oned.supersample(wavelength, self.extracted[width][key], self.supersampled['wavelength'])
 
                 # plot demonstration
                 if self.visualize and False:

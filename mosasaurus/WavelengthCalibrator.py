@@ -264,7 +264,8 @@ class WavelengthCalibrator(Talker):
         for count, element in enumerate(self.elements):
 
             # the pixel spectrum self.aperture.extracted from this arc lamp
-            flux = self.aperture.arcs[element]['raw_counts']
+            width = np.min(self.aperture.trace.extractionwidths)
+            flux = self.aperture.arcs[element][width]['raw_counts']
 
              # identify my peaks
             xPeak, yPeak, xfiltered, yfiltered = zachopy.oned.peaks(
@@ -652,9 +653,18 @@ class WavelengthCalibrator(Talker):
         pressed = self.interactivewave.getKeyboard()
 
         try:
-            options[pressed.key.lower()]['function'](pressed)
+            # figure out which option we're on
+            thing = options[pressed.key.lower()]
+            # check that it's a valid position, if need be
+            if thing['requiresposition']:
+                assert(pressed.inaxes is not None)
+            # execute the function associated with this option
+            thing['function'](pressed)
         except KeyError:
             self.speak("nothing yet defined for [{}]".format(pressed.key))
+            return
+        except AssertionError:
+            self.speak("that didn't seem to be at a valid position!")
             return
 
     def freakout(self, *args):
