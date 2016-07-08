@@ -34,9 +34,9 @@ class Reducer(Talker):
         # load in the observation file for this object
         self.obs = Observation(self.filename)
 
-        self.display = zachods9('mosasaurus',
-                                xsize=self.obs.xsize*self.obs.displayscale,
-                                ysize=self.obs.ysize*self.obs.displayscale)
+        self.display = loupe() #''mosasaurus',
+                               # xsize=self.obs.xsize*self.obs.displayscale,
+                               # ysize=self.obs.ysize*self.obs.displayscale)
 
         # create a night object, associated with this observation
         self.night = Night(self.obs)
@@ -56,24 +56,6 @@ class Reducer(Talker):
                 shutil.rmtree(self.obs.workingDirectory)
 
         self.obs = Observation(self.filename)
-
-    def recalibrate(self):
-        '''don't extract, just recalibrate the wavelengths and resample'''
-
-        # set up the calibrations and mask
-        self.calib.setup()
-        self.mask.setup()
-
-        #for aperture in self.mask.apertures:
-        #    aperture.createWavelengthCal(remake=True)
-
-        for n in self.obs.nScience:
-            # load the CCD
-            self.mask.load(n)
-            for a in self.mask.apertures:
-                a.recalibrate(n)
-
-
 
     def reduce(self, remake=False):
         '''process 2D multiobject spectral images into 1D spectra'''

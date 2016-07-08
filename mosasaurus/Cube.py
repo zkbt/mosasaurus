@@ -1,8 +1,11 @@
 from imports import *
 from Observation import Observation
 import astropy.table, astropy.time
+import matplotlib.cm
 
 plt.ion()
+
+
 class Cube(Talker):
   '''Cube object stores a -wavelength-flux datacube.'''
   def __init__(self, obs, remake=False, max=None, shift=True, **kwargs):
@@ -15,7 +18,7 @@ class Cube(Talker):
         self.obs = obs
 
     self.tempfilename = self.obs.extractionDirectory + 'tempSpectralCube.npy'
-    self.cubekeys = ['sky',  'centroid', 'width', 'peak', 'raw_counts']
+    self.cubekeys = ['sky',  'centroid', 'width', 'peak', 'raw_counts', 'ok']
 
     self.savable = ['cubes', 'squares', 'temporal', 'spectral', 'stellar']
     self.sindex = 0
@@ -23,6 +26,12 @@ class Cube(Talker):
     self.windex = 2
     self.goodComps = self.obs.goodComps
     self.shift = shift
+
+  def selectWidths(self):
+    '''show the movies for the apertures, and decide on widths'''
+    self.speak('please pick which extraction widths to use')
+    for d in self.starDirectories:
+        pass
 
   def populate(self, remake=False, max=None, visualize=True):
     try:
@@ -41,6 +50,10 @@ class Cube(Talker):
     except:
         self._display = zachods9('cube')
         return self._display
+
+  @property
+  def starDirectories(self):
+      return glob.glob(self.obs.extractionDirectory + 'aperture_*')
 
   @property
   def filename(self):
@@ -72,8 +85,8 @@ class Cube(Talker):
     # update
     self.speak("Loading the spectral cube.")
     # define the directories that contain extracted stellar spectra
-    starDirectories = glob.glob(self.obs.extractionDirectory + 'aperture_*')
-    self.numberofstars = len(starDirectories)
+    #self.starDirectories =
+    self.numberofstars = len(self.starDirectories)
     self.numberoftimes = len(self.obs.nScience)
     if max is not None:
         self.numberoftimes = max
@@ -88,7 +101,7 @@ class Cube(Talker):
     # load the headers
     self.headers = astropy.table.Table(np.load(self.obs.workingDirectory + 'headers.npy')[()])
 
-    self.stellar['aperture'] = [x.split('/')[-1] for x in starDirectories]
+    self.stellar['aperture'] = [x.split('/')[-1] for x in self.starDirectories]
 
     # loop over the spectra
     for spectrum in range(self.numberoftimes):
@@ -99,8 +112,8 @@ class Cube(Talker):
           ccdn =  self.obs.nScience[spectrum]
 
           # find the available spectrum
-          spectrumFile = starDirectories[star] + '/supersampled{0:04.0f}.npy'.format(ccdn)
-          extractedFile = starDirectories[star] + '/extracted{0:04.0f}.npy'.format(ccdn)
+          spectrumFile = self.starDirectories[star] + '/supersampled{0:04.0f}.npy'.format(ccdn)
+          extractedFile = self.starDirectories[star] + '/extracted{0:04.0f}.npy'.format(ccdn)
 
           self.speak('trying to load {0}'.format(spectrumFile))
 
@@ -118,31 +131,74 @@ class Cube(Talker):
               self.speak('truncating cube at {0}'.format(spectrumFile))
 
               break
+          # make sure we know how many aperture widths we're dealing with (for this spectrum)
+          widths = np.sort([np.float(x.split('_')[-1].split('px')[0])
+                                    for x in supersampled.keys()
+                                        if 'raw_counts' in x])
 
           # loop over the measurement types and populate the cubes
           for key in self.cubekeys:
-            try:
-                self.cubes[key]
-            except KeyError:
-                self.cubes[key] = np.zeros((self.numberofstars, self.numberoftimes, len(supersampled['wavelength'])))
-            self.speak('updating cubes[{0}][{1},{2},:]'.format(key,star, spectrum))
-            # supersample onto the grid
-            self.cubes[key][star,spectrum,:] = supersampled[key]
 
+
+            for w in widths:
+                # figure out the combined key
+                widthkey = '{:04.1f}px'.format(w)
+                # make sure a cube exists for this key
+                try:
+                    self.cubes[key]
+                except KeyError:
+                    self.cubes[key] = {}
+                # make sure a cube exists for this star
+                try:
+                    self.cubes[key][star]
+                except KeyError:
+                    self.cubes[key][star] = {}
+                # make sure a cube exists for this extraction width
+                try:
+                    self.cubes[key][star][widthkey]
+                except KeyError:
+                    self.cubes[key][star][widthkey] = {}
+
+                if key == 'ok':
+                    self.cubes[key][star][widthkey] = np.ones((self.numberoftimes, len(supersampled['wavelength']))).astype(np.bool)
+
+                else:
+                    self.cubes[key][star][widthkey] = np.zeros((self.numberoftimes, len(supersampled['wavelength'])))
+                    self.speak('updating cubes[{key}][{star}][{widthkey}][{spectrum},:]'.format(**locals()))
+
+                    # populate with the supersampled spectrum
+                    self.cubes[key][star][widthkey][spectrum,:] = supersampled[key + '_' + widthkey]
+
+                #print '!!!'
+                if 'raw_counts' in key:
+                    print sum(self.cubes[key][star][widthkey][spectrum,:])
+                    assert(sum(self.cubes[key][star][widthkey][spectrum,:])!=5500)
+                    assert(sum(self.cubes[key][star][widthkey][spectrum,:])>0.0)
           # pull out data from the (unsupersampled) spectra to populate a square with dimensions self.numberofstars x self.numberoftimes
           ok = (extracted['wavelength'] > np.min(supersampled['wavelength']))*(extracted['wavelength'] < np.max(supersampled['wavelength']))
-          for key in ['sky', 'width', 'centroid', 'cosmicdiagnostic']:
-              try:
-                  self.squares[key]
-              except KeyError:
-                  self.squares[key] = np.zeros((self.numberofstars, self.numberoftimes))
-              self.squares[key][star,spectrum] = np.median(extracted[key])
-              self.speak('updating squares[{0}][{1},{2}]'.format(key,star,spectrum))
+          for w in widths:
+              for key in ['sky', 'width', 'centroid', 'cosmicdiagnostic']:
+                  widthkey = '{:04.1f}px'.format(w)
+
+                  try:
+                      self.squares[key]
+                  except KeyError:
+                      self.squares[key] = {}
+                  try:
+                      self.squares[key][star]
+                  except KeyError:
+                      self.squares[key][star] = {}
+                  try:
+                      self.squares[key][star][widthkey]
+                  except KeyError:
+                      self.squares[key][star][widthkey] = np.zeros(self.numberoftimes)
+
+                  self.squares[key][star][widthkey][spectrum] = np.median(extracted[w][key])
+                  self.speak('updating squares[{key}][{star}][{widthkey}][{spectrum}]'.format(**locals()))
 
         # if we've run out of spectra, then break out of the loop (with truncated cubes)
         if truncate:
             break
-
 
         self.speak('{0}/{1} spectra loaded into cube'.format(spectrum, self.numberoftimes))
         # if the spectra for all stars were successfully loaded, then
@@ -156,33 +212,47 @@ class Cube(Talker):
     if truncate:
         self.speak("couldn't find all requested spectra, so truncated cube at a length of {0}".format(spectrum))
         for key in self.cubes.keys():
-            self.cubes[key] = self.cubes[key][:,0:spectrum,:]
+            self.cubes[key] = self.cubes[key][star][widthkey][0:spectrum,:]
         for key in self.squares.keys():
-            self.squares[key] = self.squares[key][:,0:spectrum]
+            self.squares[key] = self.squares[key][star][widthkey][spectrum][0:spectrum]
 
     satlimit = 150000
     faintlimit = 1
-    self.cubes['ok'] = (self.cubes['peak'] < satlimit)*(self.cubes['raw_counts'] > faintlimit)
 
-    # so this represent offset from center of extraction region,
-    # but preserves star-to-star offsets
-    self.cubes['centroid'] -= np.median(self.cubes['centroid'])
-    self.cubes = astropy.table.Table(self.cubes)
-    self.squares = astropy.table.Table(self.squares)
+    for star in range(self.numberofstars):
+        widths = np.sort([np.float(x.split('_')[-1].split('px')[0])
+                                for x in self.cubes['raw_counts'][star].keys()])
+
+        for w in widths:
+            widthkey = '{:04.1f}px'.format(w)
+
+            # mark saturated values as not cool
+            self.cubes['ok'][star][widthkey] = (self.cubes['peak'][star][widthkey] < satlimit)
+
+            # mark things exceed the cosmic threshold as not cool
+            cosmics = self.squares['cosmicdiagnostic'][star][widthkey]
+            self.cubes['ok'][star][widthkey] *= cosmics[:,np.newaxis] < self.obs.cosmicAbandon
+            # (DOUBLE CHECK THIS ISN'T A KLUDGE!)
+
+            self.cubes['centroid'][star][widthkey] -= np.median(self.cubes['centroid'][star][widthkey])
+
+    #self.cubes = astropy.table.Table(self.cubes)
+    #self.squares = astropy.table.Table(self.squares)
+
     self.temporal = astropy.table.join(self.headers, astropy.table.Table(self.temporal))
-    self.temporal['cosmics'] = self.squares['cosmicdiagnostic'].sum(0)
-    self.temporal['width'] = self.squares['width'][self.obs.target[0],:]
-    self.temporal['centroid'] = self.squares['centroid'][self.obs.target[0],:]
-    self.temporal['sky'] = self.squares['sky'][self.obs.target[0],:]
 
 
-    self.temporal['ok'] = self.temporal['cosmics'] < self.obs.cosmicAbandon
+    #self.temporal['cosmicdiagnostic'] = self.squares['cosmicdiagnostic'].sum(0)
+    #self.temporal['width'] = self.squares['width'][self.obs.target[0],:]
+    #self.temporal['centroid'] = self.squares['centroid'][self.obs.target[0],:]
+    #self.temporal['sky'] = self.squares['sky'][self.obs.target[0],:]
 
-    self.cubes['ok'] *= self.temporal['ok'].reshape(1,self.numberoftimes,1)
 
-    savable = ['cubes', 'squares', 'temporal', 'spectral']
-    assert(len(self.cubes[0][0]) == len(self.squares[0][0]))
-    assert(len(self.cubes[0][0]) == len(self.temporal))
+    self.temporal['ok'] = np.ones(self.numberoftimes).astype(np.bool)#self.temporal['cosmicdiagnostic'] < self.obs.cosmicAbandon
+    #self.cubes['ok'] *= self.temporal['ok'].reshape(1,self.numberoftimes,1)
+
+    #assert(len(self.cubes[0][0]) == len(self.squares[0][0]))
+    #assert(len(self.cubes[0][0]) == len(self.temporal))
 
 
 
@@ -195,7 +265,7 @@ class Cube(Talker):
         self.shiftCube(plot=visualize)
     self.speak("Done loading spectral cube.")
 
-    self.roughLC()
+    #self.roughLC()
 
     self.save()
 
@@ -300,7 +370,7 @@ class Cube(Talker):
             ok = lc[2]
             image[:,i] = flux + 0.0
             imageok[:,i] = ok + 0
-            print ok
+            #print ok
             plt.plot(t[ok], flux[ok], alpha=binsize/500.0, linewidth=1,color=cmap(fraction))
 
         if ylim is None:
@@ -345,46 +415,78 @@ class Cube(Talker):
             filename = '{0}_binto{1}_{2}.pdf'.format(name,binsize, date)
         plt.savefig(filename)
 
-  def movieCube(self, fps=30, bitrate=1800*20, stride=10):
+  def movieCube(self,   fps=30, # how many frames per second
+                        bitrate=1800*20, # bitrate (this seems to work well),
+                        stride=10 # each frame will skip over this many timepoints):
       '''Create movie of the spectral cube.'''
 
+      # set up a movie file, which will be populated with plots
       metadata = dict(artist='Z.K.B.-T.')
       self.writer = matplotlib.animation.FFMpegWriter(fps=fps, metadata=metadata, bitrate=bitrate)
+
+      # set the filename based on whether cube was shifted
       if self.shift:
           filename = self.obs.extractionDirectory + 'shifted_cube_{0}stars_{1}spectra_{2}stride.mp4'.format(self.numberofstars, self.numberoftimes, stride)
       else:
           filename = self.obs.extractionDirectory + 'cube_{0}stars_{1}spectra_{2}stride.mp4'.format(self.numberofstars, self.numberoftimes, stride)
+
+      # plot the first spectrum, to set up the plots
       plt.ioff()
       self.plotSpectra(0, remake=True)
+
+      # make the movie
       with self.writer.saving(self.figure, filename, self.figure.get_dpi()):
           # loop over exposures
           for i in np.arange(self.numberoftimes)[::stride]:
               self.speak('plotting {0}/{1}'.format(i, self.numberoftimes))
               self.plotSpectra(i)
               self.writer.grab_frame()
+
+      # finish and display
       self.speak('saved movie to {0}'.format(filename))
       os.system('open {0}'.format(filename))
 
   def plotSpectra(self, which, remake=False, wavelengthscale=10.0):
         '''For the ith component in the cube, plot all the spectra.'''
+
+        # make sure the cube has been populated
         self.populate()
-        linekeys = ['airmass', 'rotatore', 'cosmics', 'sky', 'width', 'centroid']#, 'shift']#, 'lc']
-        # set up a plot window to show how the interpolation is going
+
+        # these (global) values will be plotted along the right side of the plot
+        globallinekeys = ['airmass', 'rotatore']
+
+        # these (star-by-star) values will be plotted along the right side
+        starlinekeys = ['cosmicdiagnostic', 'sky', 'width', 'centroid']#, 'shift']#, 'lc']
+
+        # set up a plot figure
         self.figure = plt.figure('spectra', figsize=(36,15), dpi=60)
-        # define an empty cube that we're going to populate with spectra
+
         try:
+            # determine whether or not the axes have been set up
             self.ax_spectra
             assert(remake == False)
         except (AssertionError, AttributeError):
+
+            # create dictionaryies of axes and plots
             self.ax_spectra, self.ps = {}, {}
-            sharex=None
+
+            # make gridspec structure with a row for each cubekey to plot, and a column for each star
             gs = plt.matplotlib.gridspec.GridSpec(len(self.cubekeys),self.numberofstars,hspace=0.07,wspace=0.2, left=0.04,right=0.75, bottom=0.05, top=0.95)
+
+            # make a gridspec structure for vertical plots along the right side
             gstemporal = plt.matplotlib.gridspec.GridSpec(1, len(linekeys), left=0.78, right=0.98, wspace=0.05, bottom=0.05, top=0.95)
             sharex=None
-            ok = self.temporal['ok']
+            #ok = self.temporal['ok']
+
+            # loop over the stars (columns)
             for s in range(self.numberofstars):
-                fine = self.cubes['ok'][s,ok,:]
+
+                # figure out the widths
+                widths = np.sort([np.float(x.split('_')[-1].split('px')[0])
+                                        for x in self.cubes['raw_counts'][s].keys()])
+
                 for i in range(len(self.cubekeys)):
+                    # what's the key for the xaxis
                     k = self.cubekeys[i]
                     if s ==0:
                         self.ax_spectra[k] = []
@@ -392,22 +494,26 @@ class Cube(Talker):
                     sharex = self.ax_spectra[k][0]
                     self.ax_spectra[k][0].set_ylabel(k)
 
+                    # loop over extraction widths, plotting them separately
+                    for w in self.cubes['ok'][s].keys():
 
-                    thisy = self.cubes[k][s,:,:][fine]
-                    thisy = thisy[np.isfinite(thisy)]
-                    if k in ['sky', 'peak', 'raw_counts']:
-                        ylim = (0, np.percentile(thisy,99.9))
-                    elif k in ['centroid']:
-                        thisy = self.cubes[k][self.cubes['ok']]
+                        fine = self.cubes['ok'][s][w][:,:]
+
+                        thisy = self.cubes[k][s][w][fine]
                         thisy = thisy[np.isfinite(thisy)]
-                        #ylim = np.percentile(thisy,[10,90])
-                        #ylim = (-self.obs.extractionWidth, self.obs.extractionWidth)
-                        ylim =  np.percentile(thisy,[1,99])
+                        if k in ['sky', 'peak', 'raw_counts']:
+                            ylim = (0, np.percentile(thisy,99.9))
+                        elif k in ['centroid']:
+                            thisy = self.cubes[k][s][w][fine]
+                            thisy = thisy[np.isfinite(thisy)]
+                            #ylim = np.percentile(thisy,[10,90])
+                            #ylim = (-self.obs.extractionWidth, self.obs.extractionWidth)
+                            ylim =  np.percentile(thisy,[1,99])
 
-                    elif k in ['width']:
-                        ylim = (0,self.obs.extractionWidth/2.0)
-                    self.ax_spectra[k][s].set_ylim(*ylim )
-                    plt.setp(self.ax_spectra[k][s].get_xticklabels(), visible=False)
+                        elif k in ['width']:
+                            ylim = (0,self.obs.widest/2.0)
+                        self.ax_spectra[k][s].set_ylim(*ylim )
+                        plt.setp(self.ax_spectra[k][s].get_xticklabels(), visible=False)
 
                 plt.setp(self.ax_spectra[k][s].get_xticklabels(), visible=True)
                 self.ax_spectra[k][s].set_xlabel('Wavelength (nm)')
@@ -421,10 +527,20 @@ class Cube(Talker):
                 l = linekeys[i]
                 ax = plt.subplot(gstemporal[i], sharey=sharey)
                 sharey=ax
-                ax.plot(self.temporal[l], np.arange(self.numberoftimes), alpha=0.25, **kw)
-                ax.plot(self.temporal[l][ok], np.arange(self.numberoftimes)[ok], **kw)
+                try:
+                    ax.plot(self.temporal[l], np.arange(self.numberoftimes), alpha=0.25, **kw)
+                    ax.set_xlim(np.nanmin(self.temporal[l]),np.nanmax(self.temporal[l]))
+
+                    #ax.plot(self.temporal[l][ok], np.arange(self.numberoftimes)[ok], **kw)
+                except KeyError:
+                    for s in range(self.numberofstars):
+                        #widths = np.sort([np.float(x.split('_')[-1].split('px')[0])
+                        #                        for x in self.cubes['raw_counts'][s].keys()])
+                        for w in self.cubes['raw_counts'][s].keys():
+                            ax.plot(self.squares[l][s][w], np.arange(self.numberoftimes), alpha=0.25, **kw)
+                            ax.set_xlim(np.nanmin(self.squares[l][s][w]),np.nanmax(self.squares[l][s][w]))
+
                 ax.set_xlabel(l,rotation=45)
-                ax.set_xlim(np.nanmin(self.temporal[l][ok]),np.nanmax(self.temporal[l][ok]))
                 self.bars.append(ax.axhline(which, color='gray', linewidth=4, alpha=0.25))
                 plt.setp(ax.get_yticklabels(), visible=False)
                 plt.setp(ax.get_xticklabels(), visible=False)
@@ -435,19 +551,24 @@ class Cube(Talker):
             ax.set_ylim(self.numberoftimes, -1)
             for s in range(self.numberofstars):
                 for k in self.cubekeys:
-                    if s ==0:
-                        self.ps[k] = []
-                    self.ps[k].append(self.ax_spectra[k][s].plot(self.spectral['wavelength'], self.cubes[k][s,which,:], **kw)[0])
+                    for w in self.cubes[k][s].keys():
+                        if s ==0:
+                            self.ps[k] = []
+                        self.ps[k].append(self.ax_spectra[k][s].plot(self.spectral['wavelength'], self.cubes[k][s][w][which,:], **kw)[0])
 
         for b in self.bars:
             b.set_ydata(which)
         for s in range(self.numberofstars):
             for k in self.cubekeys:
-                fine = self.cubes['ok'][s,which,:]
-                self.ps[k][s].set_data(self.spectral['wavelength'][fine]/wavelengthscale, self.cubes[k][s,which,:][fine])
+                for w in self.cubes[k][s].keys():
+                    fine = self.cubes['ok'][s][w][which,:]
+                    self.ps[k][s].set_data(self.spectral['wavelength'][fine]/wavelengthscale, self.cubes[k][s][w][which,:][fine])
                 #self.ps[k][s].set_alpha(self.temporal['ok'][which]*0.5 + 0.5)
             self.ax_spectra[self.cubekeys[0]][s].set_title('image {0},\nstar {1}, aperture {2}'.format(self.temporal['n'][which], s, self.stellar['aperture'][s].replace('aperture_', '')))
         self.timestamp.set_text('{0}: {1} {2}'.format(self.obs.name, self.temporal['ut-date'][which], self.temporal['ut-time'][which]))
+
+  def oldformat(self, widths):
+      pass
 
   def shiftCube(self,plot=False):
     '''Shift all the spectra for a star to line up in wavelength.'''
@@ -459,7 +580,7 @@ class Cube(Talker):
         plt.ion()
 
     # select a narrow wavelength range near the Ca triplet
-    l, r= self.obs.correlationRange
+    l, r = self.obs.correlationRange
 
     left = np.argmin(np.abs(self.spectral['wavelength'] - l))
     right = np.argmin(np.abs(self.spectral['wavelength'] - r))
@@ -467,60 +588,87 @@ class Cube(Talker):
     triplet = self.obs.correlationAnchors
 
     c = self.cubes['raw_counts']
+    stars = c.keys()
 
-    # create a template to shift relative to
+    # create a template to shift relative to (some fake, broadened absorption lines)
     wave = self.spectral['wavelength'][left:right]
-    start = np.ones_like(wave)*np.std(zachopy.oned.subtractContinuum(c[self.goodComps[0],c.shape[1]/2,left:right]))*3
+    start = np.ones_like(wave).astype(np.float)
     for t in triplet:
       start *= 1 - np.exp(-(wave - t)**2/2/width**2)
     start -= np.median(start)
 
-    shifts = np.zeros((self.numberofstars, self.numberoftimes))
-    for i in range(len(c[0,:,0])):
-      for star in range(len(c[:,0,0])):
-        if i > -1:
-          this = zachopy.oned.subtractContinuum(c[star,i,left:right])
-          xc = np.correlate(this,start,'same')
-          x = np.arange(len(xc))
-          coeff = np.polynomial.polynomial.polyfit(x[xc.argmax()-5:xc.argmax()+5], xc[xc.argmax()-5:xc.argmax()+5], 2)
-          fit = np.polynomial.polynomial.Polynomial(coeff)
-          der = fit.deriv()
-          peak = der.roots()
-          #plt.plot(x, xc, alpha=0.3)
-          #plt.scatter(peak, i)
 
-          offset = peak - len(start)/2 + 1
+    # create an a structure to store the shifts in
+    shifts = {}
+    for star in stars:
+        shifts[star] = {}
+        for w in c[star].keys():
+            shifts[star][w] = np.zeros(self.numberoftimes)
 
-          pixels = np.arange(len(c[star,i,:]))
-          for key in self.cubes.keys():
-              interpolation = scipy.interpolate.interp1d(pixels,self.cubes[key][star,i,:], kind='linear', bounds_error=False, fill_value=0.0)
-              self.cubes[key][star,i,:] = interpolation(pixels + offset)
-              self.speak('  shifting [{0}] by {1}A'.format(key, offset))
-          if plot:
-            if i == 0:
-              fi,ax = plt.subplots(2,1)
-            else:
-              for a in ax:
-                a.cla()
-            ax[0].plot(x, xc, alpha=0.3)
-            #ax[0].plot(x,fit(x))
-            ax[0].scatter(peak, fit(peak))
-            ax[0].set_xlim(0,len(x))
-            ax[1].plot(wave, start, color='black')
-            ax[1].plot(wave, start, color='black', alpha=0.2, linewidth=5)
-            ax[1].plot(wave, this, color='gray', alpha=0.2, linewidth=5)
-            new = zachopy.oned.subtractContinuum(self.cubes[key][star,i,left:right])
-            ax[1].plot(wave, new, color='green', alpha=0.9, linewidth=2)
-            ax[1].set_xlim(wave.min(), wave.max())
-            ax[1].set_autoscaley_on
-            ax[0].set_title('{0}/{1} stars; {2}/{3} spectra'.format(star+1, len(c[:,0,0]), i+1, len(c[0,:,0])))
-            ax[0].axvline(len(x)/2.0)
-            plt.draw()
+    # calculate all the shifts
+    for i in range(self.numberoftimes):
+      for star in stars:
+          for w in c[star].keys():
+              # pull out the spectrum for one star,
+              # at one extraction width, at one time point,
+              # and trim it to a narrow range around the correlation anchors
+              spectrum = c[star][w][i,left:right]
 
-          shifts[star,i] = offset
+              # subtract its continuum
+              this = zachopy.oned.subtractContinuum(spectrum)
+
+              # cross correlation with the anchors
+              xc = np.correlate(this,start,'same')
+
+              # do a quadratic fit to estimate the peak
+              x = np.arange(len(xc))
+              coeff = np.polynomial.polynomial.polyfit(x[xc.argmax()-5:xc.argmax()+5], xc[xc.argmax()-5:xc.argmax()+5], 2)
+              fit = np.polynomial.polynomial.Polynomial(coeff)
+              der = fit.deriv()
+              peak = der.roots()
+
+              # calculate the offset from the peak
+              offset = peak - len(start)/2 + 1
+
+              # now, use interpolation to shift all the arrays
+              pixels = np.arange(self.numberofwavelengths)
+              for key in self.cubes.keys():
+
+                  # should this be 'linear' or 'nearest'?
+                  interpolation = scipy.interpolate.interp1d(
+                                    pixels,self.cubes[key][star][w][i,:],
+                                    kind='linear',
+                                    bounds_error=False,
+                                    fill_value=0.0)
+
+                  self.cubes[key][star][w][i,:] = interpolation(pixels + offset)
+                  self.speak('shifting [{0}] by {1}A'.format(key, offset))
+
+              if plot:
+                if i == 0:
+                  fi,ax = plt.subplots(2,1)
+                else:
+                  for a in ax:
+                    a.cla()
+                ax[0].plot(x, xc, alpha=0.3)
+                #ax[0].plot(x,fit(x))
+                ax[0].scatter(peak, fit(peak))
+                ax[0].set_xlim(0,len(x))
+                ax[1].plot(wave, start, color='black')
+                ax[1].plot(wave, start, color='black', alpha=0.2, linewidth=5)
+                ax[1].plot(wave, this, color='gray', alpha=0.2, linewidth=5)
+                new = zachopy.oned.subtractContinuum(self.cubes[key][star,i,left:right])
+                ax[1].plot(wave, new, color='green', alpha=0.9, linewidth=2)
+                ax[1].set_xlim(wave.min(), wave.max())
+                ax[1].set_autoscaley_on
+                ax[0].set_title('{0}/{1} stars; {2}/{3} spectra'.format(star+1, len(c[:,0,0]), i+1, len(c[0,:,0])))
+                ax[0].axvline(len(x)/2.0)
+                plt.draw()
+
+                shifts[star,i] = offset
           self.speak( "shift = {4} for {0}/{1} stars; {2}/{3} spectra".format(star+1, len(c[:,0,0]), i+1, len(c[0,:,0]), offset))
     self.squares['shift'] = shifts
-    self.temporal['shift'] = self.squares['shift'][self.obs.target[0],:]
+    #self.temporal['shift'] = self.squares['shift'][self.obs.target[0],:]
 
 
   def convolveCube(self,width=0.5):

@@ -3,7 +3,7 @@ from Tools import *
 from Trace import Trace
 from WavelengthCalibrator import WavelengthCalibrator
 from zachopy.cmaps import one2another
-
+from zachopy.displays.movie import Movie
 ignorekw = dict(cmap=one2another('palevioletred', 'palevioletred', alphatop=0.75, alphabottom=0.0),
                     interpolation='nearest',
                     aspect='auto',
@@ -58,10 +58,10 @@ class Aperture(Talker):
       self.y = y
       self.maskWidth = self.obs.subarray
       #(self.obs.skyWidth + self.obs.skyGap)*2 #+20 +
-      self.ystart = np.maximum(y - self.obs.blueward, 0)
-      self.yend = np.minimum(y + self.obs.redward, self.obs.ysize)
-      self.xstart = np.maximum(x - self.maskWidth, 0)
-      self.xend = np.minimum(x + self.maskWidth, self.obs.xsize)
+      self.ystart = np.maximum(y - self.obs.blueward, 0).astype(np.int)
+      self.yend = np.minimum(y + self.obs.redward, self.obs.ysize).astype(np.int)
+      self.xstart = np.maximum(x - self.maskWidth, 0).astype(np.int)
+      self.xend = np.minimum(x + self.maskWidth, self.obs.xsize).astype(np.int)
       # remember python indexes arrays by [row,column], which is opposite [x,y]
       x_fullframe, y_fullframe = np.meshgrid(np.arange(self.calib.images['Science'].shape[1]),
                         np.arange(self.calib.images['Science'].shape[0]))
@@ -196,7 +196,19 @@ class Aperture(Talker):
 
   @property
   def extractedFilename(self):
-      return self.directory + 'extracted{0:04}.npy'.format(self.n)
+      try:
+          return self.directory + 'extracted{0:04}.npy'.format(self.n)
+      except ValueError:
+          return self.directory + 'extracted_{}.npy'.format(self.n)
+
+  @property
+  def supersampledFilename(self):
+      return self.directory + 'supersampled{0:04}.npy'.format(self.n)
+
+  def loadExtracted(self, n):
+    self.n = n
+    self.extracted = np.load(self.extractedFilename)[()]
+    self.speak('loaded extracted spectrum from {0}'.format(self.extractedFilename))
 
   def extract(self, n=0, image=None, subtractsky=True, arc=False, cosmics=False, remake=False):
     '''Extract the spectrum from this aperture.'''
@@ -207,8 +219,9 @@ class Aperture(Talker):
         # try to load a previously saved spectrum
         assert(remake == False)
         assert(arc == False)
-        self.extracted = np.load(self.extractedFilename)[()]
-        self.speak('loaded extracted spectrum from {0}'.format(self.extractedFilename))
+        assert(os.path.exists(self.extractedFilename))
+        #self.speak('raw extracted file {0} already exists'.format(self.supersampledFilename))
+        return
     except (AssertionError, IOError):
         self.speak('extracting spectrum from image {}'.format(self.n))
         # make sure the trace is defined
@@ -217,13 +230,6 @@ class Aperture(Talker):
         except AttributeError:
             self.createTrace()
 
-        # unless this is an arc, make sure there is a wavelength calibrator
-        try:
-            self.wavelengthcalibrator
-        except AttributeError:
-            if arc == False:
-                self.createWavelengthCal()
-
 
         # reassign the image number for this, because createwavelength cal probably reset it
         self.n = n
@@ -231,13 +237,15 @@ class Aperture(Talker):
         # make sure we don't subtract the sky, if the arcs are set
         subtractsky = subtractsky & (arc == False)
 
+
         # create a dictionary to store the self.extracted spectra
         self.extracted = {}
         self.extracted['w'] = self.waxis
 
         if image is None:
             # make sure the right data have been loaded
-            assert(self.mask.ccd.n == n)
+            #assert(self.mask.ccd.n == n)
+            self.mask.load(n)
 
             # extract the raw science stamp from this mask image
             raw = self.stamp(self.mask.ccd.data)
@@ -251,11 +259,7 @@ class Aperture(Talker):
         # remove cosmic rays (now moved to an earlier stage)
         image = raw
 
-        # wavelength calibrate the spectrum, if you can
-        try:
-          self.extracted['wavelength'] = self.wavelengthcalibrator.pixelstowavelengths(self.waxis)
-        except AttributeError:
-          self.extracted['wavelength'] = None
+
 
         # define the extraction aperture (Gaussian profile for wavelength extraction, boxcar for stellar flux)
         for i, width in enumerate(self.trace.extractionwidths):
@@ -327,16 +331,15 @@ class Aperture(Talker):
 
         if arc==False:
             self.visualizeExtraction(width)
-        #plt.draw()
-        #a = self.input('???')
 
-    # save the extracted spectra for all apertures
-    np.save(self.extractedFilename, self.extracted)
-    self.speak('saved extracted spectra to {0}'.format(self.extractedFilename))
+
+        # save the extracted spectra for all apertures
+        np.save(self.extractedFilename, self.extracted)
+        self.speak('saved extracted spectra to {0}'.format(self.extractedFilename))
 
     # create a supersampled version of the extracted spectra
-    if False:#arc == False:
-        self.interpolate(remake=remake)
+    #if False:#arc == False:
+    #    self.interpolate(remake=remake)
 
     # return the extracted spectrum
     return self.extracted
@@ -555,22 +558,56 @@ class Aperture(Talker):
                             self.extracted[width][thing],
                             linewidth=1, color='black')
 
-  def recalibrate(self, n):
-      '''just redo the wavelength calibration'''
-      self.n = n
-      self.speak('recalibrating wavelengths for {0}'.format(self.n))
-      # load the spectrum
-      self.extracted = np.load(self.extractedFilename)[()]
+  def movieExtraction(self):
+      pattern = '{}/extracted*.pdf'.format(self.directory)
+      directory = os.path.join(self.directory, 'animatedextraction/')
+      filename= os.path.join(self.directory, 'animatedextraction.mp4')
+      if os.path.exists(filename):
+          self.speak('{} already exists; not remaking it.'.format(filename))
+      else:
+          self.speak('making a movie of the extraction, in ')
+          self.movie = Movie(pattern=pattern, directory=directory, filename=filename)
 
-      # recalibrate the spectrum
+  def wavelengthcalibrate(self, n):
+    '''THIS STILL NEEDS TO GET FOLDED IN!'''
+    # unless this is an arc, make sure there is a wavelength calibrator
+    try:
+      self.wavelengthcalibrator
+    except AttributeError:
+      if arc == False:
+          self.createWavelengthCal()
+
+
+    # wavelength calibrate the spectrum, if you can
+    try:
       self.extracted['wavelength'] = self.wavelengthcalibrator.pixelstowavelengths(self.waxis)
+    except AttributeError:
+      self.extracted['wavelength'] = None
 
-      # resave the new spectrum
-      np.save(self.extractedFilename, self.extracted)
 
-      # redo the interpolation
-      self.interpolate(remake=True)
 
+  def addWavelengthCalibration(self, n, remake=False):
+      '''just redo the wavelength calibration'''
+      # point at this CCD number
+      self.n = n
+
+      # only load and redo if supersampled doesn't exist
+      if remake or not os.path.exists(self.supersampledFilename):
+          self.speak('recalibrating wavelengths for {0}'.format(self.n))
+          # load the spectrum
+          self.extracted = np.load(self.extractedFilename)[()]
+
+          # addWavelengthCalibration the spectrum
+          self.extracted['wavelength'] = self.wavelengthcalibrator.pixelstowavelengths(self.waxis)
+
+          # resave the new spectrum
+          np.save(self.extractedFilename, self.extracted)
+
+          # redo the interpolation
+          self.interpolate(remake=True)
+      else:
+          #self.speak('supersampled+calibrated file {0} already exists'.format(self.supersampledFilename))
+          pass
   def interpolate(self, remake=False):
         '''Interpolate the spectra onto a common (uniform) wavelength scale.'''
 
@@ -580,13 +617,15 @@ class Aperture(Talker):
         self.limits = {}
 
         #
-        self.supersampledFilename = self.extractedFilename.replace('extracted', 'supersampled')
 
         try:
             assert(remake == False)
             self.supersampled = np.load(self.supersampledFilename)
             self.speak('loaded supersampled spectrum from {0}'.format(self.extractedFilename))
         except:
+            nkeys = len(self.keys)
+            widths = np.sort([k for k in self.extracted.keys() if type(k) != str])
+            napertures = len(widths)
 
             # define an empty cube that we're going to populate with spectra
             if self.visualize:
@@ -594,7 +633,9 @@ class Aperture(Talker):
                 plt.figure('interpolating spectra')
                 self.ax_supersampled = {}
                 sharex=None
-                gs = plt.matplotlib.gridspec.GridSpec(len(self.keys),1,hspace=0,wspace=0)
+
+                # figure out the apertures
+                gs = plt.matplotlib.gridspec.GridSpec(nkeys, napertures, hspace=0, wspace=0)
 
             # pull out the extracted wavelength
             wavelength = self.extracted['wavelength']
@@ -623,42 +664,44 @@ class Aperture(Talker):
             for i in range(len(self.keys)):
                 key = self.keys[i]
 
-                # set up the plots
-                if self.visualize:
-                    self.ax_supersampled[key] = plt.subplot(gs[i], sharex=sharex)
-                    sharex = self.ax_supersampled[key]
-
-                else:
-                    # clear the plots
-                    if self.visualize:
-                        self.ax_supersampled[key].cla()
-
                 # supersample onto the grid
-                self.supersampled[key] = {}
-                widths = [k for k in self.extracted.keys() if type(k) != str]
-                for width in widths:
-                    self.supersampled[key][width] = zachopy.oned.supersample(wavelength, self.extracted[width][key], self.supersampled['wavelength'])
+                # self.supersampled[key] = {}
+                for j,width in enumerate(widths):
 
-                # plot demonstration
-                if self.visualize and False:
-                    self.ax_supersampled[key].set_ylabel(key)
-                    self.ax_supersampled[key].plot(wavelength, self.extracted[key], color='black', alpha=0.5)
-                    self.ax_supersampled[key].plot(self.supersampled['wavelength'], self.supersampled[key], color='red', alpha=0.5)
-                    self.ax_supersampled[key].set_xlim(np.min(self.supersampled['wavelength'])-200, np.max(self.supersampled['wavelength']) + 200)
-                    try:
-                        self.limits[key]
-                    except:
-                        lims = np.min(self.supersampled[key]), np.max(self.supersampled[key])
-                        span = lims[1] - lims[0]
-                        nudge = .2
-                        self.limits[key] = np.maximum(lims[0] - span*nudge, 0),  (lims[1] + span*nudge)
-                    self.ax_supersampled[key].set_ylim(*self.limits[key])
+                    widthkey = '{:04.1f}px'.format(width)
+                    combinedkey = key + '_' + widthkey
 
-                    if key != self.keys[-1]:
-                        plt.setp(self.ax_supersampled[key].get_xticklabels(), visible=False)
+                    self.supersampled[combinedkey] = zachopy.oned.supersample(wavelength, self.extracted[width][key], self.supersampled['wavelength'])
+
+                    # set up the plots
+                    if self.visualize:
+                        try:
+                            self.ax_supersampled[combinedkey].cla()
+                        except KeyError:
+                            self.ax_supersampled[combinedkey] = plt.subplot(gs[i,j], sharex=sharex)
+                            sharex = self.ax_supersampled[combinedkey]
+
+                    # plot demonstration
+                    if self.visualize:
+                        self.ax_supersampled[combinedkey].set_ylabel(combinedkey)
+                        self.ax_supersampled[combinedkey].plot(wavelength, self.extracted[width][key], color='black', alpha=0.5)
+                        self.ax_supersampled[combinedkey].plot(self.supersampled['wavelength'], self.supersampled[combinedkey], color='red', alpha=0.5)
+                        self.ax_supersampled[combinedkey].set_xlim(np.min(self.supersampled['wavelength'])-200, np.max(self.supersampled['wavelength']) + 200)
+                        try:
+                            self.limits[combinedkey]
+                        except:
+                            lims = np.min(self.supersampled[combinedkey]), np.max(self.supersampled[combinedkey])
+                            span = lims[1] - lims[0]
+                            nudge = .2
+                            self.limits[combinedkey] = np.maximum(lims[0] - span*nudge, 0),  (lims[1] + span*nudge)
+                        self.ax_supersampled[combinedkey].set_ylim(*self.limits[combinedkey])
+
+                        if key != self.keys[-1]:
+                            plt.setp(self.ax_supersampled[combinedkey].get_xticklabels(), visible=False)
 
             if self.visualize:
                 plt.draw()
+                a = self.input('is this okay?')
 
             #self.input('do you like the interpolation for {0}?'.format(self.name))
             np.save(self.supersampledFilename, self.supersampled)

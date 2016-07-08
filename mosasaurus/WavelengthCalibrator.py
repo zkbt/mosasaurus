@@ -124,9 +124,9 @@ class WavelengthCalibrator(Talker):
             self.loadCalibration()
             self.justloaded = True
             self.loadMatches()
-            self.plotWavelengthFit(interactive=False)
-            unhappy = ('n' in self.input('Are you happy with the wavelength calibration? [Y,n]').lower())
-            assert(unhappy == False)
+            #self.plotWavelengthFit(interactive=False)
+            #unhappy = ('n' in self.input('Are you happy with the wavelength calibration? [Y,n]').lower())
+            #assert(unhappy == False)
         except (IOError, AssertionError):
             self.justloaded = False
             self.create()
@@ -253,6 +253,7 @@ class WavelengthCalibrator(Talker):
         self.aperture.arcs = {}
         for element in self.elements:
             self.aperture.arcs[element] = self.aperture.extract(
+                                n=element,
                                 image=self.aperture.images[element],
                                 arc=True)
 
@@ -352,7 +353,7 @@ class WavelengthCalibrator(Talker):
 
                 # find my closest peak to theirs
                 distance = myPeaks[i] - theirPeaksOnMyPixels
-                closest = np.nonzero(np.abs(distance) == np.min(np.abs(distance)))[0]
+                closest = np.sort(np.nonzero(np.abs(distance) == np.min(np.abs(distance)))[0])[0]
 
                 if distance[closest] < self.matchdistance:
                     # call this a match (no matter how far)

@@ -25,33 +25,58 @@ class Mask(Talker):
     self.speak('created a mask, to store extraction regions')
     #self.setup()
 
-  def extractCenters(self, ds9RegionString):
-    '''Extract x and y pixel positions from a string of regions returned by pyds9.'''
-    regions = ds9RegionString.split('circle')[1:]
-    x, y = [],[]
-    for region in regions:
-      x.append(float(region[1:].split(',')[0]))
-      y.append(float(region[1:].split(',')[1]))
-    return np.array(x), np.array(y)
-
   def pickStars(self):
     '''Open ds9 and pick the stars we want to reduce.'''
-    extractionCentersFilename = self.obs.workingDirectory + 'extractionCenters.txt'
+    extractionCentersFilename = self.obs.extractionDirectory + 'extractionCenters.txt'
     if os.path.exists(extractionCentersFilename):
-      self.speak("Etraction centers were already defined; loading them from {0}".format(extractionCentersFilename))
+      self.speak("Extraction centers were already defined; loading them from {0}".format(extractionCentersFilename))
       x, y = np.transpose(np.loadtxt(extractionCentersFilename))
     else:
       self.speak("Please should pick the stars you're interested in.")
 
-      self.display.one(self.calib.images['Undispersed'], clobber=True)
-      self.display.scale('log', [0, np.max(self.calib.images['Undispersed'])])
-      self.display.window.set("regions centroid auto yes")
-      var = self.input("Plop down regions on the stars you'd like to extract. Then hit enter:\n  (ds9 should auto-centroid)\n")
-      regions = self.display.window.get("regions")
-      x,y = self.extractCenters(regions)
+      # create empty list of extraction centers
+      self.xcenters, self.ycenters = [], []
+
+      # set up a loupe display to show an undispersed image
+      self.loupe = self.reducer.display
+      self.loupe.setup(self.calib.images['Undispersed'])
+
+      # add in an option to pull out an extraction center
+      self.loupe.options['a'] = dict(description='[a]dd an extraction center',
+                                      function=self.addExtractionCenter,
+                                      requiresposition=True)
+
+      # start up the loupe event handler
+      self.loupe.run()
+
+      # pull out the extraction centers and save them
+      y,x = self.xcenters, self.ycenters
+      assert(len(x) > 0)
       np.savetxt(extractionCentersFilename, np.transpose([x,y]))
+
     self.xextract, self.yextract = x, y
+    self.speak('extraction centers are')
+    self.speak('   x={}'.format(x))
+    self.speak('   y={}'.format(y))
+
+
     return x, y
+
+  def addExtractionCenter(self, pressed):
+      '''from a keyboard event, add an extraction center'''
+      x, y = pressed.xdata, pressed.ydata
+      self.speak('adding an extraction center at {:.1f}, {:.1f}'.format(x,y))
+      self.xcenters.append(x.astype(np.int))
+      self.ycenters.append(y.astype(np.int))
+      self.speak(' {} {}'.format(self.xcenters, self.ycenters))
+
+      try:
+        self.centersplot.set_data(self.xcenters, self.ycenters)
+      except:
+        self.centersplot = self.loupe.ax['2d'].plot(self.xcenters, self.ycenters,
+                                                    linewidth=0, marker='x',
+                                                    markersize=10, color='black')
+
 
 
   def setup(self, visualize=True, remake=False):
@@ -65,8 +90,8 @@ class Mask(Talker):
       assert(False)
     except:
       #load the apertures, if they exist already
-      if os.path.exists(self.obs.workingDirectory + 'apertures.npy') and remake==False:
-        apertures = np.load(self.obs.workingDirectory + 'apertures.npy')
+      if os.path.exists(self.obs.extractionDirectory + 'apertures.npy') and remake==False:
+        apertures = np.load(self.obs.extractionDirectory + 'apertures.npy')
         return apertures
 
       self.apertures = []
@@ -80,15 +105,20 @@ class Mask(Talker):
         self.apertures.append(a)
 
       if visualize:
-        r = zachopy.regions.Regions('aperture')
+        # create a finder chart of apertures
+        self.loupe = self.reducer.display
+        self.loupe.one(self.calib.images['Undispersed'])
+
         for a in self.apertures:
           # display the target positions on the image
-          r.addCircle(a.x, a.y, text="({0:.0f}, {1:.0f})".format(x, y), color='green', font="helvetica 10 bold")
-          r.addBox(a.xbox, a.ybox, a.wbox, a.hbox, color='green')
-        filename = self.obs.extractionDirectory + 'apertures.reg'
-        r.write(filename)
-        self.display.one(imageDispersed, clobber=True)
-        #self.display.window.set("regions load {0}".format(filename))
+          self.loupe.ax['2d'].plot(a.y, a.x, marker='x', color='black', alpha=0.5, markersize=8, linewidth=0)
+          self.loupe.ax['2d'].text(a.y, a.x, '   {:03.0f},{:03.0f}'.format(a.x, a.y), color='black', alpha=0.5, ha='left', va='center', fontsize=6)
+
+
+          #r.addBox(a.xbox, a.ybox, a.wbox, a.hbox, color='green')
+        filename = self.obs.extractionDirectory + 'genericfinderchart.pdf'
+        plt.savefig(filename)
+        self.speak('saved finder chart to {}'.format(filename))
 
 
   def createStamps(self, n):
@@ -117,7 +147,7 @@ class Mask(Talker):
       self.speak('extracting {0} spectra from image #{1}'.format(len(self.apertures), n))
 
       # load the (entire!) image
-      self.load(n)
+      #self.load(n)
 
       # loop over apertures
       for a in self.apertures:
@@ -131,5 +161,30 @@ class Mask(Talker):
 
     '''Loop through exposures, extracting all the spectra in this mask.'''
     self.speak('looping through all frames and extracting all spectra in them')
+
+    # extract spectra
+    self.speak('making sure all spectra have been extracted')
     for n in self.obs.nScience:
         self.extractStars(n, remake=remake)
+
+    # make a movie of the extractions
+    self.speak('making movies of the extraction apertures')
+    for a in self.apertures:
+        a.movieExtraction()
+
+    # add wavelength calibration
+    self.speak('adding wavelength calibrations to all spectra (if not already done)')
+    self.addWavelengthCalibration()
+
+  def addWavelengthCalibration(self, remake=False):
+      '''don't extract, just addWavelengthCalibration the wavelengths and resample'''
+
+      self.speak('creating wavelength calibrators')
+      for aperture in self.apertures:
+          aperture.createWavelengthCal(remake=remake)
+
+      self.speak('adding wavelength calibrations to all stars (if needed)')
+      for n in self.obs.nScience:
+          for a in self.apertures:
+              a.visualize = False
+              a.addWavelengthCalibration(n)

@@ -1,4 +1,4 @@
-shortcuts = {'/Users/zkbt/Cosmos/Data/Magellan/LDSS3':'...'}
+shortcuts = {}#{'/Users/zkbt/Cosmos/Data/Magellan/LDSS3':'...'}
 import zachopy.Talker
 zachopy.Talker.shortcuts = shortcuts
 #zachopy.Talker.line = 200
@@ -27,7 +27,8 @@ import scipy.interpolate, scipy.signal, scipy.integrate
 import zachopy.utils, zachopy.regions, zachopy.iplot, zachopy.oned, zachopy.twod
 
 # load tools to interface with ds9
-from zachopy.displays.ds9 import ds9 as zachods9
+#from zachopy.displays.ds9 import ds9 as zachods9
+from zachopy.displays.loupe import loupe
 
 from  zachopy.borrowed.mpfit.mpfit import mpfit
 
