@@ -1,107 +1,104 @@
 from imports import *
 from Observation import Observation
-import astropy.table, astropy.time
-import matplotlib.cm
-
-plt.ion()
-
 
 class Cube(Talker):
-  '''Cube object stores a -wavelength-flux datacube.'''
-  def __init__(self, obs, remake=False, max=None, shift=True, **kwargs):
-    '''Initialize a data cube and populate it with data.'''
-    Talker.__init__(self, line=200, **kwargs)
+    '''Cube object stores star-width-time-wavelength  data(hyper)cubes.'''
 
-    if type(obs) == str:
-        self.obs = Observation(obs, nods9=True)
-    else:
-        self.obs = obs
+    def __init__(self,  obs, # the observation input file
+                        **kwargs):
 
-    self.tempfilename = self.obs.extractionDirectory + 'tempSpectralCube.npy'
-    self.cubekeys = ['sky',  'centroid', 'width', 'peak', 'raw_counts', 'ok']
+        '''Initialize a data cube and populate it with data.'''
+        Talker.__init__(self, **kwargs)
 
-    self.savable = ['cubes', 'squares', 'temporal', 'spectral', 'stellar']
-    self.sindex = 0
-    self.tindex = 1
-    self.windex = 2
-    self.goodComps = self.obs.goodComps
-    self.shift = shift
+        # obs can be either a filename to a text file, or an object
+        if type(obs) == str:
+            self.obs = Observation(obs, nods9=True)
+        else:
+            self.obs = obs
 
-  def selectWidths(self):
-    '''show the movies for the apertures, and decide on widths'''
-    self.speak('please pick which extraction widths to use')
-    for d in self.starDirectories:
-        pass
+        # which spectral measurements should we propagate?
+        self.measurements = ['raw_counts', 'sky', 'centroid', 'width', 'peak']
 
-  def populate(self, remake=False, max=None, visualize=True):
-    try:
-        self.cubes
-    except:
+        # figure out how big we're expecting the cube to be
+        self.numberofstars = len(self.starDirectories)
+        self.numberoftimes = len(self.obs.nScience)
+
+        # set the unshifted and shifted cubes
+        self.unshifted = h5py.File(self.obs.extractionDirectory + 'unshifted_spectralCube_{0}stars_{1}spectra.npy'.format(self.numberofstars, self.numberoftimes))
+        self.shifted = h5py.File(self.obs.extractionDirectory + 'shifted_spectralCube_{0}stars_{1}spectra.npy'.format(self.numberofstars, self.numberoftimes))
+
+    @property:
+    def cube(self):
+        # which cube is used depends on whether shift is set or not
+        if self.shift:
+            return self.shifted
+        else:
+            return self.unshifted
+
+
+    def selectWidths(self):
+        '''show the movies for the apertures, and decide on widths'''
+        self.speak('please pick which extraction widths to use')
+        for d in self.starDirectories:
+            pass
+
+    def populate(self,      remake=False, # should we remake this cube from the spectra?,
+                            max=None, # do we cut it off at a number of timepoints (for testing)
+                            shift=True, # do we shift the spectra to align them?
+                            visualize=True # should we plot while shifting?
+                ):
+        '''populate the cube, from individual spectra'''
+
+        # should we shift the wavelength scale?
+        self.shift = shift
+        s = {True:'shifted', False:'unshifted'}[self.shifted]
         try:
+            self.speak('checking the {} cube HDF5 file'.format(s))
             assert(remake==False)
-            self.load()
-        except:
-            self.loadSpectra(remake=remake, max=max, visualize=visualize)
+            assert(self.cube.attrs['complete'])
+        except AssertionError:
+            self.speak('the {} cube is not yet a complete HDF5 file'.format(s))
 
-  @property
-  def display(self):
-    try:
-        return self._display
-    except:
-        self._display = zachods9('cube')
-        return self._display
+            # load the spectra into the unshifted cube
+            self.loadSpectra(max=max, visualize=visualize)
 
-  @property
-  def starDirectories(self):
-      return glob.glob(self.obs.extractionDirectory + 'aperture_*')
+            # if necessary, shift the cube
+            if self.shift:
+                self.shiftCube(visualize=visualize)
 
-  @property
-  def filename(self):
-    if self.shift:
-        return self.obs.extractionDirectory + 'shifted_spectralCube_{0}stars_{1}spectra.npy'.format(self.numberofstars, self.numberoftimes)
-    else:
-        return self.obs.extractionDirectory + 'unshifted_spectralCube_{0}stars_{1}spectra.npy'.format(self.numberofstars, self.numberoftimes)
+    @property
+    def starDirectories(self):
+        '''the directories that contain extracted spectra'''
+        return glob.glob(self.obs.extractionDirectory + 'aperture_*')
 
-  def loadSpectra(self, remake=False, visualize=True, max=None):
-    """Opens all the spectra in a working directory, lumps them into a cube, and returns it:
-      cube, wave = LDSS3.loadSpectra(remake=True)
-      cube = an array containing extracted spectra of shape (nstars, nexposures, nwavelengths)
-      wave = an array containing wavelength of shape (nwavelengths)
+    def loadSpectra(self, max=None, visualize=True):
+        """Opens all the spectra in a working directory and populated the unshifted cube.
+            By default, it will search for a stored HDF5 file in the working directory,
+            if changes have been made to individual spectra, run this with remake=True"""
 
-      by default, will search for a stored "cube.npy" file in working directory to load;
-        if change have been made, run with remake=True"""
+        self.speak('loading spectra into the unshifted spectral cube')
 
-    # 3d, stars x time x wavelength
-    self.cubes = {}
-    # 2d, stars x time
-    self.squares = {}
-    # 1d, time
-    self.temporal = {}
-    # 1d, wavelength
-    self.spectral = {}
-    # 1d, star
-    self.stellar = {}
 
-    # update
-    self.speak("Loading the spectral cube.")
-    # define the directories that contain extracted stellar spectra
-    #self.starDirectories =
-    self.numberofstars = len(self.starDirectories)
-    self.numberoftimes = len(self.obs.nScience)
-    if max is not None:
-        self.numberoftimes = max
-    truncate = False
+        # maybe we'll need to truncate the cube;
+        if max is not None:
+            self.numberoftimes = max
+        truncate = False
 
-    try:
-        assert(remake==False)
-        self.load()
-        return
-    except:
-        self.speak('Could not load pre-saved cube. Creating one now!')
-    # load the headers
-    self.headers = astropy.table.Table(np.load(self.obs.workingDirectory + 'headers.npy')[()])
+        # load the headers
+        self.headers = astropy.table.Table(np.load(self.obs.workingDirectory + 'headers.npy')[()])
 
-    self.stellar['aperture'] = [x.split('/')[-1] for x in self.starDirectories]
+
+        # 2d, stars x time
+        self.squares = {}
+        # 1d, time
+        self.temporal = {}
+        # 1d, wavelength
+        self.spectral = {}
+        # 1d, star
+        self.stellar = {}
+
+
+        self.stellar['aperture'] = [x.split('/')[-1] for x in self.starDirectories]
 
     # loop over the spectra
     for spectrum in range(self.numberoftimes):
@@ -764,8 +761,6 @@ class Cube(Talker):
     mediancompositespectrum = np.ma.median(self.binned_correction, 0)
     self.binned_correction /= mediancompositespectrum.reshape(1,nWaves)
     self.binned_correction_uncertainty /= mediancompositespectrum.reshape(1,nWaves)
-    #self.display.one(self.binned_correction.filled(), clobber=True)
-    #self.display.one(self.binned_correction_uncertainty.filled())
     self.binned_cubes['corrected'] = self.binned_cubes['raw_counts']/self.binned_correction
     photonnoise = np.sqrt(self.binned_cubes['raw_counts'] + self.binned_cubes['sky'])/self.binned_cubes['raw_counts']
     correctionnoise = self.binned_correction_uncertainty

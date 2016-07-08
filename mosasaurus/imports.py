@@ -32,6 +32,10 @@ from zachopy.displays.loupe import loupe
 
 from  zachopy.borrowed.mpfit.mpfit import mpfit
 
+import astropy.table, astropy.time
+import matplotlib.cm
+
+
 from Tools import *
 
 mosasaurusdirectory = os.path.split(os.path.split(__file__)[0])[0] + '/'
