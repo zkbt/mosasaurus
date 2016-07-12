@@ -268,12 +268,12 @@ class Calibration(Talker):
         self.images[imageType], self.images[imageType+noisestring] = self.createStackedImage(self.obs.cal_dictionary[imageType], imageType=imageType)
         writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
         writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
-        self.display.one(self.images[imageType+noisestring], clobber=True)
-        self.display.one(self.images[imageType], clobber=False)
-        self.display.single()
-        self.display.zoom()
-        self.display.scale('log', limits=[0,np.percentile(self.images[imageType],99)])
-        assert('n' not in self.input("Do you like master image {0}? [Y,n]".format(imageType)).lower())
+        #self.display.one(self.images[imageType+noisestring], clobber=True)
+        #self.display.one(self.images[imageType], clobber=False)
+        #self.display.single()
+        #self.display.zoom()
+        #self.display.scale('log', limits=[0,np.percentile(self.images[imageType],99)])
+        #assert('n' not in self.input("Do you like master image {0}? [Y,n]".format(imageType)).lower())
 
   def bias(self):
     try:

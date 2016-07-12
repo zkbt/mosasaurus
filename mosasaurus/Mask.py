@@ -46,6 +46,12 @@ class Mask(Talker):
                                       function=self.addExtractionCenter,
                                       requiresposition=True)
 
+      # add in an option to pull out an extraction center
+      self.loupe.options['r'] = dict(description='[r]estart, clearing all centers',
+                                      function=self.resetExtractionCenters,
+                                      requiresposition=True)
+
+
       # start up the loupe event handler
       self.loupe.run()
 
@@ -61,6 +67,16 @@ class Mask(Talker):
 
 
     return x, y
+
+
+  def resetExtractionCenters(self, pressed):
+      self.xcenters, self.ycenters = [], []
+      try:
+        self.centersplot.set_data(self.xcenters, self.ycenters)
+      except:
+        self.centersplot = self.loupe.ax['2d'].plot(self.xcenters, self.ycenters,
+                                                    linewidth=0, marker='x',
+                                                    markersize=10, color='black')
 
   def addExtractionCenter(self, pressed):
       '''from a keyboard event, add an extraction center'''
