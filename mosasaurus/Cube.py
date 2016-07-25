@@ -44,7 +44,6 @@ class Cube(Talker):
             self.load()
         except:
             self.loadSpectra(remake=remake, max=max, visualize=visualize)
-    self.markBad()
 
   @property
   def display(self):
@@ -257,8 +256,7 @@ class Cube(Talker):
         self.shiftCube(plot=visualize)
     self.speak("Done loading spectral cube.")
 
-    #self.roughLC()
-
+    self.markBad()
     self.save()
 
   def markBad(self):
@@ -266,12 +264,14 @@ class Cube(Talker):
       faintlimit = 1
 
       for star in self.stars:
+          self.speak('marking bad points for {}'.format(star))
+
           widths = np.sort([np.float(x.split('_')[-1].split('px')[0])
                                   for x in self.cubes['raw_counts'][star].keys()])
 
           for w in widths:
               widthkey = '{:04.1f}px'.format(w)
-
+              self.speak('{} start ok'.format(np.sum(self.cubes['ok'][star][widthkey])))
               # mark wavelengths where the width is zero (or nearby)
               buffer = 10 # go this many pixels beyond borders
               undefined = self.cubes['width'][star][widthkey].sum(0) > 0
@@ -286,8 +286,21 @@ class Cube(Talker):
               self.cubes['ok'][star][widthkey] *= cosmics[:,np.newaxis] < self.obs.cosmicAbandon
               # (DOUBLE CHECK THIS ISN'T A KLUDGE!)
 
+              # mark things with really weird shifts as bad
+              shifts = self.squares['shift'][star][widthkey]
+              shifts -= np.median(shifts)
+              bad = np.abs(shifts) > 10*zachopy.oned.mad(shifts)
+              '''plt.figure('check shifts')
+              plt.cla()
+              plt.plot(shifts, color='gray')
+              plt.scatter(np.arange(len(shifts))[bad], shifts[bad], color='red')
+              plt.draw()'''
+              self.cubes['ok'][star][widthkey] *= (bad == False)[:,np.newaxis]
+              #self.input('plotting shifts for {}'.format(star))
+
               # mark
               self.cubes['centroid'][star][widthkey] -= np.median(self.cubes['centroid'][star][widthkey][self.cubes['ok'][star][widthkey]])
+              self.speak('{} end ok'.format(np.sum(self.cubes['ok'][star][widthkey])))
 
   def roughLC(self, target=None, comps=None, wavelengths=None, **kwargs):
       if target is None:
@@ -481,7 +494,7 @@ class Cube(Talker):
         self.globallinekeys = ['airmass', 'rotatore']
 
         # these (star-by-star) values will be plotted along the right side
-        self.starlinekeys = ['cosmicdiagnostic', 'sky', 'width', 'centroid']#, 'shift']#, 'lc']
+        self.starlinekeys = ['cosmicdiagnostic', 'sky', 'width', 'centroid', 'shift']#, 'lc']
 
         # these are the combination of linekeys
         self.linekeys = []
@@ -576,9 +589,10 @@ class Cube(Talker):
                                                 for x in self.cubes['raw_counts'][s].keys()])
                         w = '{:04.1f}px'.format(np.max(widths))
                         x = self.squares[l][s][w]
+                        ok = self.cubes['ok'][s][w][:,:].max(1)
                         if l == 'cosmicdiagnostic':
                             x = np.log(x)
-                        ax.plot(x, np.arange(self.numberoftimes),
+                        ax.plot(x[ok], np.arange(self.numberoftimes)[ok],
                                     color=self.starcolor(s),
                                     **kw)
                             #ax.set_xlim(np.nanmin(self.squares[l][s][w]),np.nanmax(self.squares[l][s][w]))
@@ -661,6 +675,7 @@ class Cube(Talker):
     # calculate all the shifts
     for i in range(self.numberoftimes):
       for star in self.stars:
+
           for w in c[star].keys():
               # pull out the spectrum for one star,
               # at one extraction width, at one time point,
@@ -722,7 +737,7 @@ class Cube(Talker):
                 ax[0].axvline(len(x)/2.0)
                 plt.draw()
                 self.input('?')
-              shifts[star,i] = offset
+              shifts[star][w][i] = offset
           self.speak( "shift = {4} for star {0}; {2}/{3} spectra".format(star, len(self.cubes[key]), i+1, len(self.cubes[key][star][w][:,0]), offset))
 
     self.squares['shift'] = shifts
