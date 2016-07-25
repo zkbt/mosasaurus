@@ -10,7 +10,7 @@ starcm = zachopy.cmaps.one2another('magenta', 'limegreen')
 
 class Cube(Talker):
   '''Cube object stores a -wavelength-flux datacube.'''
-  def __init__(self, obs, remake=False, max=None, shift=True, **kwargs):
+  def __init__(self, obs, remake=False, max=None,  **kwargs):
     '''Initialize a data cube and populate it with data.'''
     Talker.__init__(self, line=200, **kwargs)
 
@@ -27,7 +27,6 @@ class Cube(Talker):
     self.tindex = 1
     self.windex = 2
     self.goodComps = self.obs.goodComps
-    self.shift = shift
 
   def selectWidths(self):
     '''show the movies for the apertures, and decide on widths'''
@@ -35,7 +34,8 @@ class Cube(Talker):
     for d in self.starDirectories:
         pass
 
-  def populate(self, remake=False, max=None, visualize=True):
+  def populate(self, remake=False, max=None, visualize=True, shift=True):
+    self.shift=shift
     try:
         self.cubes
     except:
@@ -113,10 +113,11 @@ class Cube(Talker):
     # loop over the spectra
     for timepoint in range(self.numberoftimes):
         # loop over all the stars
+
+        # ccd number for this image
+        ccdn =  self.obs.nScience[timepoint]
         for istar, star in enumerate(self.stars):
 
-          # ccd number for this image
-          ccdn =  self.obs.nScience[timepoint]
 
           # find the available spectrum
           spectrumFile = self.starDirectories[istar] + '/supersampled{0:04.0f}.npy'.format(ccdn)
@@ -138,6 +139,17 @@ class Cube(Talker):
               self.speak('truncating cube at {0}'.format(spectrumFile))
 
               break
+
+          try:
+            self.spectral['wavelength']
+            self.spectral['dnpixelsdw']
+            self.numberofwavelengths
+          except (KeyError,AttributeError):
+            # define some useful arrays
+            self.spectral['wavelength'] = supersampled['wavelength']
+            self.spectral['dnpixelsdw'] = supersampled['dnpixelsdw']
+            self.numberofwavelengths = len(self.spectral['wavelength'])
+
           # make sure we know how many aperture widths we're dealing with (for this spectrum)
           widths = np.sort([np.float(x.split('_')[-1].split('px')[0])
                                     for x in supersampled.keys()
@@ -240,12 +252,6 @@ class Cube(Talker):
     #assert(len(self.cubes[0][0]) == len(self.squares[0][0]))
     #assert(len(self.cubes[0][0]) == len(self.temporal))
 
-
-
-    # define some useful arrays
-    self.spectral['wavelength'] = supersampled['wavelength']
-    self.spectral['dnpixelsdw'] = supersampled['dnpixelsdw']
-    self.numberofwavelengths = len(self.spectral['wavelength'])
 
     if self.shift:
         self.shiftCube(plot=visualize)
@@ -689,31 +695,36 @@ class Cube(Talker):
                                     fill_value=0.0)
 
                   self.cubes[key][star][w][i,:] = interpolation(pixels + offset)
-                  self.speak('shifting [{0}] by {1}A'.format(key, offset))
+                  #self.speak('shifting [{0}] by {1}A'.format(key, offset))
 
               if plot:
+                # set up the plotting axes
                 if i == 0:
                   fi,ax = plt.subplots(2,1)
                 else:
                   for a in ax:
                     a.cla()
+
+                # plot the correlation function in the top panel
                 ax[0].plot(x, xc, alpha=0.3)
-                #ax[0].plot(x,fit(x))
                 ax[0].scatter(peak, fit(peak))
                 ax[0].set_xlim(0,len(x))
+
+                # plot the spectrum
                 ax[1].plot(wave, start, color='black')
                 ax[1].plot(wave, start, color='black', alpha=0.2, linewidth=5)
                 ax[1].plot(wave, this, color='gray', alpha=0.2, linewidth=5)
-                new = zachopy.oned.subtractContinuum(self.cubes[key][star,i,left:right])
+                new = zachopy.oned.subtractContinuum(self.cubes[key][star][w][i,left:right])
                 ax[1].plot(wave, new, color='green', alpha=0.9, linewidth=2)
                 ax[1].set_xlim(wave.min(), wave.max())
                 ax[1].set_autoscaley_on
-                ax[0].set_title('{0}/{1} stars; {2}/{3} spectra'.format(star+1, len(c[:,0,0]), i+1, len(c[0,:,0])))
+                ax[0].set_title('star {0}; {2}/{3} spectra'.format(star, len(self.cubes[key]), i+1, len(self.cubes[key][star][w][:,0])))
                 ax[0].axvline(len(x)/2.0)
                 plt.draw()
+                self.input('?')
+              shifts[star,i] = offset
+          self.speak( "shift = {4} for star {0}; {2}/{3} spectra".format(star, len(self.cubes[key]), i+1, len(self.cubes[key][star][w][:,0]), offset))
 
-                shifts[star,i] = offset
-          self.speak( "shift = {4} for {0}/{1} stars; {2}/{3} spectra".format(star+1, len(c[:,0,0]), i+1, len(c[0,:,0]), offset))
     self.squares['shift'] = shifts
     #self.temporal['shift'] = self.squares['shift'][self.obs.target[0],:]
 
