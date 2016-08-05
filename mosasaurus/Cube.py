@@ -47,6 +47,7 @@ class Cube(Talker):
 
   @property
   def display(self):
+    '''a property to manage what sort of display should be used for the cube'''
     try:
         return self._display
     except:
@@ -55,11 +56,13 @@ class Cube(Talker):
 
   @property
   def starDirectories(self):
+      '''return the absolute paths of all star directories created for this mask'''
       return glob.glob(self.obs.extractionDirectory + 'aperture_*')
 
 
   @property
   def filename(self):
+    '''the filename of this cube (depends on whether it is shifted, or not)'''
     if self.shift:
         return self.obs.extractionDirectory + 'shifted_spectralCube_{0}stars_{1}spectra.npy'.format(self.numberofstars, self.numberoftimes)
     else:
@@ -67,7 +70,42 @@ class Cube(Talker):
 
   @property
   def stars(self):
+      '''return a list of star names that belong in this cube'''
       return self.stellar['aperture']
+
+  def packageandexport(self):
+      '''make a tidy package that contains necessary information for sending to someone else'''
+
+      base = self.obs.extractionDirectory
+      toexport = os.path.join(base, 'cube_' + self.obs.name + '_' + self.obs.night)
+
+      zachopy.utils.mkdir(toexport)
+      commandstorun = []
+
+      # copy the cube npy file
+      commandstorun.append('cp {} {}/.'.format(self.filename, toexport))
+
+      # copy the finder chart
+      commandstorun.append('cp {} {}/.'.format(os.path.join(base, 'genericfinderchart.pdf'), toexport))
+
+      # copy the finder chart
+      commandstorun.append('cp {} {}/.'.format(os.path.join(base,'extractionCenters.txt'), toexport))
+
+      # loop over the star directories
+      for s in self.stars:
+        stardir = os.path.join(toexport, s)
+        zachopy.utils.mkdir(stardir)
+        pdfs = glob.glob(os.path.join(base, s, '*aperture*.pdf'))
+        for p in pdfs:
+            # copy the finder chart
+            commandstorun.append('cp {} {}/.'.format(p, stardir))
+
+        apertureimage = os.path.join(base, s, 'animatedextraction/formovie_00000.png')
+        commandstorun.append('cp {} {}/{}_whichaperture.png'.format(apertureimage, stardir, s))
+
+      for c in commandstorun:
+          print c
+          os.system(c)
 
   def loadSpectra(self, remake=False, visualize=True, max=None):
     """Opens all the spectra in a working directory, lumps them into a cube, and returns it:
