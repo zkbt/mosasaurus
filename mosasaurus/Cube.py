@@ -9,7 +9,7 @@ plt.ion()
 starcm = zachopy.cmaps.one2another('magenta', 'limegreen')
 
 class Cube(Talker):
-  '''Cube object stores a -wavelength-flux datacube.'''
+  '''Cube object stores a time-wavelength-flux datacube.'''
   def __init__(self, obs, remake=False, max=None,  **kwargs):
     '''Initialize a data cube and populate it with data.'''
     Talker.__init__(self, line=200, **kwargs)
@@ -35,6 +35,8 @@ class Cube(Talker):
         pass
 
   def populate(self, remake=False, max=None, visualize=True, shift=True):
+    '''populate this cube with data, either by loading a saved cube,
+       or by loading all of the spectra individually into a new cube'''
     self.shift=shift
     try:
         self.cubes
@@ -58,7 +60,6 @@ class Cube(Talker):
   def starDirectories(self):
       '''return the absolute paths of all star directories created for this mask'''
       return glob.glob(self.obs.extractionDirectory + 'aperture_*')
-
 
   @property
   def filename(self):
@@ -298,6 +299,7 @@ class Cube(Talker):
     self.save()
 
   def markBad(self):
+      '''mark bad time-wavelength-star data points as bad'''
       satlimit = 150000
       faintlimit = 1
 
@@ -341,8 +343,13 @@ class Cube(Talker):
               self.speak('{} end ok'.format(np.sum(self.cubes['ok'][star][widthkey])))
 
   def roughLC(self, target=None, comps=None, wavelengths=None, **kwargs):
+      '''construct a rough LC, over a given wavelength bin'''
+
+      # if target npt explicitly specified, use target from .obs
       if target is None:
           target = self.obs.target[0]
+
+      # if comps not explicity specified, use comps from .obs
       if comps is None:
           comps = self.obs.goodComps
       try:
