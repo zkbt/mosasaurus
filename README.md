@@ -8,5 +8,5 @@ Dependencies include:
 + [zachopy](https://github.com/zkbt/zachopy)
 + [astroquery](https://github.com/astropy/astroquery)
 + Jonathan Irwin's [lfa](https://github.com/mdwarfgeek/lib)
-+ I think it no longer depends on pyds9
-
++ (*I think* it no longer depends on pyds9)
++ (Fitting transits will also require [transit](https://github.com/zkbt/transit))
