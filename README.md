@@ -10,3 +10,9 @@ Dependencies include:
 + Jonathan Irwin's [lfa](https://github.com/mdwarfgeek/lib)
 + (*I think* it no longer depends on pyds9)
 + (Fitting transits will also require [transit](https://github.com/zkbt/transit))
+
+Contributers include:
+
++ Zach Berta-Thompson
++ Hannah Diamond-Lowe
++ ...
