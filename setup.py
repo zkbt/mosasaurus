@@ -44,7 +44,7 @@ setup(name = "mosasaurus",
       'Programming Language :: Python',
       'Topic :: Scientific/Engineering :: Astronomy'
       ],
-    install_requires=['astropy>=0.3','emcee>=2.0',
+    install_requires=['astropy>=1.2.1','emcee>=2.0',
                       'numpy>=1.9', 'triangle_plot'],
     zip_safe=False
 )
