@@ -1,72 +1,39 @@
-#!/usr/bin/env python
-# relies on Jonathan Irwin's library for astronomy
-# (which is amazing)
-from astropy.coordinates import EarthLocation
-import sys
-import math
-import lfa
+'''Tools for converting from times to BJD.'''
 
-def jdutc2bjdtdb(jd_utc, ra, dec, observatory='lco',
-            pmra=0.0, pmde=0.0, plx=0.0, catep=2000.0, vrad=0):
-    '''wrapper to use Jonathan Irwin's lfa code to calculate BJD_TDB
-        inputs:
-            jd_utc = time in JD_UTC
-            ra = Right Ascension in deg
-            dec = Dec in degrees
-            observatory = where on Earth (as input to astropy EarthLocation)
-            (optional)
-            pmra, pmde = proper motions in projected arcsec/yr
-            plx = parallax in arcsec
-            catep = the epoch of the catalog position
-            vrad = radial velocity
+from astropy import time, coordinates as coord, units as u
 
-        neglects many important factors
-        that would be important for getting
-        below 1 second precision -- beware!'''
+def toBJD(  times, # astropy time object, with location + scale specified
+            ra, dec, # ra and dec, in degrees
+            verbose=True):
+    '''get BJD from astropy times (and coordinates and locations)'''
 
-    # pull out the observatory parameters
-    print "observatory is {0}".format('lco')
-    #o = EarthLocation.of_site('lco')
-    longitude = 0# o.longitude.rad
-    latitude = 0#o.latitude.rad
-    height = 0#o.height.to('m').value
-    # (taken J's values for CTIO)
-    temperat   = 283.16
-    humidity   = 0.5
-    pressure   = 777.1
-    wavelength = 0.7
+    sky = coord.SkyCoord(ra, dec, unit=(u.deg, u.deg), frame='icrs')
+    ltt_bary = times.light_travel_time(sky)
 
-    utc = jd_utc - 2400000.5
+    times_bary = times.tdb + ltt_bary
+    if verbose:
+        print """
+            For JD_UTC {}
+            at position {},
+            from site {},
+            BJD_TDB - JD_UTC is {} (days),
+            and BJD_TDB is {}.
+        """.format(   times.utc.jd,
+                            sky.to_string('hmsdms'),
+                            times.location.geodetic,
+                            (times_bary.tdb.jd - times.utc.jd),
+                            times_bary.tdb.jd)
 
-    catra = ra * lfa.DEG_TO_RAD
-    catde = dec * lfa.DEG_TO_RAD
+    return times_bary
 
-    # Jonathan's observer structure
-    obs = lfa.observer(longitude, latitude, height)
+def test():
+    '''make sure the toBJD function works.'''
 
-    # Atmospheric refraction.
-    obs.refract(temperat, humidity, pressure, wavelength)
+    loc = coord.EarthLocation.from_geodetic(0, 0, 0)
+    t = time.Time(2457000.0, format='jd', scale='utc', location=loc)
+    bjd = toBJD(t, 0, 0)
 
-    # Figure out TT from given UTC.
-    iutc = int(utc)
-    ttmutc = obs.dtai(iutc, utc-iutc) + lfa.DTT;
-
-    # Compute time-dependent quantities.
-    obs.update(utc, ttmutc, lfa.OBSERVER_UPDATE_ALL);
-
-    # Figure out total clock correction TDB-UTC.
-    dclock = ttmutc + obs.dtdb;
-
-    # New source structure.
-    src = lfa.source(catra, catde, pmra, pmde, plx, vrad, catep);
-
-    # Compute current BCRS position.
-    (s, dsdt, pr) = obs.place(src, lfa.TR_MOTION);
-
-    # Barycentric delay.
-    delay = obs.bary_delay(s, pr);
-
-    print "DELAY = Bary {0:.10f}s Clock {1:.10f}s Total {2:.10f}s".format(delay, dclock, delay+dclock)
-
-    print "modified BJD(TDB) = {0:.10f}".format(utc+(delay+dclock)/lfa.DAY)
-    return jd_utc + (delay+dclock)/lfa.DAY
+    print """
+    It might be a good idea to test this against
+    http://astroutils.astronomy.ohio-state.edu/time/utc2bjd.html
+    """
