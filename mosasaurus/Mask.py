@@ -170,8 +170,13 @@ class Mask(Talker):
           # extract the spectrum in this aperture
           a.extract(n, remake=remake)
 
+      # hzdl - testing:
+      #self.apertures[0].extract(n, remake=remake)
+
           #self.input('just finished extracting all stars ({0})'.format(n))
 
+      #import sys
+      #sys.exit("Breaking here. Check it out.")
 
   def extractEverything(self, remake=False):
 

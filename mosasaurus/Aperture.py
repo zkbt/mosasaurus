@@ -4,6 +4,7 @@ from Trace import Trace
 from WavelengthCalibrator import WavelengthCalibrator
 from zachopy.cmaps import one2another
 from zachopy.displays.movie import Movie
+import optspex as OptimalExtraction
 ignorekw = dict(cmap=one2another('palevioletred', 'palevioletred', alphatop=0.75, alphabottom=0.0),
                     interpolation='nearest',
                     aspect='auto',
@@ -301,6 +302,22 @@ class Aperture(Talker):
 
                 # store the 2D sky subtracted image
                 self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat'] - self.intermediates[width]['sky']
+
+                # define the parameters that will act as inputs to the optimal extraction code optspex.py
+                subdata = (image/self.images['NormalizedFlat'] - self.intermediates[width]['sky'])
+                # draw a box around the spectral trace; box must be big enough to include the whole trace, but not so big as to include areas that were not sky-subtracted
+                boxcuts = []
+                for i in range(subdata.shape[1]):
+                    if 1. in self.intermediates[width]['extractMask'][:,i]: boxcuts.append(i)
+                subdata = subdata[:, boxcuts[0]:boxcuts[-1]]
+                mask = np.ones((subdata.shape))
+                bg = self.intermediates[width]['sky'][:, boxcuts[0]:boxcuts[-1]]
+                spectrum = self.extracted[width]['raw_counts']
+
+                spec, specunc, newmask = OptimalExtraction.optimize(subdata.T, mask.T, bg.T, spectrum, 1, 0, p5thresh=10, p7thresh=10, fittype='smooth', window_len=11)
+
+                self.extracted[width]['raw_counts_optext'] = spec
+                
 
                 #if self.obs.slow:
                 #    writeFitsData(self.intermediates['subtracted'], self.extractedFilename.replace('extracted', 'subtracted').replace('npy', 'fits'))

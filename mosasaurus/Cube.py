@@ -2,6 +2,7 @@ from imports import *
 from Observation import Observation
 import astropy.table, astropy.time
 import matplotlib.cm
+import glob
 
 plt.ion()
 
@@ -20,7 +21,7 @@ class Cube(Talker):
         self.obs = obs
 
     self.tempfilename = self.obs.extractionDirectory + 'tempSpectralCube.npy'
-    self.cubekeys = ['sky',  'centroid', 'width', 'peak', 'raw_counts']
+    self.cubekeys = ['sky',  'centroid', 'width', 'peak', 'raw_counts', 'raw_counts_optext']
 
     self.savable = ['cubes', 'squares', 'temporal', 'spectral', 'stellar']
     self.sindex = 0
