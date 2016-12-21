@@ -630,7 +630,7 @@ class Aperture(Talker):
 
 
         # decide which values to supersample
-        self.keys = ['sky',  'centroid', 'width', 'peak', 'raw_counts']
+        self.keys = ['sky',  'centroid', 'width', 'peak', 'raw_counts', 'raw_counts_optext']
         self.limits = {}
 
         #

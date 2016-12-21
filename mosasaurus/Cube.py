@@ -230,6 +230,11 @@ class Cube(Talker):
                     assert(sum(self.cubes[key][star][widthkey][timepoint,:])!=5500)
                     assert(sum(self.cubes[key][star][widthkey][timepoint,:])>0.0)
 
+                if 'raw_counts_optext' in key:
+                    print sum(self.cubes[key][star][widthkey][timepoint,:])
+                    assert(sum(self.cubes[key][star][widthkey][timepoint,:])!=5500)
+                    assert(sum(self.cubes[key][star][widthkey][timepoint,:])>0.0)
+
 
           # pull out data from the (unsupersampled) spectra to populate a square with dimensions self.numberofstars x self.numberoftimes
           for w in widths:

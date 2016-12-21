@@ -573,6 +573,7 @@ def optimize(subdata, mask, bg, spectrum, Q, v0, p5thresh=10, p7thresh=10, fitty
     submask      = np.copy(mask)
     ny, nx       = subdata.shape
     isnewprofile = True
+    print '     [optspex] running optimal extraction routine'
 
     # Loop through steps 5-8 until no more bad pixels are uncovered
     while(isnewprofile == True):
