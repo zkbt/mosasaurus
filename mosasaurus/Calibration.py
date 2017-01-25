@@ -147,7 +147,10 @@ class Calibration(Talker):
   def createStackedImage(self, n, visualize=True, imageType=None, threshold=5.0, truncation=100):
     '''Take an outlier-rejected stack of a series of images (requires enough memory to hold them all.)'''
 
-    stride = np.maximum(len(n)/truncation, 1)
+    if 'flat' in imageType.lower():
+        stride = 1
+    else:
+        stride = np.maximum(len(n)/truncation, 1)
 
     if stride > 1:
         self.speak('stacking {0}/{2} {1} images'.format(len(n),imageType,truncation))
@@ -166,7 +169,12 @@ class Calibration(Talker):
 
   def createMeanImage(self, n, cosmic=True, visualize=False, imageType=None):
     '''Take the mean of a series of images, less memory intensive than median.'''
-    stride = np.maximum(len(n)/100, 1)
+
+    if 'flat' in imageType.lower():
+        stride = 1
+    else:
+        stride = np.maximum(len(n)/100, 1)
+
     for i in np.arange(0, len(n), stride):
       data = self.ccd.readData(n[i], imageType=imageType)
       if cosmic and i == 0:

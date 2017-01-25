@@ -69,9 +69,8 @@ class CCD(Talker):
 
     # read one of the two images to get header
     filename = self.fileprefix + 'c1.fits'
-    hdu = astropy.io.fits.open(filename)
-    header = hdu[0].header
-    hdu.close()
+    with astropy.io.fits.open(filename) as hdu:
+        header = hdu[0].header
 
     # store the header in this object
     self.header = header
@@ -118,8 +117,8 @@ class CCD(Talker):
     '''Open one half of an LDSS3 CCD, subtract the overscan, and trim.'''
 
     # open the FITS file, split into header and data
-    hdu = astropy.io.fits.open(filename)
-    header = hdu[0].header
+    with astropy.io.fits.open(filename) as hdu:
+        header = hdu[0].header
     data = readFitsData(filename)
 
     # take the parts of CCD exposed to light

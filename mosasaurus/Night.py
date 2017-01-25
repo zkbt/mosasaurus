@@ -20,13 +20,14 @@ class Night(Talker):
       log = []
       fileprefixes = [x.split('c1')[0] for x in glob.glob(self.obs.dataDirectory + '*c1.fits')]
       for fileprefix in fileprefixes:
-        hdu = astropy.io.fits.open(fileprefix+'c1.fits')
+        with astropy.io.fits.open(fileprefix+'c1.fits') as hdu:
 
-        string = "{0: <9}".format(fileprefix.split('/')[-1])
-        for k in keys:
-          string += ' ' + zachopy.utils.truncate(str(hdu[0].header[k]),n=12 + 3*(k == 'object'))
-        self.speak(string)
-        log.append(string)
+
+            string = "{0: <9}".format(fileprefix.split('/')[-1])
+            for k in keys:
+              string += ' ' + zachopy.utils.truncate(str(hdu[0].header[k]),n=12 + 3*(k == 'object'))
+            self.speak(string)
+            log.append(string)
       f = open(logFile, 'w')
       f.writelines(log)
       f.close

@@ -57,11 +57,11 @@ class Headers(Talker):
        for n in self.obs.nScience:
            d['n'].append(n)
            filename = self.obs.dataDirectory+'ccd%04dc1.fits' % n
-           hdu = astropy.io.fits.open(filename)
-           header = hdu[0].header
-           for k in keys:
-               d[k].append(header[k])
-           self.speak('   {0:10} {1:10} {2:10} {3:10}'.format(n, header['ut-date'],  header['ut-time'],  header['airmass']))
+           with astropy.io.fits.open(filename) as hdu:
+               header = hdu[0].header
+               for k in keys:
+                   d[k].append(header[k])
+               self.speak('   {0:10} {1:10} {2:10} {3:10}'.format(n, header['ut-date'],  header['ut-time'],  header['airmass']))
 
        # convert the dictionary of lists into a table
        self.headers = astropy.table.Table(d)
@@ -107,5 +107,5 @@ class Headers(Talker):
         self.headers['bjd'] = times_bary.jd
         self.headers['tdb-utc'] = times_earth.tdb.jd - times_earth.utc.jd
         self.headers['barycor'] = times_bary.tdb.jd - times_earth.tdb.jd
-        
+
         a = self.input('Type enter if okay with BJD?!')
