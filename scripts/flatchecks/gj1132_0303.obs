@@ -1,0 +1,67 @@
+name                 GJ1132b
+instrument           LDSS3C
+grism                VPH-red
+night                ut160303_04
+baseDirectory        /Users/zkbt/Cosmos/Data/Magellan/LDSS3/
+dataDirectory        data/
+workingDirectory     working/
+extractionDirectory  multipleapertures/
+
+# extraction widths, from narrowest to widest
+narrowest            2
+widest              12
+numberofapertures    6
+
+# initial guess for the sky regions
+skyWidth              10
+
+# the pixels within this distance of the extraction aperture will be excluded from sky
+skyGap                2
+
+# other properties
+cosmicThreshold      10
+subarray             50
+binning               2
+
+# CCD number ranges
+nUndispersed          695  699
+nScience              705 1185
+nHe                   133  143
+nNe                   144  154
+nAr                   155  165
+nWideFlat             168  182
+nBias                 338  352
+nWideMask             123  127
+nThinMask             128  132
+nDark                 353  377
+nFinder               693  693
+
+# extraction parameters
+traceOrder             2
+nFWHM                  2
+
+# what area of the detector contains real data? (for individual amplifiers
+namps            2
+gains            1.72 1.49
+dataleft         0
+dataright      512
+databottom       0
+datatop       2048
+
+# how far (in pixels) does spectrum extend away from direct image position
+blueward       2000
+redward        2000
+
+# which comparison stars to use?
+target        0
+comp          1 3 5 6 7 8
+cosmicAbandon 100
+
+# how should spectra be shifted relative to each other?
+correlationAnchors 8498.0 8542.0 8662.0
+correlationRange   8350 8800
+correlationSmooth  2
+
+# for BJD calculation
+ra          153.7090887
+dec        -47.15496899

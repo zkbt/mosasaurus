@@ -149,7 +149,7 @@ class Aperture(Talker):
       spline = scipy.interpolate.LSQUnivariateSpline(self.waxis,envelope,points[1:-2],k=2)
       self.images['NormalizedFlat'] = self.images['WideFlat']/spline(self.waxis).reshape((self.waxis.shape[0],1))
       self.images['NormalizedFlat'] /= np.median(self.images['NormalizedFlat'], self.sindex).reshape(self.waxis.shape[0], 1)
-
+      # 
 
       np.save(filename, self.images)
       self.speak("saved calibration stamps to {0}".format( filename))
@@ -324,6 +324,19 @@ class Aperture(Talker):
 
                 for k in ['centroid', 'width', 'peak']:
                     assert(np.isfinite(self.extracted[width][k]).all())
+
+                '''
+                if 'y' in self.input('Do you want to play around with the extraction intermediates? [y/N]').lower():
+                    try:
+                        self.ds9
+                    except AttributeError:
+                        from zachopy.displays.ds9 import ds9
+                        self.ds9 = ds9()
+                    assert(False)
+                '''
+
+
+
             else:
                 self.extracted[width]['raw_counts'] = np.nansum(self.intermediates[width]['extractMask']*image/self.images['NormalizedFlat'], self.sindex)
                 # this is a kludge, to make the plotting look better for arcs
