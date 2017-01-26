@@ -141,16 +141,36 @@ class Aperture(Talker):
       #	if k is not 'Dark':
       #		self.images[k] -= self.images['Dark']
 
+      # old way of making normalized flat:
       # create a normalized flat field stamp, dividing out the blaze + spectrum of quartz lamp
-      raw_flatfield = self.images['WideFlat']
-      overbig_flatfield = np.ones_like(raw_flatfield)
-      envelope = np.median(raw_flatfield, self.sindex)
-      n_envp = 30
-      points = np.linspace(np.min(self.waxis), np.max(self.waxis),n_envp+2)
-      spline = scipy.interpolate.LSQUnivariateSpline(self.waxis,envelope,points[1:-2],k=2)
-      self.images['NormalizedFlat'] = self.images['WideFlat']/spline(self.waxis).reshape((self.waxis.shape[0],1))
-      self.images['NormalizedFlat'] /= np.median(self.images['NormalizedFlat'], self.sindex).reshape(self.waxis.shape[0], 1)
+      #raw_flatfield = self.images['WideFlat']
+      #overbig_flatfield = np.ones_like(raw_flatfield)
+      #envelope = np.median(raw_flatfield, self.sindex)
+      #n_envp = 30
+      #points = np.linspace(np.min(self.waxis), np.max(self.waxis),n_envp+2)
+      #spline = scipy.interpolate.LSQUnivariateSpline(self.waxis,envelope,points[1:-2],k=2)
+      #self.images['NormalizedFlat'] = self.images['WideFlat']/spline(self.waxis).reshape((self.waxis.shape[0],1))
+      #elf.images['NormalizedFlat'] /= np.median(self.images['NormalizedFlat'], self.sindex).reshape(self.waxis.shape[0], 1)
 
+      # create a normalized flat by dividing each element in the wide flat by the median of its surrounding neighbors;
+      # some testing shows that just a 1-index box around each element is sufficient, but further experimentation is always good
+      self.images['NormalizedFlat'] = np.zeros(self.images['WideFlat'].shape)
+      nx, ny = self.images['WideFlat'].shape
+      xnumpx = 1
+      ynumpx = 1
+      for i in range(nx):
+          for j in range(ny):
+
+              if i < xnumpx: minusx, plusx = i, xnumpx+(xnumpx-i)
+              elif i > nx-xnumpx: minusx, plusx = xnumpx+(xnumpx-(nx-i)), nx-i
+              else: minusx, plusx = xnumpx, xnumpx
+
+              if j < ynumpx: minusy, plusy = j, ynumpx+(ynumpx-j)
+              elif j > ny-ynumpx: minusy, plusy = ynumpx+(ynumpx-(ny-j)), ny-j
+              else: minusy, plusy = ynumpx, ynumpx
+              #print i, j, i-minusx, i+plusx, j-minusy, j+plusy
+              self.images['NormalizedFlat'][i][j] = self.images['WideFlat'][i][j]/np.median(self.images['WideFlat'][i-minusx:i+plusx,j-minusy:j+plusy])
+        
 
       np.save(filename, self.images)
       self.speak("saved calibration stamps to {0}".format( filename))
@@ -310,11 +330,12 @@ class Aperture(Talker):
                 for i in range(subdata.shape[1]):
                     if 1. in self.intermediates[width]['extractMask'][:,i]: boxcuts.append(i)
                 subdata = subdata[:, boxcuts[0]:boxcuts[-1]]
-                mask = np.ones((subdata.shape))
+                submask = self.images['BadPixels'][:, boxcuts[0]:boxcuts[-1]]
+                submask = (submask - 1)*-1
                 bg = self.intermediates[width]['sky'][:, boxcuts[0]:boxcuts[-1]]
                 spectrum = self.extracted[width]['raw_counts']
 
-                spec, specunc, newmask = OptimalExtraction.optimize(subdata.T, mask.T, bg.T, spectrum, 1, 0, p5thresh=10, p7thresh=10, fittype='smooth', window_len=11)
+                spec, specunc, newmask = OptimalExtraction.optimize(subdata.T, submask.T, bg.T, spectrum, 1, 0, p5thresh=10, p7thresh=10, fittype='smooth', window_len=11)
 
                 self.extracted[width]['raw_counts_optext'] = spec
                 
@@ -362,7 +383,7 @@ class Aperture(Talker):
     return self.extracted
 
   def setupVisualization(self):
-        self.thingstoplot = ['raw_counts']#['sky', 'width',  'raw_counts']
+        self.thingstoplot = ['raw_counts', 'raw_counts_optext']#['sky', 'width',  'raw_counts']
         height_ratios = np.ones(len(self.thingstoplot) + 2)
         suptitletext = '{}, CCD{:04.0f}'.format(self.name, self.n)
         try:
@@ -418,6 +439,8 @@ class Aperture(Talker):
                         self.ax[width][thing].set_ylim(np.min(self.trace.traceCenter(self.waxis))-5, np.max(self.trace.traceCenter(self.waxis))+5)
                     if thing == 'raw_counts':
                         self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width]['raw_counts'], 99)*1.5)
+                    if thing == 'raw_counts_optext':
+                        self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width]['raw_counts_optext'], 99)*1.5)
 
 
   def visualizeExtraction(self, width):
@@ -435,6 +458,21 @@ class Aperture(Talker):
 
         self.figure.savefig(self.extractedFilename.replace('npy', 'pdf'))
 
+        '''
+        if 'raw_counts_optext' in self.extracted[width]:
+            self.setupVisualization('raw_counts_optext')
+
+            for width in widths:
+                try:
+                    self.plotRectified(width)
+                except KeyError:
+                    self.speak('skipping sky-subtracted plot')
+                self.plotApertures(width)
+                self.plotExtracted(width)
+
+            savename = self.extractedFilename[:-4]+'optext.pdf'
+            self.figure.savefig(savename)
+        '''
   @property
   def widths(self):
         return np.array([k for k in self.extracted.keys() if type(k) != str])

@@ -553,7 +553,7 @@ def optimize(subdata, mask, bg, spectrum, Q, v0, p5thresh=10, p7thresh=10, fitty
             trvar [i]  = variance[i,itrace[i]-spec_width:itrace[i]+spec_width]
             trbg  [i]  = bg      [i,itrace[i]-spec_width:itrace[i]+spec_width]
 
-     trdata  = np.zeros((subny,spec_width*2))
+        trdata  = np.zeros((subny,spec_width*2))
         trmask  = np.zeros((subny,spec_width*2),dtype=bool)
         trvar   = np.zeros((subny,spec_width*2))
         trbg    = np.zeros((subny,spec_width*2))
@@ -567,7 +567,7 @@ def optimize(subdata, mask, bg, spectrum, Q, v0, p5thresh=10, p7thresh=10, fitty
             trdata[i]   = spldata.ev(yi,xi)
             trmask[i]   = np.round(splmask.ev(yi,xi),0).astype(bool)
             trvar [i]   = splvar .ev(yi,xi)
-            trbg  [i]   = splbg  .ev(yi,xi)
+            trbg  [i]   = splbg  .ev(yi,xi) 
 
     '''
     submask      = np.copy(mask)
