@@ -10,4 +10,4 @@ if not __MOSASAURUS_SETUP__:
     #__all__ = ['dartmouth','basti','padova',
     #           'Isochrone', 'StarModel', 'BinaryStarModel',
     #           'TripleStarModel']
-    # from .Reducer import Reducer
+    from .Reducer import Reducer
