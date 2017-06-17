@@ -37,7 +37,7 @@ setup(name = "mosasaurus",
     author_email = "zach.bertathompson@colorado.edu",
     url = "https://github.com/zkbt/mosasaurus",
     packages = find_packages(),
-    package_data = {'':[]},
+    package_data = {'mosasaurus': ['../data/*']},
     scripts = [],
     classifiers=[
       'Intended Audience :: Science/Research',
