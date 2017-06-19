@@ -49,9 +49,9 @@ class Observation(Talker):
             self.baseDirectory = ' '.join(dictionary['baseDirectory'])
 
         # set up the wavelength calibration paths
-        self.referenceDirectory = mosasaurusdirectory + 'data/'
-        self.wavelength2pixelsFile = self.referenceDirectory  + '{0}_wavelength_identifications.txt'.format(self.grism)
-        self.wavelengthsFile = self.referenceDirectory + 'HeNeAr.txt'
+        self.disperserDirectory = mosasaurusdirectory + 'data/'
+        self.wavelength2pixelsFile = self.disperserDirectory  + '{0}_wavelength_identifications.txt'.format(self.grism)
+        self.wavelengthsFile = self.disperserDirectory + 'HeNeAr.txt'
 
         zachopy.utils.mkdir(self.baseDirectory + dictionary['workingDirectory'])
         self.workingDirectory = self.baseDirectory + dictionary['workingDirectory'] + self.name + '_' + self.night +'/'

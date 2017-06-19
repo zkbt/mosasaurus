@@ -38,20 +38,9 @@ class Observation(Talker):
             if len(entries) == 1:
               entries = entries[0]
             dictionary[key] = entries
-        self.name = dictionary['name']
-        self.night = dictionary['night']
-        self.grism = dictionary['grism'].lower()
-        self.instrument = dictionary['instrument']
-        if "LDSS" in self.instrument:
-            self.observatory = 'lco'
-        self.baseDirectory = dictionary['baseDirectory']
-        if '/media/hannah/Seagate' in self.baseDirectory:
-            self.baseDirectory = ' '.join(dictionary['baseDirectory'])
 
-        # set up the wavelength calibration paths
-        self.referenceDirectory = mosasaurusdirectory + 'data/'
-        self.wavelength2pixelsFile = self.referenceDirectory  + '{0}_wavelength_identifications.txt'.format(self.grism)
-        self.wavelengthsFile = self.referenceDirectory + 'HeNeAr.txt'
+
+
 
         zachopy.utils.mkdir(self.baseDirectory + dictionary['workingDirectory'])
         self.workingDirectory = self.baseDirectory + dictionary['workingDirectory'] + self.name + '_' + self.night +'/'
@@ -99,8 +88,6 @@ class Observation(Talker):
         self.ysize = (self.datatop - self.databottom)
         self.ra =np.float(dictionary['ra'])
         self.dec =np.float(dictionary['dec'])
-        self.binning = np.float(dictionary['binning'])
-        self.subarray = np.float(dictionary['subarray'])
         try:
             self.gains = [float(x) for x in dictionary['gains']]
         except (ValueError,KeyError):

@@ -1,4 +1,10 @@
-from zachopy.Talker import Talker
+from ..imports import *
 
 class Spectrograph(Talker):
-    pass
+    def __init__(self):
+
+        Talker.__init__(self)
+        self.setupDetector()
+        self.setupDisperser()
+        self.setupDirectories()
+        self.setupExtraction()

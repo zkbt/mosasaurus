@@ -56,7 +56,7 @@ class Aperture(Talker):
     if self.obs.instrument == 'LDSS3C':
       self.x = x
       self.y = y
-      self.maskWidth = self.obs.subarray
+      self.maskWidth = self.obs.instrument.extractiondefaults['spatialsubarray']
       #(self.obs.skyWidth + self.obs.skyGap)*2 #+20 +
       self.ystart = np.maximum(y - self.obs.blueward, 0).astype(np.int)
       self.yend = np.minimum(y + self.obs.redward, self.obs.ysize).astype(np.int)
