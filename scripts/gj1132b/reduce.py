@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env pythonw
 
 
 '''This script will reduce LDSS3 raw data into 1D spectra.'''
