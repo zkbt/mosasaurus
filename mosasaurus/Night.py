@@ -11,7 +11,8 @@ class Night(Talker):
 
   def obsLog(self, remake=False):
     '''Print and save an observing log, based on image headers.'''
-    keys = ['ut-time', 'object','aperture', 'grism', 'filter', 'exptime']
+    if self.obs.instrument == 'LDSS3C': keys = ['ut-time', 'object','aperture', 'grism', 'filter', 'exptime']
+    elif self.obs.instrument == 'IMACS': keys = ['ut-time', 'object','slitmask', 'dispersr', 'filter', 'exptime']
     logFile = self.obs.workingDirectory + 'complete_observing_log.txt'
     if os.path.exists(logFile) and remake==False:
       self.speak('looks like an observing log exists at {0}'.format(logFile))

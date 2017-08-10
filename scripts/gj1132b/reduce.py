@@ -4,8 +4,12 @@
 '''This script will reduce LDSS3 raw data into 1D spectra.'''
 
 
-from mosasaurus.Reducer import Reducer
 import sys
+sys.path.append('/home/hdiamond/local/lib/python2.7/site-packages/')
+sys.path.append('/h/mulan0/code/')
+sys.path.append('/h/mulan0/code/mosasaurus')
+from mosasaurus.Reducer import Reducer
+
 try:
     r = Reducer(sys.argv[1])
     r.reduce()

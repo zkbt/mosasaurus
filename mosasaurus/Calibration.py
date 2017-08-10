@@ -225,12 +225,14 @@ class Calibration(Talker):
       cube = np.array(cube)
 
       median = np.median(cube,0)
+      writeFitsData(median, 'median.fits')
       noise = np.median(np.abs(cube - median.reshape(1,cube.shape[1], cube.shape[2])), 0)
       plt.figure('bad pixel mask')
       ax = plt.subplot()
       ax.plot(median.flatten(), noise.flatten(), color='black', alpha=0.5, marker='o', markersize=4, markeredgewidth=0, linewidth=0)
       ax.set_yscale('log')
-      bad = (noise < 0.05*np.sqrt(median)) | (noise == 0) | (median == 0) | (median < 0) | (self.bias() > 10000) | (self.dark() > 100)
+      if self.obs.instrument == 'LDSS3C': bad = (noise < 0.05*np.sqrt(median)) | (noise == 0) | (median == 0) | (median < 0) | (self.bias() > 10000) | (self.dark() > 100)
+      elif self.obs.instrument == 'IMACS': bad = (noise < 0.05*np.sqrt(median)) | (noise == 0) | (median == 0) | (median < 0)
       ax.plot(median[bad].flatten(), noise[bad].flatten(), color='red', alpha=0.5, marker='o', markersize=10, markeredgecolor='red', linewidth=0)
       ax.set_xlabel('Fluence')
       ax.set_ylabel('RMS')
@@ -245,6 +247,8 @@ class Calibration(Talker):
 
 
   def createMasterImage(self, imageType=None, remake=False):
+
+    print imageType
 
     # if no name included, do nothing
     if imageType is None:

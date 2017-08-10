@@ -2,6 +2,7 @@ from imports import *
 from Observation import Observation
 import astropy.table, astropy.time
 import matplotlib.cm
+import glob
 
 plt.ion()
 
@@ -20,7 +21,7 @@ class Cube(Talker):
         self.obs = obs
 
     self.tempfilename = self.obs.extractionDirectory + 'tempSpectralCube.npy'
-    self.cubekeys = ['sky',  'centroid', 'width', 'peak', 'raw_counts']
+    self.cubekeys = ['sky',  'centroid', 'width', 'peak', 'raw_counts', 'raw_counts_optext', 'wavelength_adjusted', 'wavelength_orig']
 
     self.savable = ['cubes', 'squares', 'temporal', 'spectral', 'stellar']
     self.sindex = 0
@@ -179,19 +180,22 @@ class Cube(Talker):
               break
 
           try:
-            self.spectral['wavelength']
+            #self.spectral['wavelength']
             self.spectral['dnpixelsdw']
             self.numberofwavelengths
           except (KeyError,AttributeError):
             # define some useful arrays
-            self.spectral['wavelength'] = supersampled['wavelength']
+            #self.spectral['wavelength'] = extracted['wavelength_adjusted']
+            # ORIGINAL: self.spectral['wavelength'] = supersampled['wavelength']
             self.spectral['dnpixelsdw'] = supersampled['dnpixelsdw']
-            self.numberofwavelengths = len(self.spectral['wavelength'])
+            self.numberofwavelengths = len(self.spectral['dnpixelsdw'])
+            # ORIGINAL: self.numberofwavelengths = len(self.spectral['wavelength'])
 
           # make sure we know how many aperture widths we're dealing with (for this spectrum)
-          widths = np.sort([np.float(x.split('_')[-1].split('px')[0])
-                                    for x in supersampled.keys()
-                                        if 'raw_counts' in x])
+          widths = np.sort([np.float(x) for x in extracted.keys() if type(x) == float or type(x) == np.float64])
+          # ORIGINAL: widths = np.sort([np.float(x.split('_')[-1].split('px')[0])
+          #                          for x in supersampled.keys()
+          #                              if 'raw_counts' in x])
 
           # loop over the measurement types and populate the cubes
           for key in self.cubekeys + ['ok']:
@@ -214,17 +218,32 @@ class Cube(Talker):
                     self.cubes[key][star][widthkey]
                 except KeyError:
                     if key == 'ok':
-                        self.cubes[key][star][widthkey] = np.ones((self.numberoftimes, len(supersampled['wavelength']))).astype(np.bool)
+                        self.cubes[key][star][widthkey] = np.ones((self.numberoftimes, len(extracted['wavelength']))).astype(np.bool)
+                        # ORIGINAL: self.cubes[key][star][widthkey] = np.ones((self.numberoftimes, len(supersampled['wavelength']))).astype(np.bool)
                     else:
-                        self.cubes[key][star][widthkey] = np.zeros((self.numberoftimes, len(supersampled['wavelength'])))
+                        self.cubes[key][star][widthkey] = np.zeros((self.numberoftimes, len(extracted['wavelength'])))
+                        # ORIGINAL: self.cubes[key][star][widthkey] = np.zeros((self.numberoftimes, len(supersampled['wavelength'])))
                         self.speak('updating cubes[{key}][{star}][{widthkey}][{timepoint},:]'.format(**locals()))
 
                 # populate with the supersampled spectrum
-                if key != 'ok':
-                    self.cubes[key][star][widthkey][timepoint,:] = supersampled[key + '_' + widthkey]
+                if key != 'ok' and key != 'wavelength_adjusted' and key != 'wavelength_orig':
+                    self.cubes[key][star][widthkey][timepoint,:] = extracted[float(widthkey[:-2])][key]
+                    # ORIGINAL: self.cubes[key][star][widthkey][timepoint,:] = supersampled[key + '_' + widthkey]
+                    # change supersampled to extracted. add 
+
+                if key == 'wavelength_adjusted':
+                    self.cubes[key][star][widthkey][timepoint,:] = extracted[float(widthkey[:-2])][key]
+
+                if key == 'wavelength_orig':
+                    self.cubes[key][star][widthkey][timepoint,:] = extracted['wavelength']
 
                 #print '!!!'
                 if 'raw_counts' in key:
+                    print sum(self.cubes[key][star][widthkey][timepoint,:])
+                    assert(sum(self.cubes[key][star][widthkey][timepoint,:])!=5500)
+                    assert(sum(self.cubes[key][star][widthkey][timepoint,:])>0.0)
+
+                if 'raw_counts_optext' in key:
                     print sum(self.cubes[key][star][widthkey][timepoint,:])
                     assert(sum(self.cubes[key][star][widthkey][timepoint,:])!=5500)
                     assert(sum(self.cubes[key][star][widthkey][timepoint,:])>0.0)
@@ -233,7 +252,7 @@ class Cube(Talker):
           # pull out data from the (unsupersampled) spectra to populate a square with dimensions self.numberofstars x self.numberoftimes
           for w in widths:
               widthkey = '{:04.1f}px'.format(w)
-              for key in ['sky', 'width', 'centroid', 'cosmicdiagnostic']:
+              for key in ['sky', 'width', 'centroid', 'cosmicdiagnostic', 'stretch', 'shift']:
 
                   try:
                       self.squares[key]
@@ -247,9 +266,14 @@ class Cube(Talker):
                       self.squares[key][star][widthkey]
                   except KeyError:
                       self.squares[key][star][widthkey] = np.zeros(self.numberoftimes)
-
-                  self.squares[key][star][widthkey][timepoint] = np.median(extracted[w][key])
+                  if key == 'shift':
+                      self.squares[key][star][widthkey][timepoint] = extracted[w][key]
+                  elif key == 'stretch':
+                      self.squares[key][star][widthkey][timepoint] = extracted[w][key]
+                  else:
+                      self.squares[key][star][widthkey][timepoint] = np.median(extracted[w][key])
                   self.speak('updating squares[{key}][{star}][{widthkey}][{timepoint}]'.format(**locals()))
+
 
         # if we've run out of spectra, then break out of the loop (with truncated cubes)
         if truncate:
@@ -306,8 +330,8 @@ class Cube(Talker):
       for star in self.stars:
           self.speak('marking bad points for {}'.format(star))
 
-          widths = np.sort([np.float(x.split('_')[-1].split('px')[0])
-                                  for x in self.cubes['raw_counts'][star].keys()])
+          print self.cubes.keys()
+          widths = np.sort([np.float(x.split('_')[-1].split('px')[0]) for x in self.cubes['raw_counts'][star].keys()])
 
           for w in widths:
               widthkey = '{:04.1f}px'.format(w)
@@ -327,16 +351,17 @@ class Cube(Talker):
               # (DOUBLE CHECK THIS ISN'T A KLUDGE!)
 
               # mark things with really weird shifts as bad
-              shifts = self.squares['shift'][star][widthkey]
-              shifts -= np.median(shifts)
-              bad = np.abs(shifts) > 10*zachopy.oned.mad(shifts)
-              '''plt.figure('check shifts')
-              plt.cla()
-              plt.plot(shifts, color='gray')
-              plt.scatter(np.arange(len(shifts))[bad], shifts[bad], color='red')
-              plt.draw()'''
-              self.cubes['ok'][star][widthkey] *= (bad == False)[:,np.newaxis]
-              #self.input('plotting shifts for {}'.format(star))
+              if self.shift:
+                shifts = self.squares['shift'][star][widthkey]
+                shifts -= np.median(shifts)
+                bad = np.abs(shifts) > 10*zachopy.oned.mad(shifts)
+                '''plt.figure('check shifts')
+                plt.cla()
+                plt.plot(shifts, color='gray')
+                plt.scatter(np.arange(len(shifts))[bad], shifts[bad], color='red')
+                plt.draw()'''
+                self.cubes['ok'][star][widthkey] *= (bad == False)[:,np.newaxis]
+                #self.input('plotting shifts for {}'.format(star))
 
               # mark
               self.cubes['centroid'][star][widthkey] -= np.median(self.cubes['centroid'][star][widthkey][self.cubes['ok'][star][widthkey]])

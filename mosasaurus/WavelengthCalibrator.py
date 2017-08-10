@@ -2,7 +2,7 @@
 
 from imports import *
 from numpy.polynomial import Legendre
-colors = dict(He='lightsalmon', Ne='red', Ar='deepskyblue')
+colors = dict(He='darkorange', Ne='red', Ar='deepskyblue')
 shortcuts = {'h':'He', 'n':'Ne', 'a':'Ar'}
 
 class WavelengthCalibrator(Talker):
@@ -205,8 +205,10 @@ class WavelengthCalibrator(Talker):
             self.corre['combined'] *= self.corre[element]
 
         # find the peak of the combined correlation function
-        self.peakoffset = -1024 # KLUDGE KLUDGE KLUDGE! np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)
-        # (old?) to convert: len(x) - xPeak = x + peakoffset
+        if self.aperture.obs.instrument == 'LDSS3C':
+            self.peakoffset = -1024 # KLUDGE KLUDGE KLUDGE! np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)
+            # (old?) to convert: len(x) - xPeak = x + peakoffset
+        elif self.aperture.obs.instrument == 'IMACS': self.peakoffset = -75  # also a kludge
 
         # define the new, shifted, waveids array
         self.waveids = copy.deepcopy(self.rawwaveids)

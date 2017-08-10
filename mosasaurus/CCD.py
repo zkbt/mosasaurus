@@ -1,4 +1,5 @@
 from imports import *
+from scipy.signal import savgol_filter
 
 class CCD(Talker):
   '''CCD object handles every related to an individual CCD exposure.'''
@@ -120,17 +121,66 @@ class CCD(Talker):
     # open the FITS file, split into header and data
     hdu = astropy.io.fits.open(filename)
     header = hdu[0].header
-    data = readFitsData(filename)
 
-    # take the parts of CCD exposed to light
-    goodData = data[self.obs.databottom:self.obs.datatop,self.obs.dataleft:self.obs.dataright]
-    goodBias = data[self.obs.databottom:self.obs.datatop,self.obs.dataright:]
+    if self.obs.instrument == 'LDSS3C':
+      data = readFitsData(filename)
+      # take the parts of CCD exposed to light
+      goodData = data[self.obs.databottom:self.obs.datatop,self.obs.dataleft:self.obs.dataright]
+      goodBias = data[self.obs.databottom:self.obs.datatop,self.obs.dataright:]
 
-    # estimate the 1D bias (and drawdown, etc...) from the overscan
-    biasEstimate = np.median(goodBias, axis=1)
-    biasImage = np.ones(goodData.shape)*biasEstimate[:,np.newaxis]
+      # estimate the 1D bias (and drawdown, etc...) from the overscan
+      biasEstimate = np.median(goodBias, axis=1)
+      biasImage = np.ones(goodData.shape)*biasEstimate[:,np.newaxis]
 
-    return (goodData - biasImage), header
+      return (goodData - biasImage), header
+
+    elif self.obs.instrument == 'IMACS':
+
+      data = hdu[0].data
+
+      # size of entire data set, including overscan rows and columns
+      ncols = data.shape[1]
+      nrows = data.shape[0]
+
+      # get the bias region from the header
+      # only the overscan rows (nomenclature uncertain.. this is the vertical direction) listed
+      bias_cols_str, bias_rows_str = header['BIASSEC'].strip('[]').split(',')
+      bias_cols = [int(i) for i in bias_cols_str.split(':')]
+      bias_rows = [int(i) for i in bias_rows_str.split(':')]
+
+      data_cols_str, data_rows_str = header['DATASEC'].strip('[]').split(',')
+      data_cols = [int(i) for i in data_cols_str.split(':')]
+      data_rows = [int(i) for i in data_rows_str.split(':')]
+
+      # FIRST REMOVE THE HORIZONTAL STRUCUTRE
+
+      # the overscan rows per header keyword
+      overscan_rows = data[:,bias_cols[0]:bias_cols[1]+1]
+
+      # first take the median, then...
+      # filter to remove high-frequency noise
+      bias_median = np.median(overscan_rows, axis=1)
+      bias_filtered = savgol_filter(bias_median, 41, 4)
+
+      bias = np.tile(bias_filtered, (ncols,1)).T
+      data_b1 = data - bias
+
+      # NOW REMOVE THE VERTICAL STRUCUTRE
+      # (if this isn't a flatfield thing!)
+
+      overscan_cols = data_b1[data_rows[1]:, :]
+      bias_median = np.median(overscan_cols, axis=0)
+      bias_filtered = savgol_filter(bias_median, 41, 4)
+
+      bias = np.tile(bias_filtered, (nrows, 1))
+      data_b2 = data_b1 - bias
+
+      # now extract just the science part of the image
+      data_new = data_b2[data_rows[0]:data_rows[1]+1,data_cols[0]:data_cols[1]+1]
+      assert( data_new.shape == (2048, 1024) )
+
+      return data_new, header
+
 
   def createStitched(self):
     '''Create and load a stitched CCD image, given a file prefix.'''
@@ -139,105 +189,217 @@ class CCD(Talker):
     if self.verbose:
       self.speak(self.space + "creating a stitched image for {0}".format( self.stitched_filename))
 
-    # provide different options for different kinds of images
-    if self.imageType == 'Bias':
-      self.flags['subtractbias'] = False
-      self.flags['subtractdark'] = False
-      self.flags['multiplygain'] = False
-      self.flags['subtractcrosstalk'] = False
-    elif self.imageType == 'Dark':
-      self.flags['subtractbias'] = True
-      self.flags['subtractdark'] = False
-      self.flags['multiplygain'] = False
-      self.flags['subtractcrosstalk'] = False
-    elif self.imageType == 'FlatInADU':
-      self.flags['subtractbias'] = True
-      self.flags['subtractdark'] = True
-      self.flags['multiplygain'] = False
-      self.flags['subtractcrosstalk'] = False
-    else:
-      self.flags['subtractbias'] = True
-      self.flags['subtractdark'] = True
-      self.flags['multiplygain'] = True
-      self.flags['subtractcrosstalk'] = True
+  ###############################################################################################################
+  ######################################## LDSS3C ###############################################################
+  ###############################################################################################################
 
-    # don't restitch if unnecessary
-    if os.path.exists(self.stitched_filename) and self.verbose:
-      self.speak(self.space + "{0} has already been stitched".format(self.name))
-    else:
-      # process the two halves separately, and then smush them together
-      filenames = [self.fileprefix + 'c1.fits', self.fileprefix + 'c2.fits']
+    if self.obs.instrument == 'LDSS3C':
 
-      # load the two halves
-      c1data, c1header = self.loadOverscanTrimHalfCCD(filenames[0])
-      c2data, c2header = self.loadOverscanTrimHalfCCD(filenames[1])
+      # provide different options for different kinds of images
+      if self.imageType == 'Bias':
+        self.flags['subtractbias'] = False
+        self.flags['subtractdark'] = False
+        self.flags['multiplygain'] = False
+        self.flags['subtractcrosstalk'] = False
+      elif self.imageType == 'Dark':
+        self.flags['subtractbias'] = True
+        self.flags['subtractdark'] = False
+        self.flags['multiplygain'] = False
+        self.flags['subtractcrosstalk'] = False
+      elif self.imageType == 'FlatInADU':
+        self.flags['subtractbias'] = True
+        self.flags['subtractdark'] = True
+        self.flags['multiplygain'] = False
+        self.flags['subtractcrosstalk'] = False
+      else:
+        self.flags['subtractbias'] = True
+        self.flags['subtractdark'] = True
+        self.flags['multiplygain'] = True
+        self.flags['subtractcrosstalk'] = True
 
-      if self.visualize:
-        tempstitched = np.hstack([c1data, np.fliplr(c2data)])
+      # don't restitch if unnecessary
+      if os.path.exists(self.stitched_filename) and self.verbose:
+        self.speak(self.space + "{0} has already been stitched".format(self.name))
+      else:
+        # process the two halves separately, and then smush them together
+        filenames = [self.fileprefix + 'c1.fits', self.fileprefix + 'c2.fits']
+
+        # load the two halves
+        c1data, c1header = self.loadOverscanTrimHalfCCD(filenames[0])
+        c2data, c2header = self.loadOverscanTrimHalfCCD(filenames[1])
+
+        if self.visualize:
+          tempstitched = np.hstack([c1data, np.fliplr(c2data)])
 
 
 
-      if self.flags['subtractcrosstalk']:
-          # is this possible?
-          pass
+        if self.flags['subtractcrosstalk']:
+            # is this possible?
+            pass
 
-      # stitch the CCD's together
-      stitched = np.hstack([c1data, np.fliplr(c2data)])
-      #self.speak("stitching images of size {0} and {1} into one {2} image".format(c1data.shape, c2data.shape, stitched.shape))
+        # stitch the CCD's together
+        stitched = np.hstack([c1data, np.fliplr(c2data)])
+        #self.speak("stitching images of size {0} and {1} into one {2} image".format(c1data.shape, c2data.shape, stitched.shape))
 
-      if self.visualize:
-          self.display.one(stitched, clobber=True)
-          self.input('This is the raw stitched image; press enter to continue.')
+        if self.visualize:
+            self.display.one(stitched, clobber=True)
+            self.input('This is the raw stitched image; press enter to continue.')
 
-      # subtract bias
-      if self.flags['subtractbias']:
-        self.speak("subtracting bias image")
-        stitched -= self.calib.bias()
+        # subtract bias
+        if self.flags['subtractbias']:
+          self.speak("subtracting bias image")
+          stitched -= self.calib.bias()
 
-      if self.visualize:
-          self.display.one(stitched, clobber=True)
-          self.input('after subtracting bias')
+        if self.visualize:
+            self.display.one(stitched, clobber=True)
+            self.input('after subtracting bias')
 
-      # normalize darks by exposure time
-      if self.imageType == 'Dark':
-        stitched /= c1header['EXPTIME']
+        # normalize darks by exposure time
+        if self.imageType == 'Dark':
+          stitched /= c1header['EXPTIME']
 
-      # subtract dark
-      if self.flags['subtractdark']:
-        self.speak("subtracting dark image")
-        stitched -= self.calib.dark()*c1header['EXPTIME']
+        # subtract dark
+        if self.flags['subtractdark']:
+          self.speak("subtracting dark image")
+          stitched -= self.calib.dark()*c1header['EXPTIME']
 
-      if self.visualize:
-          self.display.one(stitched, clobber=True)
-          self.visualize = self.input('after subtracting dark; type [s] to stop showing these').lower() != 's'
+        if self.visualize:
+            self.display.one(stitched, clobber=True)
+            self.visualize = self.input('after subtracting dark; type [s] to stop showing these').lower() != 's'
 
-      # divide by the gain (KLUDGE! make sure these are the best estimates!)
-      if self.flags['multiplygain']:
+        # divide by the gain (KLUDGE! make sure these are the best estimates!)
+        if self.flags['multiplygain']:
 
-        try:
-          self.calib.gains
-        except:
-          self.calib.estimateGain()
-        self.speak("multiplying by gains of {0} e-/ADU".format(self.calib.gains))
-        gain1 = np.zeros_like(c1data) + self.calib.gains[0]
-        gain2 = np.zeros_like(c2data)+ self.calib.gains[1]
-        gainimage = np.hstack([gain1, np.fliplr(gain2)])
-        stitched *= gainimage
+          try:
+            self.calib.gains
+          except:
+            self.calib.estimateGain()
+          self.speak("multiplying by gains of {0} e-/ADU".format(self.calib.gains))
+          gain1 = np.zeros_like(c1data) + self.calib.gains[0]
+          gain2 = np.zeros_like(c2data)+ self.calib.gains[1]
+          gainimage = np.hstack([gain1, np.fliplr(gain2)])
+          stitched *= gainimage
 
-      if self.visualize:
-          self.display.one(stitched, clobber=True)
-          self.visualize = self.input('after multiplying by gain; type [s] to stop showing these').lower() != 's'
+        if self.visualize:
+            self.display.one(stitched, clobber=True)
+            self.visualize = self.input('after multiplying by gain; type [s] to stop showing these').lower() != 's'
 
-      # put the stitched image into the CCD's memory
-      self.data = stitched
+        # put the stitched image into the CCD's memory
+        self.data = stitched
 
-      if self.imageType == 'Science':
-          self.rejectCosmicRays()
+        if self.imageType == 'Science':
+            self.rejectCosmicRays()
 
-      # write out the image to a stitched image
-      writeFitsData(self.data, self.stitched_filename)
-      if self.verbose:
-        self.speak(self.space + "stitched and saved {0}".format(self.name))
+        # write out the image to a stitched image
+        writeFitsData(self.data, self.stitched_filename)
+        if self.verbose:
+          self.speak(self.space + "stitched and saved {0}".format(self.name))
+
+###############################################################################################################
+######################################## IMACS ################################################################
+###############################################################################################################
+
+    elif self.obs.instrument == 'IMACS':
+
+      # provide different options for different kinds of images
+      if self.imageType == 'Bias':
+        self.flags['subtractbias'] = False
+        self.flags['subtractdark'] = False
+        self.flags['multiplygain'] = False
+        self.flags['subtractcrosstalk'] = False
+      elif self.imageType == 'Dark':
+        self.flags['subtractbias'] = False
+        self.flags['subtractdark'] = False
+        self.flags['multiplygain'] = False
+        self.flags['subtractcrosstalk'] = False
+      elif self.imageType == 'FlatInADU':
+        self.flags['subtractbias'] = False
+        self.flags['subtractdark'] = False
+        self.flags['multiplygain'] = False
+        self.flags['subtractcrosstalk'] = False
+      else:
+        self.flags['subtractbias'] = False
+        self.flags['subtractdark'] = False
+        self.flags['multiplygain'] = True
+        self.flags['subtractcrosstalk'] = True
+
+      # don't restitch if unnecessary
+      if os.path.exists(self.stitched_filename) and self.verbose:
+        self.speak(self.space + "{0} has already been stitched".format(self.name))
+      else:
+        # process the two halves separately, and then smush them together
+        filenames = [self.fileprefix + 'c8.fits']
+
+        # load one chip
+        c8data, c8header = self.loadOverscanTrimHalfCCD(filenames[0])
+
+        if self.visualize:
+          tempstitched = np.hstack([c8data])
+
+        if self.flags['subtractcrosstalk']:
+            # is this possible?
+            pass
+
+        # stitch the CCD's together
+        stitched = np.hstack([c8data])
+        #self.speak("stitching images of size {0} and {1} into one {2} image".format(c1data.shape, c2data.shape, stitched.shape))
+
+        if self.visualize:
+            self.display.one(stitched, clobber=True)
+            self.input('This is the raw stitched image; press enter to continue.')
+
+        # subtract bias
+        if self.flags['subtractbias']:
+          self.speak("subtracting bias image")
+          stitched -= self.calib.bias()
+
+        if self.visualize:
+            self.display.one(stitched, clobber=True)
+            self.input('after subtracting bias')
+
+        # normalize darks by exposure time
+        if self.imageType == 'Dark':
+          stitched /= c1header['EXPTIME']
+
+        # subtract dark
+        if self.flags['subtractdark']:
+          self.speak("subtracting dark image")
+          stitched -= self.calib.dark()*c1header['EXPTIME']
+
+        if self.visualize:
+            self.display.one(stitched, clobber=True)
+            self.visualize = self.input('after subtracting dark; type [s] to stop showing these').lower() != 's'
+
+        # divide by the gain (KLUDGE! make sure these are the best estimates!)
+        if self.flags['multiplygain']:
+
+          try:
+            self.calib.gains
+          except:
+            self.calib.estimateGain()
+          self.speak("multiplying by gains of {0} e-/ADU".format(self.calib.gains))
+          gain8 = np.zeros_like(c8data) + self.calib.gains[0]
+          #gain2 = np.zeros_like(c2data)+ self.calib.gains[1]
+          # this is an "image" specifying the gains for the gains for each chip
+          gainimage = np.hstack([gain8])
+          stitched *= gainimage
+
+        if self.visualize:
+            self.display.one(stitched, clobber=True)
+            self.visualize = self.input('after multiplying by gain; type [s] to stop showing these').lower() != 's'
+
+        # put the stitched image into the CCD's memory
+        self.data = stitched
+
+        if self.imageType == 'Science':
+            self.rejectCosmicRays()
+
+        # write out the image to a stitched image
+        writeFitsData(self.data, self.stitched_filename)
+        if self.verbose:
+          self.speak(self.space + "stitched and saved {0}".format(self.name))
+
+
 
   def rejectCosmicRays(self, remake=False, threshold=7.5, visualize=False, nBeforeAfter=5):
      '''Stitch all science images, establish a comparison noise level for each pixel.'''

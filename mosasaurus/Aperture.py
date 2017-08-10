@@ -1,9 +1,14 @@
 from imports import *
 from Tools import *
+import zachopy.resample as resample
 from Trace import Trace
 from WavelengthCalibrator import WavelengthCalibrator
 from zachopy.cmaps import one2another
 from zachopy.displays.movie import Movie
+import optspex as OptimalExtraction
+import trace as trace
+import scipy.interpolate as spi
+import math
 ignorekw = dict(cmap=one2another('palevioletred', 'palevioletred', alphatop=0.75, alphabottom=0.0),
                     interpolation='nearest',
                     aspect='auto',
@@ -89,6 +94,44 @@ class Aperture(Talker):
       self.directory = self.obs.extractionDirectory + self.name + '/'
       zachopy.utils.mkdir(self.directory)
       self.speak("created a spectroscopic aperture at ({0:.1f}, {1:.1f})".format(self.x, self.y))
+
+    elif self.obs.instrument == 'IMACS':
+      self.x = x
+      self.y = y
+      self.maskWidth = self.obs.subarray
+      #(self.obs.skyWidth + self.obs.skyGap)*2 #+20 +
+      self.ystart = np.maximum(y - self.obs.blueward, 0).astype(np.int)
+      self.yend = np.minimum(y + self.obs.redward, self.obs.ysize).astype(np.int)
+      self.xstart = np.maximum(x - self.maskWidth, 0).astype(np.int)
+      self.xend = np.minimum(x + self.maskWidth, self.obs.xsize).astype(np.int)
+      # remember python indexes arrays by [row,column], which is opposite [x,y]
+      x_fullframe, y_fullframe = np.meshgrid(np.arange(self.calib.images['Science'].shape[1]),
+                        np.arange(self.calib.images['Science'].shape[0]))
+      self.x_sub = x_fullframe[self.ystart:self.yend, self.xstart:self.xend]
+      self.y_sub = y_fullframe[self.ystart:self.yend, self.xstart:self.xend]
+
+      self.xbox = (self.xstart + self.xend)/2
+      self.ybox = (self.ystart + self.yend)/2
+      self.wbox = np.abs(self.xend - self.xstart)
+      self.hbox = np.abs(self.yend - self.ystart)
+
+      # first index of np. array is in the wavelength (w) direction
+      # second index is in the spatial (s) direction
+      # we'll define these now to help keep things straight
+      self.w = self.y_sub - self.y#self.ystart
+      self.s = self.x_sub - self.x#self.xstart
+      self.windex = 0
+      self.sindex = 1 - self.windex
+      if self.windex == 0:
+        self.waxis = self.w[:,0]
+        self.saxis = self.s[0,:]
+
+
+      self.name = 'aperture_{0:.0f}_{1:.0f}'.format(self.x, self.y)
+      self.directory = self.obs.extractionDirectory + self.name + '/'
+      zachopy.utils.mkdir(self.directory)
+      self.speak("created a spectroscopic aperture at ({0:.1f}, {1:.1f})".format(self.x, self.y))
+
     else:
       self.speak("*!$!%()@! no cameras besides LDSS3C have been defined yet!")
 
@@ -117,10 +160,16 @@ class Aperture(Talker):
 
 
       # cut out stamps from the big images
-      interesting = ['Science' ,
-                    'WideFlat',
-                    'He', 'Ne', 'Ar',
-                    'BadPixels', 'Dark', 'Bias']
+      if self.obs.instrument == 'LDSS3C':
+          interesting = ['Science' ,
+                        'WideFlat',
+                        'He', 'Ne', 'Ar',
+                        'BadPixels', 'Dark', 'Bias']
+      elif self.obs.instrument == 'IMACS':
+          interesting = ['Science' ,
+                        'WideFlat',
+                        'He', 'Ne', 'Ar',
+                        'BadPixels', 'Bias']
       for k in interesting:
         self.images[k] = self.stamp(self.calib.images[k])
 
@@ -140,16 +189,38 @@ class Aperture(Talker):
       #	if k is not 'Dark':
       #		self.images[k] -= self.images['Dark']
 
+      # old way of making normalized flat:
       # create a normalized flat field stamp, dividing out the blaze + spectrum of quartz lamp
-      raw_flatfield = self.images['WideFlat']
-      overbig_flatfield = np.ones_like(raw_flatfield)
-      envelope = np.median(raw_flatfield, self.sindex)
-      n_envp = 30
-      points = np.linspace(np.min(self.waxis), np.max(self.waxis),n_envp+2)
-      spline = scipy.interpolate.LSQUnivariateSpline(self.waxis,envelope,points[1:-2],k=2)
-      self.images['NormalizedFlat'] = self.images['WideFlat']/spline(self.waxis).reshape((self.waxis.shape[0],1))
-      self.images['NormalizedFlat'] /= np.median(self.images['NormalizedFlat'], self.sindex).reshape(self.waxis.shape[0], 1)
+      #raw_flatfield = self.images['WideFlat']
+      #overbig_flatfield = np.ones_like(raw_flatfield)
+      #envelope = np.median(raw_flatfield, self.sindex)
+      #n_envp = 30
+      #points = np.linspace(np.min(self.waxis), np.max(self.waxis),n_envp+2)
+      #spline = scipy.interpolate.LSQUnivariateSpline(self.waxis,envelope,points[1:-2],k=2)
+      #self.images['NormalizedFlat'] = self.images['WideFlat']/spline(self.waxis).reshape((self.waxis.shape[0],1))
+      #elf.images['NormalizedFlat'] /= np.median(self.images['NormalizedFlat'], self.sindex).reshape(self.waxis.shape[0], 1)
 
+      # create a normalized flat by dividing each element in the wide flat by the median of its surrounding neighbors;
+      # some testing shows that just a 1-index box around each element is sufficient, but further experimentation is always good
+      self.images['NormalizedFlat'] = np.zeros(self.images['WideFlat'].shape)
+      nx, ny = self.images['WideFlat'].shape
+      xnumpx = 100
+      ynumpx = 20
+      for i in range(nx):
+          for j in range(ny):
+      
+              if i < xnumpx: minusx, plusx = i, xnumpx+(xnumpx-i)
+              elif i > nx-xnumpx: minusx, plusx = xnumpx+(xnumpx-(nx-i)), nx-i
+              else: minusx, plusx = xnumpx, xnumpx
+
+              if j < ynumpx: minusy, plusy = j, ynumpx+(ynumpx-j)
+              elif j > ny-ynumpx: minusy, plusy = ynumpx+(ynumpx-(ny-j)), ny-j
+              else: minusy, plusy = ynumpx, ynumpx
+              #print i, j, i-minusx, i+plusx, j-minusy, j+plusy
+              self.images['NormalizedFlat'][i][j] = self.images['WideFlat'][i][j]/np.median(self.images['WideFlat'][i-minusx:i+plusx,j-minusy:j+plusy])
+
+      #testing using no flat
+      #self.images['NormalizedFlat'] = np.ones(self.images['WideFlat'].shape)
 
       np.save(filename, self.images)
       self.speak("saved calibration stamps to {0}".format( filename))
@@ -283,12 +354,137 @@ class Aperture(Talker):
             except (IOError, AttributeError):
                 self.speak("couldn't find any cosmic over-correction diagnostics for this frame")
 
+            #import sys
+            #sys.exit("Breaking here. Check it out.")
+
+
             # subtract the sky, if requested
             if subtractsky:
 
                 # estimate a 1D sky spectrum by summing over the masked region
                 self.speak('estimating a sky background image')
+                #mask = np.ones(self.images['BadPixels'].shape)
+                
+                '''
+                # hzdl - making extraction and sky windows based on FWHM of each row in the cross-dispersion direction
+                mask = (self.images['BadPixels']-1)*-1
+                subimage = (image/self.images['NormalizedFlat']*mask)#[:,boxcuts[0]:boxcuts[-1]]
+                disp, crossdisp = subimage.shape
+                #x = range(crossdisp)
+                FWHM = np.zeros(disp)
+                r1list, r2list = np.zeros(disp), np.zeros(disp)
+                mininds, maxinds = np.zeros(disp), np.zeros(disp)
+                
+                for i in range(disp):
+                    inds = np.where(self.intermediates[width]['skyMask'][i] == 1)[0]
+                    
+                    psf = subimage[i][inds[0]:inds[-1]+1]
+                    peak = np.argmax(psf)
+                    x = range(len(psf))
+                    spline = spi.UnivariateSpline(x, psf-np.max(psf)/2., s=0)
+                    if (psf[peak]-np.median(psf))/np.std(psf) < 4 or len(spline.roots()) != 2:
+                        mask[i] = 0
+                        placeholders = np.where(self.intermediates[width]['extractMask'][i] == 1)[0]
+                        r1list[i] = placeholders[0]
+                        r2list[i] = placeholders[-1]
+                        FWHM[i] = placeholders[-1]-placeholders[0]
+                        mininds[i] = inds[0]
+                        maxinds[i] = inds[-1]
+                        continue
+                    r1, r2 = spline.roots() # find the roots
+                    FWHM[i] = r2-r1
+                    r1list[i] = inds[0]+r1
+                    r2list[i] = inds[0]+r2
+                    
+                    mininds[i] = int(inds[0])
+                    maxinds[i] = int(inds[-1])
+                
+                FWHMmask = np.array(np.sum(mask, 1), dtype=bool)
+                FWHMspline = spi.UnivariateSpline(range(len(FWHM)), FWHM, w=FWHMmask.astype(int))
+                estFWHM = FWHMspline(range(len(FWHM)))
 
+                
+                # make new sky mask
+                FWHMmult = width/2
+
+                r1spline = spi.UnivariateSpline(range(len(r1list)), r1list, w=FWHMmask.astype(int))
+                r1smooth = r1spline(range(len(r1list)))
+                r2spline = spi.UnivariateSpline(range(len(r2list)), r2list, w=FWHMmask.astype(int))
+                r2smooth = r2spline(range(len(r2list)))
+                
+                #extracted = np.zeros(disp)
+                skymed = np.zeros(disp)
+                skymask = np.zeros(image.shape)
+                intermediate_sky_med = np.zeros(image.shape)
+                extractmask = np.zeros(image.shape)
+                normimage = image/self.images['NormalizedFlat']
+                for i in range(disp):
+                    
+                    edge1, edge2 = r1smooth[i]-estFWHM[i]*FWHMmult, r2smooth[i]+estFWHM[i]*FWHMmult
+                    edge1_round, edge2_round = int(np.ceil(edge1)), int(np.floor(edge2))
+                    if edge2_round >= len(normimage[i]): edge2_round = len(normimage[i])-1
+                    edge1_frac, edge2_frac = edge1_round-edge1, edge2-edge2_round
+
+                    if edge1_round - mininds[i] < 12: edge1_round = int(mininds[i]+12)
+                    if maxinds[i] - edge2_round < 12: edge2_round = int(maxinds[i]-12)
+
+                    extractmask[i][edge1_round:edge2_round] = 1
+                    extractmask[i][edge1_round-1] = edge1_frac
+                    extractmask[i][edge2_round] = edge2_frac
+
+                    skyedge1 = edge1_round-2
+                    skyedge2 = edge2_round+2
+                    skymask[i][int(mininds[i]):skyedge1-1] = 1
+                    skymask[i][skyedge2+1:int(maxinds[i])] = 1
+                    
+
+                    #flux = np.sum(normimage[i][edge1_round:edge2_round])
+                    #partial_flux = edge1_frac*normimage[i][edge1_round-1] + edge2_frac*normimage[i][edge2_round]
+                    #extracted[i] = flux+partial_flux
+                    
+                    #skyedge1, skyedge2 = int(max(np.floor(edge1), mininds[i])), int(min(np.ceil(edge2), maxinds[i]))
+                    #sky1 = normimage[i][mininds[i]:skyedge1-2]
+                    #sky2 = normimage[i][skyedge2+2:maxinds[i]]
+                    #if skyedge1 - mininds[i] < 10: skyedge1 = int(mininds[i]+10)# skyedge1 = int(mininds[i] + (skyedge1list[i-1] - mininds[i-1]))
+                    #if maxinds[i] - skyedge2 < 10: skyedge2 = int(maxinds[i]-10)
+                    #skymask[i][int(mininds[i]):skyedge1-1] = 1
+                    #skymask[i][skyedge2+1:int(maxinds[i])] = 1
+                    #sky = np.median(np.concatenate((sky1, sky2)))
+                    #skymed[i] = sky*(edge2 - edge1)
+                    
+                    # make sky extraction regions 10 pixels on either side of the extraction window
+                    #skymask[i][skyedge1-10:skyedge1] = 1
+                    #skymask[i][skyedge2:skyedge2+10] = 1
+                    # make sky extraction regions 10 pixels from the edges of the psf, regardless of extraction window size
+                    #skyedge1, skyedge2 = int(mininds[i]), int(maxinds[i])
+                    #skymask[i][skyedge1:skyedge1+10] = 1
+                    #skymask[i][skyedge2-10:skyedge2] = 1
+                    #intermediate_sky_med[i] = sky*(edge2 - edge1)
+
+                    
+
+                intermediate_sky = zachopy.twod.polyInterpolate(image/self.images['NormalizedFlat'], skymask == 0, order=2, visualize=False)
+                #extract_sky = (intermediate_sky*extractmask).sum(self.sindex)
+                #raw_counts = (extractmask*image/self.images['NormalizedFlat']).sum(self.sindex) - extract_sky
+                #newsubdata = image/self.images['NormalizedFlat'] - intermediate_sky
+                #newspectrum = (extractmask*image/self.images['NormalizedFlat']).sum(self.sindex) - extract_sky
+
+                self.intermediates[width]['sky'] = intermediate_sky
+                self.intermediates[width]['skyMask'] = skymask
+                self.intermediates[width]['extractMask'] = extractmask
+                #self.extracted[width]['sky'] = extract_sky
+                #self.extracted[width]['raw_counts'] = newspectrum
+                #self.extracted[width]['no_flat'] = (extractmask*(image - intermediate_sky*self.images['NormalizedFlat'])).sum(self.sindex)
+                #self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat'] - intermediate_sky
+
+                
+                #self.intermediates[width]['sky'] = intermediate_sky_med
+                #self.extracted[width]['sky'] = skymed
+                #self.extracted[width]['raw_counts'] = extracted - skymed
+                #self.extracted[width]['no_flat'] = extracted
+                #self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat'] - intermediate_sky_med
+                '''
+                
                 # do polynomial interpolation along each column to estimate sky
                 self.intermediates[width]['sky'] = zachopy.twod.polyInterpolate(image/self.images['NormalizedFlat'], self.intermediates[width]['skyMask'] == 0, order=2, visualize=False)
                 self.extracted[width]['sky'] = (self.intermediates[width]['sky']*self.intermediates[width]['extractMask']).sum(self.sindex)
@@ -301,6 +497,31 @@ class Aperture(Talker):
 
                 # store the 2D sky subtracted image
                 self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat'] - self.intermediates[width]['sky']
+                
+                '''
+                # optimal extraction    
+                # define the parameters that will act as inputs to the optimal extraction code optspex.py
+                subdata = image/self.images['NormalizedFlat'] - self.intermediates[width]['sky']
+                # draw a box around the spectral trace; box must be big enough to include the whole trace, but not so big as to include areas that were not sky-subtracted
+                boxcuts = []
+                for i in range(subdata.shape[1]):
+                    if 1. in self.intermediates[width]['extractMask'][:,i]: boxcuts.append(i)
+                subdata = subdata[:, boxcuts[0]:boxcuts[-1]]
+                submask = (((self.images['BadPixels']-1)*-1)*mask)[:, boxcuts[0]:boxcuts[-1]]
+                bg = intermediate_sky[:, boxcuts[0]:boxcuts[-1]]
+                spectrum = self.extracted[width]['raw_counts']
+
+                #startrace = trace.calc_trace(subdata, submask)#, nknots=750, deg=4)
+                #variance = abs(subdata)
+                #spec_width = 4
+                #trdata, trmask, trvar, trbg = trace.realign(subdata, submask, variance, bg, spec_width, startrace)
+                #trspec, trspecunc, trnewmask = OptimalExtraction.optimize(trdata.T, trmask.T, trbg.T, spectrum, 1, 0, p5thresh=5, p7thresh=5, fittype='smooth', window_len=11)
+
+                spec, specunc, newmask = OptimalExtraction.optimize(subdata.T, submask.T, bg.T, spectrum, 1, 0, p5thresh=10, p7thresh=10, fittype='smooth', window_len=11)
+                self.extracted[width]['raw_counts_optext'] = spec
+                '''
+                self.extracted[width]['raw_counts_optext'] = self.extracted[width]['raw_counts']
+                
 
                 #if self.obs.slow:
                 #    writeFitsData(self.intermediates['subtracted'], self.extractedFilename.replace('extracted', 'subtracted').replace('npy', 'fits'))
@@ -345,7 +566,7 @@ class Aperture(Talker):
     return self.extracted
 
   def setupVisualization(self):
-        self.thingstoplot = ['raw_counts']#['sky', 'width',  'raw_counts']
+        self.thingstoplot = ['raw_counts', 'raw_counts_optext']#['sky', 'width',  'raw_counts']
         height_ratios = np.ones(len(self.thingstoplot) + 2)
         suptitletext = '{}, CCD{:04.0f}'.format(self.name, self.n)
         try:
@@ -401,6 +622,8 @@ class Aperture(Talker):
                         self.ax[width][thing].set_ylim(np.min(self.trace.traceCenter(self.waxis))-5, np.max(self.trace.traceCenter(self.waxis))+5)
                     if thing == 'raw_counts':
                         self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width]['raw_counts'], 99)*1.5)
+                    if thing == 'raw_counts_optext':
+                        self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width]['raw_counts_optext'], 99)*1.5)
 
 
   def visualizeExtraction(self, width):
@@ -418,6 +641,21 @@ class Aperture(Talker):
 
         self.figure.savefig(self.extractedFilename.replace('npy', 'pdf'))
 
+        '''
+        if 'raw_counts_optext' in self.extracted[width]:
+            self.setupVisualization('raw_counts_optext')
+
+            for width in widths:
+                try:
+                    self.plotRectified(width)
+                except KeyError:
+                    self.speak('skipping sky-subtracted plot')
+                self.plotApertures(width)
+                self.plotExtracted(width)
+
+            savename = self.extractedFilename[:-4]+'optext.pdf'
+            self.figure.savefig(savename)
+        '''
   @property
   def widths(self):
         return np.array([k for k in self.extracted.keys() if type(k) != str])
@@ -585,7 +823,6 @@ class Aperture(Talker):
       self.extracted['wavelength'] = None
 
 
-
   def addWavelengthCalibration(self, n, remake=False):
       '''just redo the wavelength calibration'''
       # point at this CCD number
@@ -605,15 +842,21 @@ class Aperture(Talker):
 
           # redo the interpolation
           self.interpolate(remake=True)
+
+          #import sys
+          #sys.exit("Breaking here. Check it out.")
+
       else:
           #self.speak('supersampled+calibrated file {0} already exists'.format(self.supersampledFilename))
           pass
+
+
   def interpolate(self, remake=False):
         '''Interpolate the spectra onto a common (uniform) wavelength scale.'''
 
 
         # decide which values to supersample
-        self.keys = ['sky',  'centroid', 'width', 'peak', 'raw_counts']
+        self.keys = ['sky',  'centroid', 'width', 'peak', 'raw_counts', 'raw_counts_optext']
         self.limits = {}
 
         #
@@ -638,6 +881,7 @@ class Aperture(Talker):
                 gs = plt.matplotlib.gridspec.GridSpec(nkeys, napertures, hspace=0, wspace=0)
 
             # pull out the extracted wavelength
+
             wavelength = self.extracted['wavelength']
 
             # set up a fine, common wavelength grid onto which everything will be interpolated
@@ -647,7 +891,8 @@ class Aperture(Talker):
                 if self.obs.grism == 'vph-all':
                     commonwavelength = np.arange(4000, 10500)
                 elif self.obs.grism == 'vph-red':
-                    commonwavelength = np.arange(5000, 10500)
+                    commonwavelength = np.arange(5000, 10500) 
+                    #commonwavelength = np.linspace(5000, 10500, 55001)# implicitely using 1A spacing -> make this array with smaller spacing 0.1A spacing) -> identify 1 of ths supersampled.npy files from current extraction, save as some other filename, rerun reduction and it will regenerate. compare at the end for flux. over wavelength range, sum up flux to get same anwer; doing integral over large region to get same answer.
 
                 # calculate the number of pixels that go into each wavelength bin
                 dw_original = wavelength[1:] - wavelength[0:-1]
@@ -671,7 +916,8 @@ class Aperture(Talker):
                     widthkey = '{:04.1f}px'.format(width)
                     combinedkey = key + '_' + widthkey
 
-                    self.supersampled[combinedkey] = zachopy.oned.supersample(wavelength, self.extracted[width][key], self.supersampled['wavelength'])
+                    #self.supersampled[combinedkey] = zachopy.oned.supersample(wavelength, self.extracted[width][key], self.supersampled['wavelength'])
+                    self.supersampled[combinedkey] = resample.fluxconservingresample(wavelength, self.extracted[width][key], self.supersampled['wavelength'])
 
                     # set up the plots
                     if self.visualize:

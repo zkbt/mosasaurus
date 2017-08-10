@@ -44,7 +44,8 @@ class Headers(Talker):
        self.speak('looping through all science images to load their headers')
 
        # what keys do we want to store?
-       keys = ['date-obs', 'ut-date', 'ut-time', 'ut-end', 'scale', 'gain', 'epoch', 'airmass', 'ha', 'exptime', 'tempccd', 'templdss', 'focus', 'rotangle', 'rotatore']
+       if self.obs.instrument == 'LDSS3C': keys = ['date-obs', 'ut-date', 'ut-time', 'ut-end', 'scale', 'gain', 'epoch', 'airmass', 'ha', 'exptime', 'tempccd', 'templdss', 'focus', 'rotangle', 'rotatore']
+       elif self.obs.instrument == 'IMACS': keys = ['date-obs', 'ut-date', 'ut-time', 'ut-end', 'scale', 'ccdgain', 'epoch', 'airmass', 'ha', 'exptime', 'tempccd8', 'tempstr', 'detfocus', 'rotangle', 'rotatore']
 
        # create a dictionary of lists, to contain those for all headers
        d = {}
@@ -56,7 +57,8 @@ class Headers(Talker):
        ccdn = self.obs.nScience
        for n in self.obs.nScience:
            d['n'].append(n)
-           filename = self.obs.dataDirectory+'ccd%04dc1.fits' % n
+           if self.obs.instrument == 'LDSS3C': filename = self.obs.dataDirectory+'ccd%04dc1.fits' % n
+           elif self.obs.instrument == 'IMACS': filename = self.obs.dataDirectory+'ift%04dc1.fits' % n
            hdu = astropy.io.fits.open(filename)
            header = hdu[0].header
            for k in keys:
@@ -79,7 +81,8 @@ class Headers(Talker):
 
 
         # load one header, to get one-time information
-        filename = self.obs.dataDirectory+'ccd%04dc1.fits' % self.obs.nScience[0]
+        if self.obs.instrument == 'LDSS3C': filename = self.obs.dataDirectory+'ccd%04dc1.fits' % self.obs.nScience[0]
+        if self.obs.instrument == 'IMACS': filename = self.obs.dataDirectory+'ift%04dc1.fits' % self.obs.nScience[0]
         header = astropy.io.fits.open(filename)[0].header
 
         self.speak('loaded one header ({}) for site information'.format(filename))
