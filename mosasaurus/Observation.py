@@ -44,6 +44,8 @@ class Observation(Talker):
         self.instrument = dictionary['instrument']
         if "LDSS" in self.instrument:
             self.observatory = 'lco'
+        if "IMACS" in self.instrument:
+            self.observatory = 'lco'
         self.baseDirectory = dictionary['baseDirectory']
         if '/media/hannah/Seagate' in self.baseDirectory:
             self.baseDirectory = ' '.join(dictionary['baseDirectory'])
@@ -73,7 +75,8 @@ class Observation(Talker):
         self.nHe = np.arange( int(dictionary['nHe'][0]),  int(dictionary['nHe'][1])+1)
         self.nNe = np.arange( int(dictionary['nNe'][0]),  int(dictionary['nNe'][1])+1)
         self.nAr = np.arange( int(dictionary['nAr'][0]),  int(dictionary['nAr'][1])+1)
-        self.nDark = np.arange( int(dictionary['nDark'][0]),  int(dictionary['nDark'][1])+1)
+        if self.instrument == 'LDSS3C': self.nDark = np.arange( int(dictionary['nDark'][0]),  int(dictionary['nDark'][1])+1)
+        elif self.instrument == 'IMACS': self.nDark = np.array([])
         self.nWideFlat = np.arange(int(dictionary['nWideFlat'][0]),  int(dictionary['nWideFlat'][1])+1)
         self.nWideMask = np.arange(int(dictionary['nWideMask'][0]),  int(dictionary['nWideMask'][1])+1)
         self.nThinMask = np.arange(int(dictionary['nThinMask'][0]),  int(dictionary['nThinMask'][1])+1)
@@ -83,7 +86,8 @@ class Observation(Talker):
           self.nFinder = np.arange(int(dictionary['nFinder'][0]),  int(dictionary['nFinder'][1])+1)
         self.nBias = np.arange(int(dictionary['nBias'][0]),  int(dictionary['nBias'][1])+1)
         self.nNeeded = np.concatenate((self.nUndispersed, self.nScience, self.nHe, self.nNe, self.nAr, self.nWideFlat, self.nWideMask, self.nThinMask, self.nFinder))
-        self.cal_dictionary = {'He':self.nHe, 'Ne':self.nNe, 'Ar':self.nAr, 'Undispersed':self.nUndispersed, 'WideFlat':self.nWideFlat, 'WideMask':self.nWideMask, 'ThinMask':self.nThinMask, 'Bias':self.nBias, 'Dark':self.nDark, 'Science':self.nScience, 'Finder':self.nFinder}
+        if self.instrument == 'LDSS3C': self.cal_dictionary = {'He':self.nHe, 'Ne':self.nNe, 'Ar':self.nAr, 'Undispersed':self.nUndispersed, 'WideFlat':self.nWideFlat, 'WideMask':self.nWideMask, 'ThinMask':self.nThinMask, 'Bias':self.nBias, 'Dark':self.nDark, 'Science':self.nScience, 'Finder':self.nFinder}
+        elif self.instrument == 'IMACS': self.cal_dictionary = {'He':self.nHe, 'Ne':self.nNe, 'Ar':self.nAr, 'Undispersed':self.nUndispersed, 'WideFlat':self.nWideFlat, 'WideMask':self.nWideMask, 'ThinMask':self.nThinMask, 'Bias':self.nBias, 'Science':self.nScience, 'Finder':self.nFinder}
         self.traceOrder    =  int(dictionary['traceOrder'])
         self.nFWHM    = float(dictionary['nFWHM'])
         self.blueward = int(dictionary['blueward'])
@@ -102,7 +106,9 @@ class Observation(Talker):
         self.binning = np.float(dictionary['binning'])
         self.subarray = np.float(dictionary['subarray'])
         try:
-            self.gains = [float(x) for x in dictionary['gains']]
+            if type(dictionary['gains']) == str:
+                self.gains = [float(dictionary['gains'])]
+            else: self.gains = [float(x) for x in dictionary['gains']]
         except (ValueError,KeyError):
             self.gains = None
 
@@ -120,7 +126,13 @@ class Observation(Talker):
         self.displayscale=0.25
     def fileprefix(self, n):
         '''Feed in a ccd number, spit out the file prefix for that CCD amplifier pair.'''
-        try:
-          return [self.dataDirectory + 'ccd{0:04}'.format(x) for x in n]
-        except:
-          return self.dataDirectory + 'ccd{0:04}'.format(n)
+        if self.instrument == 'LDSS3C':
+            try:
+              return [self.dataDirectory + 'ccd{0:04}'.format(x) for x in n]
+            except:
+              return self.dataDirectory + 'ccd{0:04}'.format(n)
+        if self.instrument == 'IMACS':
+            try:
+              return [self.dataDirectory + 'ift{0:04}'.format(x) for x in n]
+            except:
+              return self.dataDirectory + 'ift{0:04}'.format(n)
