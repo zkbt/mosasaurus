@@ -135,50 +135,50 @@ class CCD(Talker):
       return (goodData - biasImage), header
 
     elif self.obs.instrument == 'IMACS':
-  
+
       data = hdu[0].data
-       
+
       # size of entire data set, including overscan rows and columns
       ncols = data.shape[1]
       nrows = data.shape[0]
-   
+
       # get the bias region from the header
       # only the overscan rows (nomenclature uncertain.. this is the vertical direction) listed
       bias_cols_str, bias_rows_str = header['BIASSEC'].strip('[]').split(',')
       bias_cols = [int(i) for i in bias_cols_str.split(':')]
       bias_rows = [int(i) for i in bias_rows_str.split(':')]
-   
+
       data_cols_str, data_rows_str = header['DATASEC'].strip('[]').split(',')
       data_cols = [int(i) for i in data_cols_str.split(':')]
       data_rows = [int(i) for i in data_rows_str.split(':')]
-       
+
       # FIRST REMOVE THE HORIZONTAL STRUCUTRE
-   
+
       # the overscan rows per header keyword
       overscan_rows = data[:,bias_cols[0]:bias_cols[1]+1]
-    
+
       # first take the median, then...
       # filter to remove high-frequency noise
       bias_median = np.median(overscan_rows, axis=1)
       bias_filtered = savgol_filter(bias_median, 41, 4)
-   
+
       bias = np.tile(bias_filtered, (ncols,1)).T
       data_b1 = data - bias
-   
+
       # NOW REMOVE THE VERTICAL STRUCUTRE
       # (if this isn't a flatfield thing!)
-   
+
       overscan_cols = data_b1[data_rows[1]:, :]
       bias_median = np.median(overscan_cols, axis=0)
       bias_filtered = savgol_filter(bias_median, 41, 4)
-   
+
       bias = np.tile(bias_filtered, (nrows, 1))
       data_b2 = data_b1 - bias
-   
+
       # now extract just the science part of the image
       data_new = data_b2[data_rows[0]:data_rows[1]+1,data_cols[0]:data_cols[1]+1]
       assert( data_new.shape == (2048, 1024) )
-       
+
       return data_new, header
 
 
@@ -203,7 +203,7 @@ class CCD(Talker):
         self.flags['subtractcrosstalk'] = False
       elif self.imageType == 'Dark':
         self.flags['subtractbias'] = True
-        self.flags['subtractdark'] = Falseread
+        self.flags['subtractdark'] = False
         self.flags['multiplygain'] = False
         self.flags['subtractcrosstalk'] = False
       elif self.imageType == 'FlatInADU':
@@ -399,7 +399,7 @@ class CCD(Talker):
         if self.verbose:
           self.speak(self.space + "stitched and saved {0}".format(self.name))
 
-       
+
 
   def rejectCosmicRays(self, remake=False, threshold=7.5, visualize=False, nBeforeAfter=5):
      '''Stitch all science images, establish a comparison noise level for each pixel.'''
