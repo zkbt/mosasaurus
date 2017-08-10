@@ -68,7 +68,7 @@ class Observation(Talker):
         self.skyGap = int(dictionary['skyGap']    )
         self.skyWidth = int(dictionary['skyWidth'])
         self.cosmicThreshold = float(dictionary['cosmicThreshold'])
-        self.nUndispersed = np.arange(int(dictionary['nUndispersed'][0]), int(dictionary['nUndispersed'][1])+1)
+        self.nReference = np.arange(int(dictionary['nReference'][0]), int(dictionary['nReference'][1])+1)
         self.nScience = np.arange( int(dictionary['nScience'][0]),  int(dictionary['nScience'][1])+1)
         self.nHe = np.arange( int(dictionary['nHe'][0]),  int(dictionary['nHe'][1])+1)
         self.nNe = np.arange( int(dictionary['nNe'][0]),  int(dictionary['nNe'][1])+1)
@@ -82,8 +82,8 @@ class Observation(Talker):
         else:
           self.nFinder = np.arange(int(dictionary['nFinder'][0]),  int(dictionary['nFinder'][1])+1)
         self.nBias = np.arange(int(dictionary['nBias'][0]),  int(dictionary['nBias'][1])+1)
-        self.nNeeded = np.concatenate((self.nUndispersed, self.nScience, self.nHe, self.nNe, self.nAr, self.nWideFlat, self.nWideMask, self.nThinMask, self.nFinder))
-        self.cal_dictionary = {'He':self.nHe, 'Ne':self.nNe, 'Ar':self.nAr, 'Undispersed':self.nUndispersed, 'WideFlat':self.nWideFlat, 'WideMask':self.nWideMask, 'ThinMask':self.nThinMask, 'Bias':self.nBias, 'Dark':self.nDark, 'Science':self.nScience, 'Finder':self.nFinder}
+        self.nNeeded = np.concatenate((self.nReference, self.nScience, self.nHe, self.nNe, self.nAr, self.nWideFlat, self.nWideMask, self.nThinMask, self.nFinder))
+        self.cal_dictionary = {'He':self.nHe, 'Ne':self.nNe, 'Ar':self.nAr, 'Reference':self.nReference, 'WideFlat':self.nWideFlat, 'WideMask':self.nWideMask, 'ThinMask':self.nThinMask, 'Bias':self.nBias, 'Dark':self.nDark, 'Science':self.nScience, 'Finder':self.nFinder}
         self.traceOrder    =  int(dictionary['traceOrder'])
         self.nFWHM    = float(dictionary['nFWHM'])
         self.blueward = int(dictionary['blueward'])

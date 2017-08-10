@@ -15,7 +15,7 @@ class Night(Talker):
 
         # create an observing log for this night
         self.createNightlyLog()
-        
+
     @property
     def dataDirectory(self):
         '''
@@ -46,46 +46,51 @@ class Night(Talker):
             self.log = astropy.io.ascii.read(self.logFilename)
             self.speak('Loaded a log file from {}.'.format(self.logFilename))
         except IOError:
-            self.speak("Perhaps you didn't keep a perfect observing log; let's create one from image headers.")
+            self.speak("Let's create a digital observing log from the image headers.")
 
+            # print basic format of the first header
             self.speak("The format of the first file is:")
             hdu = astropy.io.fits.open(self.filenames[0])
             hdu.info()
             self.speak('')
 
+            # extract the interesting keys from all the image headers
             rows = []
             for file in self.filenames:
-                self.speak('Loading header information from {}.'.format(os.path.basename(file)), progress=True)
+                self.speak( 'Loading header information from {}.'.format(
+                                os.path.basename(file)),
+                            progress=True)
 
                 keys, values = self.instrument.extractInterestingHeaderKeys(file)
                 rows.append(dict(zip(keys, values)))
 
+            # create an astropy table, and write it out to the working directory
             self.log = astropy.table.Table(data=rows, names=keys)
+            
             self.log.write(self.logFilename,
                             format='ascii.fixed_width',
                             delimiter='|',
                             bookend=False)
-'''
-  def obsLog(self, remake=False):
 
+    def find(self, wordstolookfor, placestolook):
+        '''
+        Find which rows of the log contain
+        contain any one of the wordstolookfor
+        in any one of the placestolook.
 
-    logFile = self.obs.workingDirectory + 'complete_observing_log.txt'
-    if os.path.exists(logFile) and remake==False:
-      self.speak('looks like an observing log exists at {0}'.format(logFile))
-    else:
-      self.speak("perhaps you didn't keep a perfect observing log; let's create one from image headers")
-      log = []
-      fileprefixes = [x.split('c1')[0] for x in glob.glob(self.obs.dataDirectory + '*c1.fits')]
-      for fileprefix in fileprefixes:
-        hdu = astropy.io.fits.open(fileprefix+'c1.fits')
+        (returns a boolean array)
+        '''
 
-        string = "{0: <9}".format(fileprefix.split('/')[-1])
-        for k in keys:
-          string += ' ' + zachopy.utils.truncate(str(hdu[0].header[k]),n=12 + 3*(k == 'object'))
-        self.speak(string)
-        log.append(string)
-      f = open(logFile, 'w')
-      f.writelines(log)
-      f.close
-      self.speak("a digital observing log saved to {0}".format(logFile))
-'''
+        # create an array full of Falses
+        match = np.zeros(len(self.log)).astype(np.bool)
+
+        # find whether the wordstolookfor are seen anywhere in the placestolook
+        for w in wordstolookfor:
+            for p in placestolook:
+                thismatch = np.array([w.lower() in word.lower() for word in self.log[p]])
+                self.speak('{} elements in "{}" contained "{}"'.format(
+                            np.sum(thismatch), p, w))
+                match = match | thismatch
+
+        # return the boolean array
+        return match

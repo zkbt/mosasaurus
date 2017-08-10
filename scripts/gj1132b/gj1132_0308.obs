@@ -24,7 +24,7 @@ subarray             50
 binning               2
 
 # CCD number ranges
-nUndispersed          150 152
+nReference          150 152
 nScience              160 853
 nHe                   22  32
 nNe                   33  43

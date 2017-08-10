@@ -2,6 +2,49 @@ from Spectrograph import *
 
 class LDSS3C(Spectrograph):
 
+    # which header of the fits file contains the header with useful information
+    fitsextensionforheader = 0
+
+    # these keys should be included in the nightly logs for this instrument
+    keysforlogheader = [   'ut-date',
+                            'ut-time',
+                            'filename',
+                            'ra-d', 'dec-d',
+                            'airmass',
+                            'object',
+                            'exptype',
+                            'exptime',
+                            'binning',
+                            'speed',
+                            'gain',
+                            'aperture',
+                            'filter',
+                            'grism',
+                            'comment']
+
+    # these keys are useful for guessing the filetype
+    self.keystosearhc
+    self.wordstosearchfor = {'dark':'dark'}
+    keysfortype = ['object', 'exptype']
+
+    def findDarks(self, night):
+        '''Identify the dark exposures.'''
+        match = night.find( wordstolookfor = ['dark'],
+                            placestolook = ['object', 'exptype'])
+        return match
+
+    def findBiases(self, night):
+        '''Identify the bias exposures.'''
+        match = night.find( wordstolookfor = ['bias'],
+                            placestolook = ['object', 'exptype'])
+        return match
+
+    def findHe(self, night):
+        '''Identify the bias exposures.'''
+        match = night.find( wordstolookfor = ['He', 'helium'],
+                            placestolook = ['object', 'exptype'])
+        return match
+
     def __init__(self, grism='vph-red'):
 
         # what's the name of this instrument?
@@ -128,34 +171,5 @@ class LDSS3C(Spectrograph):
                                                 extractionDirectory)
         zachopy.utils.mkdir(self.extractionDirectory)
 
-    def extractInterestingHeaderKeys(self, file):
-        # pull out the interesting keys from
 
-        # what header keys should be pulled out for the nightly log?
-        keys = [    'ut-date',
-                    'ut-time',
-                    'filename',
-                    'ra-d', 'dec-d',
-                    'airmass',
-                    'object',
-                    'exptype',
-                    'exptime',
-                    'binning',
-                    'speed',
-                    'gain',
-                    'aperture',
-                    'filter',
-                    'grism',
-                    'comment']
-
-        # load the fits file
-        hdu = astropy.io.fits.open(file)
-
-        # for LDSS3C, one extension
-        header = hdu[0].header
-
-        # extract the values for these keys
-        values = [header.get(k, '') for k in keys]
-
-        # return a dictionary containing the interesting keys
-        return keys, values
+#def identifyImageNumbers(self, lookingfor)

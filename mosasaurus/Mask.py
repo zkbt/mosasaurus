@@ -37,9 +37,9 @@ class Mask(Talker):
       # create empty list of extraction centers
       self.xcenters, self.ycenters = [], []
 
-      # set up a loupe display to show an undispersed image
+      # set up a loupe display to show an Reference image
       self.loupe = self.reducer.display
-      self.loupe.setup(self.calib.images['Undispersed'])
+      self.loupe.setup(self.calib.images['Reference'])
 
       # add in an option to pull out an extraction center
       self.loupe.options['a'] = dict(description='[a]dd an extraction center',
@@ -123,7 +123,7 @@ class Mask(Talker):
       if visualize:
         # create a finder chart of apertures
         self.loupe = self.reducer.display
-        self.loupe.one(self.calib.images['Undispersed'])
+        self.loupe.one(self.calib.images['Reference'])
 
         for a in self.apertures:
           # display the target positions on the image

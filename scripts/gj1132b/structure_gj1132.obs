@@ -11,7 +11,7 @@ extractionDirectory  multipleapertures/
 cosmicThreshold      10
 
 # CCD number ranges
-nUndispersed         1595 1596
+nReference         1595 1596
 nScience             1625 2025
 nHe                   162  166
 nNe                   172  176
