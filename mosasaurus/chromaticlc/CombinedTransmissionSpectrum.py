@@ -293,13 +293,13 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 
 	def table(self):
 		form = '{0:>20}{1:>20}{2:>20}{3:>25}'
-		print form.format('left', 'right', 'rp_over_rs', 'rp_over_rs_error')
+		print(form.format('left', 'right', 'rp_over_rs', 'rp_over_rs_error'))
 
 		for i in range(len(self.bins)):
 			b = self.bins[i]
 			if i == 0:
-				print form.format(b.unitstring, b.unitstring, 'unity', 'unity')
-			print form.format(b.left/b.unit, b.right/b.unit, self.fitted['k'][i], self.uncertainty['k'][i])
+				print(form.format(b.unitstring, b.unitstring, 'unity', 'unity'))
+			print(form.format(b.left/b.unit, b.right/b.unit, self.fitted['k'][i], self.uncertainty['k'][i]))
 
 	@property
 	def mask(self):
@@ -370,11 +370,10 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 			d['wavelength'] = w
 			for i,tlc in enumerate(listoftlcs):
 				if i ==0:
-					print tlc.name.split(',')[0]
-				print '   {0} {1:>6.0f} {2:>6.0f}'.format(tlc.name.split(',')[1], np.mean(tlc.effective_uncertainty[tlc.ok])*1e6, np.std(tlc.residuals()[tlc.ok])*1e6)
+					print(tlc.name.split(',')[0])
+				print('   {0} {1:>6.0f} {2:>6.0f}'.format(tlc.name.split(',')[1], np.mean(tlc.effective_uncertainty[tlc.ok])*1e6, np.std(tlc.residuals()[tlc.ok])*1e6))
 				l.append(np.mean(tlc.effective_uncertainty[tlc.ok])*1e6)
-			print np.mean(l)
-			print
+			print(np.mean(l))
 	@property
 	def label(self):
 		"Indicate the fit being used for all spectra."

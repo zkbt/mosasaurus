@@ -12,7 +12,7 @@ def toBJD(  times, # astropy time object, with location + scale specified
 
     times_bary = times.tdb + ltt_bary
     if verbose:
-        print """
+        print("""
             For JD_UTC {}
             at position {},
             from site {},
@@ -22,7 +22,7 @@ def toBJD(  times, # astropy time object, with location + scale specified
                             sky.to_string('hmsdms'),
                             times.location.geodetic,
                             (times_bary.tdb.jd - times.utc.jd),
-                            times_bary.tdb.jd)
+                            times_bary.tdb.jd))
 
     return times_bary
 
@@ -33,7 +33,7 @@ def test():
     t = time.Time(2457000.0, format='jd', scale='utc', location=loc)
     bjd = toBJD(t, 0, 0)
 
-    print """
+    print("""
     It might be a good idea to test this against
     http://astroutils.astronomy.ohio-state.edu/time/utc2bjd.html
-    """
+    """)

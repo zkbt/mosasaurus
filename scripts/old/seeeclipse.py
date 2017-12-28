@@ -49,7 +49,7 @@ for b in trans.bins:
         array = np.zeros((len(by), len(trans.bins)))
         n = array.shape[0]-1
     array[:n,count] = by[:n]
-    print array
+    print(array)
 
     a = raw_input(str(w))
     count += 1

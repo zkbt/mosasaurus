@@ -38,13 +38,14 @@ setup(name = "mosasaurus",
     url = "https://github.com/zkbt/mosasaurus",
     packages = find_packages(),
     package_data = {'mosasaurus': ['../data/*']},
+    include_package_data=True,
     scripts = [],
     classifiers=[
       'Intended Audience :: Science/Research',
       'Programming Language :: Python',
       'Topic :: Scientific/Engineering :: Astronomy'
       ],
-    install_requires=['astropy>=1.2.1','emcee>=2.0',
-                      'numpy>=1.9', 'triangle_plot'],
-    zip_safe=False
+    install_requires=['numpy', 'astropy', 'scipy', 'matplotlib', 'emcee', 'corner'],
+    zip_safe=False,
+    license='MIT',
 )

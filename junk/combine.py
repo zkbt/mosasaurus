@@ -50,11 +50,11 @@ for file in files:
 
         p = np.array([b.tm.planet.__dict__[k].value for b in t.bins])
         u = np.array([b.tm.planet.__dict__[k].uncertainty for b in t.bins])
-        print file
-        print k
-        print 2*p*u*1e6
-        print 'LD'
-        print ([b.tm.star.__dict__['u1'].value for b in t.bins])
+        print(file)
+        print(k)
+        print(2*p*u*1e6)
+        print('LD')
+        print(([b.tm.star.__dict__['u1'].value for b in t.bins]))
         ax[k].errorbar(w, p, u, marker='o', markersize=10, linewidth=3, elinewidth=3, capsize=5, capthick=3, alpha=0.25)
     for i in range(len(w)):
         this = {k:p[i], k+'_uncertainty':u[i]}

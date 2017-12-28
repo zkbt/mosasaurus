@@ -265,7 +265,7 @@ class WithTLCs(TransmissionSpectrum):
 					residuals = self.bins[i].tlc.residuals()
 					noise = np.std(residuals)
 					bad = np.abs(residuals) > threshold*noise
-					print " in bin {0}, {1} points exceeded {2} x {3}".format(i, np.sum(bad), threshold, noise)
+					self.speak(" in bin {0}, {1} points exceeded {2} x {3}".format(i, np.sum(bad), threshold, noise))
 					mask[i,:] = mask[i,:] | bad*self.bins[0].tlc.flags['outlier']
 			except:
 				pass
@@ -365,7 +365,7 @@ class WithTLCs(TransmissionSpectrum):
 					answer = raw_input("What would you like to do? [a]dd masking, [s]ubtract masking, [r]efit using this mask, [f]inish?\n   (I'd like to) ")
 					unreasonableanswer = False
 					if 'a' in answer:
-						print "  Click at the two corners of a box you'd like to mask.\n"
+						self.speak("  Click at the two corners of a box you'd like to mask.\n")
 						clicks = ip.getMouseClicks(2)
 
 						rows = (clicks[0].ydata, clicks[1].ydata)
@@ -380,7 +380,7 @@ class WithTLCs(TransmissionSpectrum):
 						mask[bottom:top, left:right] = mask[bottom:top, left:right] | self.bins[0].tlc.flags['custom']
 
 					elif 's' in answer:
-						print "  Click at the two corners of a box you'd like to unmask.\n"
+						self.speak("  Click at the two corners of a box you'd like to unmask.\n")
 						clicks = ip.getMouseClicks(2)
 
 						rows = np.round((clicks[0].ydata, clicks[1].ydata))
@@ -394,7 +394,7 @@ class WithTLCs(TransmissionSpectrum):
 						mask[bottom:top, left:right] -= mask[bottom:top, left:right] & self.bins[0].tlc.flags['custom']
 
 					elif 'r' in answer:
-						print "Okay, refitting. It may take a while!"
+						self.speak("Okay, refitting. It may take a while!")
 						self.mask = mask
 						self.applyMask(maskname=maskname)
 						self.fitRigid()
@@ -402,7 +402,7 @@ class WithTLCs(TransmissionSpectrum):
 						keepgoing = False
 					else:
 						unreasonableanswer = True
-						print "  I'm sorry, I didn't quite understand that."
+						self.speak("  I'm sorry, I didn't quite understand that.")
 
 
 		# set the mask and maskname attributes

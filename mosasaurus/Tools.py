@@ -5,7 +5,7 @@ def readFitsData(filename, verbose=False):
   '''Read in data from a FITS image (ignoring the header).'''
   hdu = astropy.io.fits.open(filename)
   if verbose:
-    print "      read ", filename
+    print("      read ", filename)
   image = hdu[0].data
   hdu.close()
   return image
@@ -15,4 +15,4 @@ def writeFitsData(data, filename, verbose=False):
   hdu = astropy.io.fits.PrimaryHDU(data)
   hdu.writeto(filename, clobber=True)
   if verbose:
-    print "      wrote image to ", filename
+    print("      wrote image to ", filename)

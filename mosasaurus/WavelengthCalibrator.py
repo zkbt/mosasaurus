@@ -372,14 +372,14 @@ class WavelengthCalibrator(Talker):
                             m['theirs']['pixelguess'] == theirs]
 
                 if len(relevant) > 0:
-                    print "{0} of my peaks match to their {1}".format(len(relevant), theirs)
+                    print("{0} of my peaks match to their {1}".format(len(relevant), theirs))
 
                     distances = np.abs([m['theirs']['pixelguess'] - m['mine']['w'] for m in relevant])
 
 
                     best = distances.argmin()
 
-                    print "the closests one is {0}".format(relevant[best]['mine']['w'])
+                    print("the closests one is {0}".format(relevant[best]['mine']['w']))
                     self.matches.append(relevant[best])
             '''
 
@@ -714,7 +714,7 @@ class WavelengthCalibrator(Talker):
 
 
     def selectwavelength(self, pressed):
-        #print pressed.xdata, pressed.ydata
+        #print(pressed.xdata, pressed.ydata)
         element = shortcuts[pressed.key.lower()]
         pixguess = [w['pixelguess'] for w in self.knownwavelengths[element]]
         closest = ((pixguess - pressed.xdata)**2).argmin()

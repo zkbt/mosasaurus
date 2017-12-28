@@ -139,9 +139,9 @@ class Mask(Talker):
 
   def createStamps(self, n):
     '''Write postage stamps around the spectra.'''
-    print "   creating (unfiltered) postage stamps for all science images"
+    self.speak("   creating (unfiltered) postage stamps for all science images")
     #for n in self.obs.nScience:
-    print "     cutting stamps out of ccd{0:04}".format(n)
+    self.speak("     cutting stamps out of ccd{0:04}".format(n))
     this = self.ccd.readData(n)
     for a in self.apertures:
       stamp = a.stamp(this)

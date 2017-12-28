@@ -105,7 +105,7 @@ class Cube(Talker):
         commandstorun.append('cp {} {}/{}_whichaperture.png'.format(apertureimage, stardir, s))
 
       for c in commandstorun:
-          print c
+          print(c)
           os.system(c)
 
   def loadSpectra(self, remake=False, visualize=True, max=None):
@@ -169,8 +169,8 @@ class Cube(Talker):
               self.speak('loaded {0}'.format(spectrumFile))
               extracted = np.load(extractedFile)[()]
               self.speak('loaded {0}'.format(extractedFile))
-              #print supersampled.keys()
-              #print extracted.keys()
+              #print(supersampled.keys())
+              #print(extracted.keys())
           except IOError:
               # if we've run out of spectra to load, then truncate
               truncate = True
@@ -225,7 +225,7 @@ class Cube(Talker):
 
                 #print '!!!'
                 if 'raw_counts' in key:
-                    print sum(self.cubes[key][star][widthkey][timepoint,:])
+                    self.speak(sum(self.cubes[key][star][widthkey][timepoint,:]))
                     assert(sum(self.cubes[key][star][widthkey][timepoint,:])!=5500)
                     assert(sum(self.cubes[key][star][widthkey][timepoint,:])>0.0)
 
@@ -854,7 +854,7 @@ class Cube(Talker):
       self.bin_centers = bin_centers
       self.binned_cubes = astropy.table.Table(self.binned_cubes)
       #np.save(binned_filename, (self.binned_cubes, self.bin_centers, self.binned_cubes['ok']))
-      #print "    Saved binned cube to {0}".format(binned_filename)
+      #self.speak("    Saved binned cube to {0}".format(binned_filename))
 
   def correctBins(self, **kw):
     '''Use comparison stars to correct for atmospheric losses, create a self.binned_corrected.'''
@@ -1028,11 +1028,11 @@ class Cube(Talker):
 
           assert(np.isfinite(flux[ok]).all())
           assert(np.sum(ok) > 0)
-          print bjd.flatten()[ok].size
+          self.speak(bjd.flatten()[ok].size)
           lc.populate(bjd[ok], flux[ok], error[ok], **dict)
 
           #lc.plot()
-          print lc
+          self.speak(lc)
           lc.save()
           self.lcs.append(lc)'''
 
@@ -1057,7 +1057,7 @@ class Cube(Talker):
     '''Make an image of the input cube.'''
     if title is None:
       title = self.obs.name + ' | ' + self.obs.night
-    print "   Trying to image bins for " + title
+    self.speak("   Trying to image bins for " + title)
     bin_centers = self.bin_centers
     bin_ok = self.binned_cubes['ok']
     target = self.target_raw
@@ -1163,7 +1163,7 @@ class LC():
     bla = raw_input(self.filename + '?')
 
   def help(self):
-      print '''
+      self.speak('''
 Independental measured variables:
 
 =======================
@@ -1226,4 +1226,4 @@ the brightness of the brightest pixel in the cross-dispersion direction,
 at each wavelength, for each star. it will correlate strongly with seeing,
 but is a slightly different tracer. correlations with "peak" that cannot be
 explained by seeing alone might point to problems in the detector non-linearity
-'''
+''')

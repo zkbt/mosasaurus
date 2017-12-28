@@ -31,8 +31,8 @@ for file in files:
         p = np.array([b.tm.planet.__dict__[k].value for b in t.bins])
         u = np.array([b.tm.planet.__dict__[k].uncertainty for b in t.bins])
         medians[k].extend(p)
-        print k
-        print np.median(medians[k])
+        print(k)
+        print(np.median(medians[k]))
         ax[k].errorbar(w, p, u, marker='o', markersize=10, linewidth=3, elinewidth=3, capsize=5, capthick=3, alpha=0.5)
 
     plt.draw()

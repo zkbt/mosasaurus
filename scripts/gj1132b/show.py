@@ -11,9 +11,9 @@ try:
     c.populate(remake=False, visualize=False)
     c.movieCube(stride=1)
 except IndexError:
-    print '''
+    print('''
 
     Example usage:
     ./show.py gj1132_0227.obs
 
-    '''
+    ''')

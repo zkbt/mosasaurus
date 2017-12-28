@@ -35,7 +35,7 @@ class TransmissionModel(Talker):
         self.surfacegravity = u.G*self.mass*u.Mearth/(self.radius*u.Rearth)**2
         self.scaleheight = u.k_B*self.teq/u.mp/self.mu/self.surfacegravity
 
-        print self.__dict__
+        self.summarize()
 
 
     def propagate(self):
