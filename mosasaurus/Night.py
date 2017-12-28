@@ -24,7 +24,7 @@ class Night(Talker):
         return os.path.join(self.instrument.dataDirectory, self.name)
 
 
-    def createNightlyLog(self):
+    def createNightlyLog(self, remake=False):
         '''
         Print and save an observing log, based on image headers.
         '''
@@ -42,10 +42,11 @@ class Night(Talker):
         # load or create a nightly obseravtion log
         self.logFilename = self.instrument.workingDirectory + 'nightly_log_{}.txt'.format(self.name)
         try:
+            assert(remake == False)
             # load the nightly log as a astropy table
             self.log = astropy.io.ascii.read(self.logFilename)
             self.speak('Loaded a log file from {}.'.format(self.logFilename))
-        except IOError:
+        except (AssertionError, IOError):
             self.speak("Let's create a digital observing log from the image headers.")
 
             # print basic format of the first header
@@ -55,22 +56,25 @@ class Night(Talker):
             self.speak('')
 
             # extract the interesting keys from all the image headers
-            rows = []
+            self.rows = []
             for file in self.filenames:
                 self.speak( 'Loading header information from {}.'.format(
-                                os.path.basename(file)),
-                            progress=True)
+                                os.path.basename(file)), progress=True)
 
                 keys, values = self.instrument.extractInterestingHeaderKeys(file)
-                rows.append(dict(zip(keys, values)))
+                this = dict(zip(keys, values))
+                try:
+                    this['comment'] = str(this['comment']).strip()
+                except KeyError:
+                    pass
+                self.rows.append(this)
 
             # create an astropy table, and write it out to the working directory
-            self.log = astropy.table.Table(data=rows, names=keys)
-            
+            self.log = astropy.table.Table(data=self.rows, names=keys)
             self.log.write(self.logFilename,
                             format='ascii.fixed_width',
                             delimiter='|',
-                            bookend=False)
+                            bookend=False, overwrite=remake)
 
     def find(self, wordstolookfor, placestolook):
         '''

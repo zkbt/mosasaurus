@@ -18,9 +18,10 @@ class Target(Talker):
     def setupStar(self, name, **kw):
         '''
         By default, use a name to initialize the star.
-        Otherwise, pass ra + dec (etc...) keywords on to the Star object.
+        Otherwise, pass ra + dec (etc...) keywords on to the Star object,
+        to force it to initalize without querying SIMBAD.
         '''
-        self.star = Star(name)
+        self.star = Star(name, **kw)
 
     def setupPlanet(self):
         '''Set up the initial conditions for planet fitting.'''
