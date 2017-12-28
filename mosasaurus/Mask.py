@@ -1,4 +1,4 @@
-from imports import *
+from .imports import *
 from Aperture import Aperture
 
 class Mask(Talker):

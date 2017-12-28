@@ -24,14 +24,14 @@ import scipy.interpolate, scipy.signal, scipy.integrate
 #from numpy.polynomial import polynomial as P
 
 # ... to use utilities from the zachopy toolbox
-import zachopy.utils, zachopy.regions, zachopy.iplot, zachopy.oned, zachopy.twod, zachopy.cmaps
+import zachopy.utils, zachopy.regions, zachopy.displays.iplot, zachopy.oned, zachopy.twod, zachopy.cmaps
 
 # load tools to interface with ds9
 #from zachopy.displays.ds9 import ds9 as zachods9
 from zachopy.displays.loupe import loupe
 
-from  zachopy.borrowed.mpfit.mpfit import mpfit
+#from zachopy.borrowed.mpfit.mpfit import mpfit
 
-from Tools import *
+from .Tools import *
 
 mosasaurusdirectory = os.path.split(os.path.split(__file__)[0])[0] + '/'

@@ -1,4 +1,4 @@
-from imports import *
+from .imports import *
 import zachopy.cmaps
 
 class Color(Talker):

@@ -1,4 +1,4 @@
-from imports import *
+from .imports import *
 from CCD import CCD
 
 class Calibration(Talker):
@@ -104,7 +104,8 @@ class Calibration(Talker):
 
               n = medianinadu
               noise = noiseinadu
-              fit = mpfit(deviates, p0, parinfo=parinfo, functkw={'n':n[ok], 'noise':noise[ok]})
+              raise NameError("You need to replace mpfit with lmfit!")
+              # KLUDGE!!!!! fit = mpfit(deviates, p0, parinfo=parinfo, functkw={'n':n[ok], 'noise':noise[ok]})
 
               gain = fit.params[0]
               readnoise = fit.params[1]

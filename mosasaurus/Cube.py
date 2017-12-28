@@ -1,4 +1,4 @@
-from imports import *
+from .imports import *
 from Observation import Observation
 import astropy.table, astropy.time
 import matplotlib.cm

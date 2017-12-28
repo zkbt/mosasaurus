@@ -1,4 +1,4 @@
-from Spectrograph import *
+from .Spectrograph import *
 
 class LDSS3C(Spectrograph):
 
@@ -22,27 +22,45 @@ class LDSS3C(Spectrograph):
                             'grism',
                             'comment']
 
-    # these keys are useful for guessing the filetype
-    self.keystosearhc
-    self.wordstosearchfor = {'dark':'dark'}
-    keysfortype = ['object', 'exptype']
+    # these keys are useful to search for guessing the filetype
+    keystosearch = ['exptype', 'object']
+
+    # within those keys, what words do we search for?
+    wordstosearchfor = {'dark':['dark'],
+                             'bias':['bias'],
+                             'flat':['quartz', 'flat'],
+                             'He':['He', 'helium'],
+                             'Ne':['Ne', 'neon'],
+                             'Ar':['Ar', 'argon']}
 
     def findDarks(self, night):
         '''Identify the dark exposures.'''
-        match = night.find( wordstolookfor = ['dark'],
-                            placestolook = ['object', 'exptype'])
+        match = night.find( wordstolookfor = self.wordstosearchfor['dark'],
+                            placestolook = self.keystosearch)
         return match
 
     def findBiases(self, night):
         '''Identify the bias exposures.'''
-        match = night.find( wordstolookfor = ['bias'],
-                            placestolook = ['object', 'exptype'])
+        match = night.find( wordstolookfor = self.wordstosearchfor['bias'],
+                            placestolook = self.keystosearch)
         return match
 
     def findHe(self, night):
-        '''Identify the bias exposures.'''
-        match = night.find( wordstolookfor = ['He', 'helium'],
-                            placestolook = ['object', 'exptype'])
+        '''Identify the He exposures.'''
+        match = night.find( wordstolookfor = self.wordstosearchfor['He'],
+                            placestolook = self.keystosearch)
+        return match
+
+    def findNe(self, night):
+        '''Identify the Ne exposures.'''
+        match = night.find( wordstolookfor = self.wordstosearchfor['Ne'],
+                            placestolook = self.keystosearch)
+        return match
+
+    def findAr(self, night):
+        '''Identify the Ar exposures.'''
+        match = night.find( wordstolookfor = self.wordstosearchfor['Ar'],
+                            placestolook = self.keystosearch)
         return match
 
     def __init__(self, grism='vph-red'):

@@ -1,4 +1,4 @@
-from imports import *
+from .imports import *
 from Headers import Headers
 #from Display import Display
 

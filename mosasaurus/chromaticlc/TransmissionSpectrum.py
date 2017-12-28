@@ -3,7 +3,7 @@ from WavelengthBin import WavelengthBin
 from Cube import Cube
 from transit import *
 import limbdarkening.phoenix as LD
-from imports import *
+from .imports import *
 import multiprocessing
 
 class TransmissionSpectrum(Talker):
@@ -250,7 +250,7 @@ class WithTLCs(TransmissionSpectrum):
 			nColumns = 3
 			nRows = len(keys)
 			plt.figure('masking')
-			ip = zachopy.iplot.iplot(nRows, nColumns)
+			ip = zachopy.displays.iplot.iplot(nRows, nColumns)
 
 			kw = dict(cmap='gray', interpolation='nearest', aspect='auto', vmin=None, vmax=None)
 

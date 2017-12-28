@@ -1,4 +1,4 @@
-from imports import *
+from .imports import *
 from Tools import *
 from Trace import Trace
 from WavelengthCalibrator import WavelengthCalibrator

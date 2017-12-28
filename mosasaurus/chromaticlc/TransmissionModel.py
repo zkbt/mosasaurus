@@ -77,7 +77,8 @@ class TransmissionModel(Talker):
     def chisq(self, spectrum):
         p0 = [0.0]
         parinfo = [{'value':0., 'fixed':0, 'limited':[1,1], 'limits':[-10,10], 'step':0.1}]
-        self.fitted = mpfit(self.deviates, p0, parinfo=parinfo, functkw=dict(spectrum=spectrum))
+        raise NameError("You need to replace mpfit with lmfit!")
+        # KLUDGE!!!!! self.fitted = mpfit(self.deviates, p0, parinfo=parinfo, functkw=dict(spectrum=spectrum))
         dev = self.deviates(self.fitted.params, spectrum=spectrum)[-1]
         chisq = np.sum(dev**2)
         dof = self.fitted.dof

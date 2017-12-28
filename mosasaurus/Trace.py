@@ -1,6 +1,6 @@
 '''Trace defines the extraction and sky subtraction regions for an Aperture'''
 
-from imports import *
+from .imports import *
 from zachopy.cmaps import one2another
 
 class Trace(Talker):
@@ -417,7 +417,7 @@ class Trace(Talker):
                                     figsize=(8,4), dpi=100)
 
         # create an interactive plot
-        self.iplot = zachopy.iplot.iplot(2,2,
+        self.iplot = zachopy.displays.iplot.iplot(2,2,
                                         hspace=0, wspace=0,
                                         left=0.05, right=0.95,
                                         bottom=0.05, top=0.95,

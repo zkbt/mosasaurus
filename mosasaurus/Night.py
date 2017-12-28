@@ -1,5 +1,5 @@
 
-from imports import *
+from .imports import *
 
 class Night(Talker):
     '''Night objects handle information specific to the night.'''

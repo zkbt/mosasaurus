@@ -1,6 +1,6 @@
 '''Wavelength Calibrator defines the wavelength calibration, and '''
 
-from imports import *
+from .imports import *
 from numpy.polynomial import Legendre
 colors = dict(He='lightsalmon', Ne='red', Ar='deepskyblue')
 shortcuts = {'h':'He', 'n':'Ne', 'a':'Ar'}
@@ -474,7 +474,7 @@ class WavelengthCalibrator(Talker):
         self.speak('{}, {}'.format(self.pixelstowavelengths, self.pixelstowavelengths.domain, self.pixelstowavelengths.window))
         self.figcal = plt.figure('wavelength calibration',
                                         figsize=(15,6), dpi=72)
-        self.interactivewave = zachopy.iplot.iplot(4,1,
+        self.interactivewave = zachopy.displays.iplot.iplot(4,1,
                 height_ratios=[0.1, 0.4, 0.2, .2], hspace=0.1,
                 bottom=0.15)
 

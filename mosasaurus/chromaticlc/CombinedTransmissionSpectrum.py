@@ -1,4 +1,4 @@
-from imports import *
+from .imports import *
 from TransmissionSpectrum import WithTLCs, TransmissionSpectrum
 from WavelengthBin import WavelengthBin
 import transit

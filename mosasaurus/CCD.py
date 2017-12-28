@@ -1,4 +1,4 @@
-from imports import *
+from .imports import *
 
 class CCD(Talker):
   '''CCD object handles every related to an individual CCD exposure.'''

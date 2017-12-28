@@ -1,4 +1,4 @@
-from imports import *
+from .imports import *
 from transit import TLC, TM
 from SpectrumPlot import Gradient
 howtocolor = Gradient(bottom='indigo', top='orange', range=[400,1050])

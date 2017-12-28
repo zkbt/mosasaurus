@@ -1,4 +1,4 @@
-from imports import *
+from .imports import *
 from Observation import Observation
 from Night import Night
 from Tools import *

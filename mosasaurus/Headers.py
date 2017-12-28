@@ -1,4 +1,4 @@
-from imports import *
+from .imports import *
 import astropy.units as u, astropy.coordinates as coord
 import astropy.table, astropy.time
 import BJD

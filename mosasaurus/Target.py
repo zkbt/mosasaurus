@@ -1,4 +1,4 @@
-from imports import *
+from .imports import *
 from zachopy.star import Star
 
 class Target(Talker):
