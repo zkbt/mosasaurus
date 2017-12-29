@@ -4,7 +4,8 @@ from .Headers import Headers
 
 #  an object that stores all the specifics related to a particular target/night of observing
 class Observation(Talker):
-    '''Observation object store basic information about an observation of one object on one night.'''
+    '''Observation object store basic information about an observation of
+        one object with one instrument on one night.'''
     def __init__(self, target=None, instrument=None, night=None, **kwargs):
         '''Initialize an observation object.'''
 
@@ -15,8 +16,14 @@ class Observation(Talker):
         self.instrument=instrument
         self.night=night
 
-        # come up with a guess for the filenames
-        # make a guess, check with user they're good, then write a file saying they're confirmed
+        # make a directory hold all analyses for this observation
+        self.directory = os.path.join(self.instrument.workingDirectory,
+                                        "{}_{}".format(self.night.name, self.target.name))
+        zachopy.utils.mkdir(self.directory)
+
+        # come make sure we know the file prefixes we need
+        self.setupFilePrefixes()
+
 
         #self.loadHeaders()
 
@@ -30,15 +37,72 @@ class Observation(Talker):
         self.headers = Headers(self, mute=self._mute, pithy=self._pithy)
         self.headers.load(remake=remake)
 
-    def guessFiles(self):
+    def setupFilePrefixes(self, **strategy):
         '''
         Define the image number arrays based on guesses from information
         in the file headers. These can be overwritten by custom setting the
         self.n* attributes.
+
+        For each file type (dark, bias, flat, science, reference, various arc lamps),
+        you can specify one of ? ways in which to search for that kind of file
+
+            None = fall back to the default, searching this instrument's
+                    default header keyword for the default search string
         '''
 
-        self.instrument.findBiases(self.night)
+        somethingisnew = False
+        everything = (  self.instrument.detectorcalibrations +
+                        self.instrument.arclamps +
+                        self.instrument.extractables)
 
+        self.exposures = {}
+        choicesDirectory =  os.path.join(self.directory, 'files')
+        # try
+        for k in everything:
+            fileofiles = os.path.join(choicesDirectory, 'filesfor{}.txt'.format(k))
+            try:
+                self.exposures[k] = astropy.io.ascii.read(fileofiles, delimiter='|')
+                self.speak('loaded a list of [{}] files from {}'.format(k, fileofiles))
+            except IOError:
+                somethingisnew = True
+                self.speak("couldn't find a list of files for [{}], making a guess".format(k))
+                zachopy.utils.mkdir(choicesDirectory)
+
+                # create a list of filenames
+                if k in strategy.keys():
+                    # do something custom
+                    pass
+                else:
+                    # find exposures where
+                    if k == 'science':
+                        wordstosearchfor = [self.target.starname]
+                    elif k == 'reference':
+                        wordstosearchfor = [self.target.starname]
+                    else:
+                        wordstosearchfor = self.instrument.wordstosearchfor[k]
+
+                    match = self.night.find(wordstosearchfor, self.instrument.keytosearch)
+                    self.exposures[k] = self.night.log[match]
+                    self.exposures[k].meta['comments'] = ['mosasaurus will treat these as [{}] exposures for {}'.format(k, self), '']
+                    self.exposures[k].write(fileofiles, **tablekw)
+                    self.speak('saved list of [{}] files to {}'.format(k, fileofiles))
+
+        # give the user a chance to modify the initial (probably bad) guesses for which filenames to use
+        if somethingisnew:
+            answer = self.input("mosasaurus just created some guesses for filenames for {}".format(self) +
+                                "\nPlease check the tables in {}".format(self.directory) +
+                                "\nand edit them as necessary, before proceeding." +
+                                "\n[Press enter to continue.]")
+
+            self.speak('reloading from text files in {}, in case you made any changes'.format(choicesDirectory))
+            for k in everything:
+                fileofiles = os.path.join(choicesDirectory, 'filesfor{}.txt'.format(k))
+                self.exposures[k] = astropy.io.ascii.read(fileofiles, delimiter='|')
+                self.speak('loaded a list of [{}] files from {}'.format(k, fileofiles))
+
+        self.fileprefixes = {}
+        for k in everything:
+            self.fileprefixes[k] = self.exposures[k]['fileprefix'].data
         '''
         # modify these to make some guesses -- will need to know the mask name for science data
         self.nReference = np.arange(int(dictionary['nReference'][0]), int(dictionary['nReference'][1])+1)
@@ -56,32 +120,3 @@ class Observation(Talker):
           self.nFinder = np.arange(int(dictionary['nFinder'][0]),  int(dictionary['nFinder'][1])+1)
         self.nBias = np.arange(int(dictionary['nBias'][0]),  int(dictionary['nBias'][1])+1)
         '''
-
-
-
-        self.cosmicThreshold = float(dictionary['cosmicThreshold'])
-        self.nNeeded = np.concatenate((self.nReference, self.nScience, self.nHe, self.nNe, self.nAr, self.nWideFlat, self.nWideMask, self.nThinMask, self.nFinder))
-        self.cal_dictionary = {'He':self.nHe, 'Ne':self.nNe, 'Ar':self.nAr, 'Reference':self.nReference, 'WideFlat':self.nWideFlat, 'WideMask':self.nWideMask, 'ThinMask':self.nThinMask, 'Bias':self.nBias, 'Dark':self.nDark, 'Science':self.nScience, 'Finder':self.nFinder}
-
-
-
-
-        self.ra =np.float(dictionary['ra'])
-        self.dec =np.float(dictionary['dec'])
-        try:
-            self.gains = [float(x) for x in dictionary['gains']]
-        except (ValueError,KeyError):
-            self.gains = None
-
-        try:
-            self.slow = bool(dictionary['slow'])
-        except KeyError:
-            self.slow = False
-
-        self.correlationAnchors = [float(x) for x in dictionary['correlationAnchors']]
-        self.correlationRange = [float(x) for x in dictionary['correlationRange']]
-        self.correlationSmooth = float(dictionary['correlationSmooth'])
-        self.cosmicAbandon = float(dictionary['cosmicAbandon'])
-        self.speak('observation parameters have been read and stored'.format(filename))
-
-        self.displayscale=0.25

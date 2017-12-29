@@ -147,15 +147,14 @@ class Night(Talker):
             self.summarylog = grouped.groups.aggregate(glom)
             count = [np.sum(self.log[column] == c) for c in self.summarylog[column]]
             self.summarylog['count'] = count
+            self.summarylog = self.summarylog[['count'] + grouped.colnames]
 
             # sort this by the file prefixes, again
             self.summarylog.sort('fileprefix')
 
 
-            self.summarylog.write(self.summaryFilename,
-                            format='ascii.fixed_width',
-                            delimiter='|',
-                            bookend=False, overwrite=remake)
+            self.summarylog.write(self.summaryFilename, **tablekw)
+
             self.speak('wrote the aggregated summary for {} to {}'.format(self.name, self.summaryFilename))
 
 

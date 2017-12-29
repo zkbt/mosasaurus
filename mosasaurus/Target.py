@@ -9,8 +9,11 @@ class Target(Talker):
 
         Talker.__init__(self)
 
-        # what's the name of this target (planet, EB, etc...)
-        self.name = name
+        # what's the name of this target ("GJ1132b", planet, EB, etc...)
+        self.name = name   
+
+        # the starname might be different from the target (e.g. GJ1132)
+        self.starname = starname
 
         # set up the star (to get its RA + Dec)
         self.setupStar(starname, **kw)

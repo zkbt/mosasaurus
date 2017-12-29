@@ -9,7 +9,7 @@ class Calibration(Talker):
             This can be thought of as bookmarked pages of
             the reducing mosasaurus' reference books,
             keeping track of calibrations that might be useful'''
-            
+
   def __init__(self, reducer, visualize=True, **kwargs):
     '''Initialize calibration object.'''
 
@@ -31,7 +31,7 @@ class Calibration(Talker):
     self.speak('calibration data are processed and ready for use')
 
   def estimateGain(self):
-    self.gains = self.obs.gains
+    self.gains = self.obs.instrument.gains
     if self.gains is None:
         try:
           self.gains = np.loadtxt(self.obs.instrument.workingDirectory + 'gains.txt')

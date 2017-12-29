@@ -133,7 +133,7 @@ class Cube(Talker):
     # define the directories that contain extracted stellar spectra
     #self.starDirectories =
     self.numberofstars = len(self.starDirectories)
-    self.numberoftimes = len(self.obs.nScience)
+    self.numberoftimes = len(self.fileprefixes['science'])
     if max is not None:
         self.numberoftimes = max
     truncate = False

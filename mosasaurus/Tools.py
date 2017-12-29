@@ -16,3 +16,6 @@ def writeFitsData(data, filename, verbose=False):
   hdu.writeto(filename, clobber=True)
   if verbose:
     print("      wrote image to ", filename)
+
+# keyword arguments for writing astropy tables
+tablekw = dict(format='ascii.fixed_width', delimiter='|', bookend=False)

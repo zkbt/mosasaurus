@@ -10,7 +10,7 @@ class LDSS3C(Spectrograph):
     # which header of the fits file contains the header with useful information
     fitsextensionforheader = 0
 
-    # these keys should be included in the nightly logs for this instrument
+    # what keys should be included in the nightly logs for this instrument?
     keysforlogheader = [    'ut-date',
                             'ut-time',
                             'object',
@@ -27,6 +27,7 @@ class LDSS3C(Spectrograph):
                             'gain',
                             'comment']
 
+    # what keys should make it into condensed summary logs?
     keysforsummary = [      'fileprefix',
                             'object',
                             'exptime',
@@ -34,6 +35,23 @@ class LDSS3C(Spectrograph):
                             'filter',
                             'grism',
                             'airmass']
+
+    # what keys do we want to store associated with a science timeseries?
+    keysfortimeseries = [   'date-obs',
+                            'ut-date',
+                            'ut-time',
+                            'ut-end',
+                            'scale',
+                            'gain',
+                            'epoch',
+                            'airmass',
+                            'ha',
+                            'exptime',
+                            'tempccd',
+                            'templdss',
+                            'focus',
+                            'rotangle',
+                            'rotatore']
 
 
     # these keys are useful to search for guessing the filetype
@@ -126,6 +144,9 @@ class LDSS3C(Spectrograph):
         self.databottom = 0
         self.datatop = 2048
 
+        # what are the calibrations we should expect
+        self.detectorcalibrations = ['dark', 'bias', 'flat']
+
     def setupDisperser(self):
         '''
         Setup the basics for the disperser.
@@ -145,6 +166,7 @@ class LDSS3C(Spectrograph):
                                                 self.disperser + '/')
         self.wavelength2pixelsFile = os.path.join(self.disperserDirectory,
                 '{0}_wavelength_identifications.txt'.format(self.grism))
+
         self.wavelengthsFile = os.path.join(self.disperserDirectory,
                 'HeNeAr.txt')
 
@@ -175,6 +197,8 @@ class LDSS3C(Spectrograph):
         # required minimum gap between extraction and sky apertures
         self.extractiondefaults['skyGap'] = 2
 
+        # what are the kinds of images extractions can work with
+        self.extractables = ['science', 'reference']
 
     def setupDirectories(self,
             baseDirectory='/Users/zkbt/Cosmos/Data/Magellan/LDSS3/',
@@ -226,5 +250,28 @@ class LDSS3C(Spectrograph):
 
         # LDSS3C is split into two amplifiers, let's pull out the prefix
         return tail.replace('c2.fits', '').replace('c1.fits', '')
+
+    def file2prefix(self, filename):
+        '''
+        This function returns a shortened fileprefix from a given filename.
+        '''
+        tail = os.path.split(filename)[-1]
+
+        # LDSS3C is split into two amplifiers, let's pull out the prefix
+        return tail.replace('c2.fits', '').replace('c1.fits', '')
+
+    def prefix2number(self, prefix):
+        '''
+        This function returns a CCD number (not necessarily starting from 0)
+        from a fileprefix.
+        '''
+        return np.int(prefix[-4:])
+
+    def prefix2files(self, prefix):
+        '''
+        This function returns a list of filenames (without complete path)
+        that are associated with this given prefix.
+        '''
+        return [prefix + 'c1.fits', prefix + 'c2.fits']
 
 #def identifyImageNumbers(self, lookingfor)

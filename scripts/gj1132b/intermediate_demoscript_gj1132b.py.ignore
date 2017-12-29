@@ -18,6 +18,7 @@ from mosasaurus.Observation import Observation
 import numpy as np
 
 o = Observation(t, i, n)
+'''
 o.nReference = np.arange(1595, 1596+1)
 o.nScience = np.arange(1625, 2025+1)
 o.nHe = np.arange(162, 166+1)
@@ -29,3 +30,4 @@ o.nWideMask = np.arange(156, 158+1)
 o.nThinMask = np.arange(159, 161+1)
 o.nDark = np.arange(205, 230+1)
 o.nFinder = np.arange(1585, 1585+1)
+'''

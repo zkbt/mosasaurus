@@ -4,6 +4,7 @@ import astropy.table, astropy.time
 from . import BJD
 
 class Headers(Talker):
+
     '''An object to store the timeseries of image headers for this project -- good for keeping track of various external variables.'''
     def __init__(self, obs, **kwargs):
         '''Initialize a Headers object.'''
@@ -11,15 +12,18 @@ class Headers(Talker):
         # decide whether or not this creature is chatty
         Talker.__init__(self, **kwargs)
 
-        # add the observation object
+        # connect the observation object
         self.obs = obs
-        self.filename = self.obs.instrument.workingDirectory + 'headers.npy'
+
+        # define a filename in which the header timeseries will be stored
+        self.filename = self.obs.directory + 'headers.npy'
 
     def load(self, remake=True):
-        '''make sure the header table is loaded'''
+        '''Make sure the header table is loaded.'''
 
-        self.speak('loading cube of image headers')
+        self.speak('loading cube of image headers.')
         try:
+            # does the headers attribute already exist?
             self.headers
             assert(remake == False)
             self.speak('header cube was already loaded')
@@ -28,14 +32,22 @@ class Headers(Talker):
 
 
     def loadFromFile(self, remake=False):
-        '''load a table of header information from a pre-saved file'''
+        '''Load a table of header information from a pre-saved file.'''
 
         try:
+            # try to load it from a pre-made file
             assert(remake==False)
             self.headers = astropy.table.Table(np.load(self.filename)[()])
-            assert(len(self.headers['airmass']) == len(self.obs.nScience))
-            self.speak('header cube loaded from {0}'.format(self.filename))
+
+            # make sure this table is the same length as the desired science exposures
+            for k in self.headers.colnames:
+                assert(len(self.headers['k']) == len(self.fileprefixes['science']))
+
+            # say what happened
+            self.speak('header timeseries loaded from {0}'.format(self.filename))
+
         except (AssertionError, IOError):
+            # populate a header cube from the individual FITS headers
             self.loadFromScratch()
 
     def loadFromScratch(self):
@@ -43,28 +55,34 @@ class Headers(Talker):
 
        self.speak('looping through all science images to load their headers')
 
-       # what keys do we want to store?
-       keys = ['date-obs', 'ut-date', 'ut-time', 'ut-end', 'scale', 'gain', 'epoch', 'airmass', 'ha', 'exptime', 'tempccd', 'templdss', 'focus', 'rotangle', 'rotatore']
+       # what keys do we need to populate?
+       keys = self.obs.instrument.keysfortimeseries
 
-       # create a dictionary of lists, to contain those for all headers
+       # create a dictionary of lists, to contain each key for all headers
        d = {}
        d['n'] = []
        for k in keys:
            d[k] = []
 
        # loop through the science images
-       ccdn = self.obs.nScience
-       for n in self.obs.nScience:
+       fileprefixes = self.obs.fileprefixes['science']
+       for prefix in self.obs.fileprefixes:
+           # get a number associated with this file
+           n = self.obs.instrument.prefix2number(prefix)
            d['n'].append(n)
-           filename = self.obs.dataDirectory+'ccd%04dc1.fits' % n
+
+           # what is one file associated with this
+           filename = self.obs.night.dataDirectory + self.instrument.prefix2files(prefix)[0]
+
+           # load its header
            hdu = astropy.io.fits.open(filename)
            header = hdu[0].header
            for k in keys:
                d[k].append(header[k])
-           self.speak('   {0:10} {1:10} {2:10} {3:10}'.format(n, header['ut-date'],  header['ut-time'],  header['airmass']))
 
        # convert the dictionary of lists into a table
-       self.headers = astropy.table.Table(d)
+       self.headers = astropy.table.Table(d)[keys]
+       print(self.headers)
 
        # convert times into more useful ones (including BJD)
        self.convertTimes()
@@ -75,7 +93,7 @@ class Headers(Talker):
 
     def convertTimes(self):
         '''Convert the header keys into more useful times; store them in the cube.'''
-        self.speak('converting times into BJD')
+        self.speak('converting times from header into BJD')
 
         # load one header, to get one-time information
         filename = self.obs.dataDirectory+'ccd%04dc1.fits' % self.obs.nScience[0]

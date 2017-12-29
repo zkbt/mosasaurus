@@ -22,3 +22,5 @@ t.star.summarize()
 from mosasaurus.Observation import Observation
 o = Observation(t, i, n)
 o.summarize()
+
+o.setupFilePrefixes()
