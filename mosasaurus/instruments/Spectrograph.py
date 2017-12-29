@@ -9,6 +9,8 @@ class Spectrograph(Talker):
         self.setupDirectories()
         self.setupExtraction()
 
+
+
     def extractInterestingHeaderKeys(self, file):
         '''
         This will work for files with only one interesting extension.
@@ -24,7 +26,7 @@ class Spectrograph(Talker):
 
         # extract the values for these keys
         keys = self.keysforlogheader
-        values = [header.get(k, '') for k in keys]
+        values = [header.get(k, None) for k in keys]
 
         # return a dictionary containing the interesting keys
         return keys, values

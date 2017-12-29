@@ -9,6 +9,7 @@ class Calibration(Talker):
             This can be thought of as bookmarked pages of
             the reducing mosasaurus' reference books,
             keeping track of calibrations that might be useful'''
+            
   def __init__(self, reducer, visualize=True, **kwargs):
     '''Initialize calibration object.'''
 
@@ -33,8 +34,8 @@ class Calibration(Talker):
     self.gains = self.obs.gains
     if self.gains is None:
         try:
-          self.gains = np.loadtxt(self.obs.workingDirectory + 'gains.txt')
-          self.speak("loaded gains from {0}".format(self.obs.workingDirectory + 'gains.txt'))
+          self.gains = np.loadtxt(self.obs.instrument.workingDirectory + 'gains.txt')
+          self.speak("loaded gains from {0}".format(self.obs.instrument.workingDirectory + 'gains.txt'))
           self.speak("   they are:")
           for g in self.gains:
             self.speak("       {0}".format(g))
@@ -142,7 +143,7 @@ class Calibration(Talker):
             #ax[i].plot(n[ok==False].flatten(), deviates(fit.params, n=n[ok == False], noise=noise[ok == False])[-1].flatten(), marker='o', linewidth=0, alpha=0.1, color='red', markersize=3)
             assert('n' not in self.input('Does this gain estimate seem reasonable? [Y,n]').lower())
 
-          np.savetxt(self.obs.workingDirectory + 'gains.txt', gains)
+          np.savetxt(self.obs.instrument.workingDirectory + 'gains.txt', gains)
           self.gains = gains
 
   def createStackedImage(self, n, visualize=True, imageType=None, threshold=5.0, truncation=100):
@@ -201,7 +202,7 @@ class Calibration(Talker):
       self.display.one(summedImage - outlier)
 
     if cosmic:
-      cosmicFilename = self.obs.workingDirectory + 'cosmics{0}to{1}.fits'.format(np.min(n), np.max(n))
+      cosmicFilename = self.obs.instrument.workingDirectory + 'cosmics{0}to{1}.fits'.format(np.min(n), np.max(n))
       writeFitsData(outlier, cosmicFilename)
     return (summedImage-outlier)/count, stddev
 
@@ -210,7 +211,7 @@ class Calibration(Talker):
   def createBadPixelMask(self, visualize=True):
     '''Try to estimate bad pixels from a flat image. KLUDGE'''
     self.speak("populating bad pixel mask")
-    badPixelFilename = self.obs.workingDirectory + 'master_BadPixels.fits'
+    badPixelFilename = self.obs.instrument.workingDirectory + 'master_BadPixels.fits'
     try:
       self.images['BadPixels'] = readFitsData(badPixelFilename)
       self.speak( "loaded bad pixel mask from {0}".format(badPixelFilename))
@@ -259,7 +260,7 @@ class Calibration(Talker):
 
     noisestring = 'StdDev'
     self.speak( "populating the master {0} image".format(imageType))
-    masterFilePrefix = self.obs.workingDirectory + "master_{0}".format(imageType)
+    masterFilePrefix = self.obs.instrument.workingDirectory + "master_{0}".format(imageType)
     try:
         self.images[imageType] = readFitsData(masterFilePrefix + '.fits')
         self.images[imageType+noisestring] = readFitsData(masterFilePrefix + noisestring + '.fits')

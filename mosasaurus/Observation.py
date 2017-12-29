@@ -1,5 +1,5 @@
 from .imports import *
-from Headers import Headers
+from .Headers import Headers
 #from Display import Display
 
 #  an object that stores all the specifics related to a particular target/night of observing
@@ -15,11 +15,16 @@ class Observation(Talker):
         self.instrument=instrument
         self.night=night
 
+        # come up with a guess for the filenames
+        # make a guess, check with user they're good, then write a file saying they're confirmed
 
+        #self.loadHeaders()
 
         #self.fileprefixes = self.fileprefix(self.nNeeded)
 
-
+    def __repr__(self):
+        '''How should this object be represented as a string?'''
+        return '[Observation of {} with {} on {}]'.format(self.target, self.instrument, self.night)
 
     def loadHeaders(self, remake=False):
         self.headers = Headers(self, mute=self._mute, pithy=self._pithy)
@@ -31,7 +36,8 @@ class Observation(Talker):
         in the file headers. These can be overwritten by custom setting the
         self.n* attributes.
         '''
-        pass
+
+        self.instrument.findBiases(self.night)
 
         '''
         # modify these to make some guesses -- will need to know the mask name for science data
@@ -79,10 +85,3 @@ class Observation(Talker):
         self.speak('observation parameters have been read and stored'.format(filename))
 
         self.displayscale=0.25
-
-    def fileprefix(self, n):
-        '''Feed in a ccd number, spit out the file prefix for that CCD amplifier pair.'''
-        try:
-          return [self.dataDirectory + 'ccd{0:04}'.format(x) for x in n]
-        except:
-          return self.dataDirectory + 'ccd{0:04}'.format(n)

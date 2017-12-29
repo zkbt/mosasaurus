@@ -145,7 +145,7 @@ class Cube(Talker):
     except:
         self.speak('Could not load pre-saved cube. Creating one now!')
     # load the headers
-    self.headers = np.load(self.obs.workingDirectory + 'headers.npy')[()]
+    self.headers = np.load(self.obs.instrument.workingDirectory + 'headers.npy')[()]
 
     self.stellar['aperture'] = [x.split('/')[-1] for x in self.starDirectories]
     # loop over the spectra
@@ -1093,7 +1093,7 @@ class Cube(Talker):
         for a in ax:
           a.axvspan(self.bin_starts[bin], self.bin_ends[bin], alpha=0.7, color='white', edgecolor=None)
     plt.tight_layout(h_pad=0.0)
-    plt.savefig(self.obs.workingDirectory + 'divided_{0}.pdf'.format(self.obs.night))
+    plt.savefig(self.obs.instrument.workingDirectory + 'divided_{0}.pdf'.format(self.obs.night))
     a = raw_input('imaging  target')
 
 class LC():

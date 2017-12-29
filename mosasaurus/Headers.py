@@ -1,7 +1,7 @@
 from .imports import *
 import astropy.units as u, astropy.coordinates as coord
 import astropy.table, astropy.time
-import BJD
+from . import BJD
 
 class Headers(Talker):
     '''An object to store the timeseries of image headers for this project -- good for keeping track of various external variables.'''
@@ -13,7 +13,7 @@ class Headers(Talker):
 
         # add the observation object
         self.obs = obs
-        self.filename = self.obs.workingDirectory + 'headers.npy'
+        self.filename = self.obs.instrument.workingDirectory + 'headers.npy'
 
     def load(self, remake=True):
         '''make sure the header table is loaded'''
@@ -23,7 +23,7 @@ class Headers(Talker):
             self.headers
             assert(remake == False)
             self.speak('header cube was already loaded')
-        except:
+        except (AssertionError, AttributeError):
             self.loadFromFile(remake=remake)
 
 
@@ -35,7 +35,7 @@ class Headers(Talker):
             self.headers = astropy.table.Table(np.load(self.filename)[()])
             assert(len(self.headers['airmass']) == len(self.obs.nScience))
             self.speak('header cube loaded from {0}'.format(self.filename))
-        except:
+        except (AssertionError, IOError):
             self.loadFromScratch()
 
     def loadFromScratch(self):
@@ -77,7 +77,6 @@ class Headers(Talker):
         '''Convert the header keys into more useful times; store them in the cube.'''
         self.speak('converting times into BJD')
 
-
         # load one header, to get one-time information
         filename = self.obs.dataDirectory+'ccd%04dc1.fits' % self.obs.nScience[0]
         header = astropy.io.fits.open(filename)[0].header
@@ -107,5 +106,5 @@ class Headers(Talker):
         self.headers['bjd'] = times_bary.jd
         self.headers['tdb-utc'] = times_earth.tdb.jd - times_earth.utc.jd
         self.headers['barycor'] = times_bary.tdb.jd - times_earth.tdb.jd
-        
+
         a = self.input('Type enter if okay with BJD?!')

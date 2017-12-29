@@ -49,11 +49,11 @@ class Reducer(Talker):
 
     def deleteandrestart(self):
         self.speak("WARNING! You're about to erase all files in {0}".
-                            format(self.obs.workingDirectory))
+                            format(self.obs.instrument.workingDirectory))
 
         if 'y' in self.input(" are you sure you're okay with this? [y,N]").lower():
             if 'y' in self.input("   for realsies? [y,N]").lower():
-                shutil.rmtree(self.obs.workingDirectory)
+                shutil.rmtree(self.obs.instrument.workingDirectory)
 
         self.obs = Observation(self.filename)
 

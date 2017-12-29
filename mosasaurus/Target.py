@@ -15,6 +15,11 @@ class Target(Talker):
         # set up the star (to get its RA + Dec)
         self.setupStar(starname, **kw)
 
+    def __repr__(self):
+        '''How should this object be represented as a string?'''
+        return '<Target {}>'.format(self.name)
+
+
     def setupStar(self, name, **kw):
         '''
         By default, use a name to initialize the star.

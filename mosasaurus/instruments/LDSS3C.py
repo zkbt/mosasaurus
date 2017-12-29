@@ -2,65 +2,83 @@ from .Spectrograph import *
 
 class LDSS3C(Spectrograph):
 
+    name = 'LDSS3C'
+
+    basicpattern = 'ccd*c1.fits'
+
+
     # which header of the fits file contains the header with useful information
     fitsextensionforheader = 0
 
     # these keys should be included in the nightly logs for this instrument
-    keysforlogheader = [   'ut-date',
+    keysforlogheader = [    'ut-date',
                             'ut-time',
-                            'filename',
-                            'ra-d', 'dec-d',
-                            'airmass',
                             'object',
-                            'exptype',
                             'exptime',
-                            'binning',
-                            'speed',
-                            'gain',
                             'aperture',
                             'filter',
                             'grism',
+                            'airmass',
+                            'filename',
+                            'ra-d', 'dec-d',
+                            'exptype',
+                            'binning',
+                            'speed',
+                            'gain',
                             'comment']
 
+    keysforsummary = [      'fileprefix',
+                            'object',
+                            'exptime',
+                            'aperture',
+                            'filter',
+                            'grism',
+                            'airmass']
+
+
     # these keys are useful to search for guessing the filetype
-    keystosearch = ['exptype', 'object']
+    keytosearch = 'object'
 
     # within those keys, what words do we search for?
     wordstosearchfor = {'dark':['dark'],
-                             'bias':['bias'],
-                             'flat':['quartz', 'flat'],
-                             'He':['He', 'helium'],
-                             'Ne':['Ne', 'neon'],
-                             'Ar':['Ar', 'argon']}
+                         'bias':['bias'],
+                         'flat':['quartz', 'flat'],
+                         'He':['He', 'helium'],
+                         'Ne':['Ne', 'neon'],
+                         'Ar':['Ar', 'argon']}
+
+    def __repr__(self):
+        '''How should this object be represented as a string?'''
+        return '<Spectrograph {}>'.format(self.name)
 
     def findDarks(self, night):
         '''Identify the dark exposures.'''
         match = night.find( wordstolookfor = self.wordstosearchfor['dark'],
-                            placestolook = self.keystosearch)
+                            placetolook = self.keytosearch)
         return match
 
     def findBiases(self, night):
         '''Identify the bias exposures.'''
         match = night.find( wordstolookfor = self.wordstosearchfor['bias'],
-                            placestolook = self.keystosearch)
+                            placetolook = self.keytosearch)
         return match
 
     def findHe(self, night):
         '''Identify the He exposures.'''
         match = night.find( wordstolookfor = self.wordstosearchfor['He'],
-                            placestolook = self.keystosearch)
+                            placetolook = self.keytosearch)
         return match
 
     def findNe(self, night):
         '''Identify the Ne exposures.'''
         match = night.find( wordstolookfor = self.wordstosearchfor['Ne'],
-                            placestolook = self.keystosearch)
+                            placetolook = self.keytosearch)
         return match
 
     def findAr(self, night):
         '''Identify the Ar exposures.'''
         match = night.find( wordstolookfor = self.wordstosearchfor['Ar'],
-                            placestolook = self.keystosearch)
+                            placetolook = self.keytosearch)
         return match
 
     def __init__(self, grism='vph-red'):
@@ -189,5 +207,24 @@ class LDSS3C(Spectrograph):
                                                 extractionDirectory)
         zachopy.utils.mkdir(self.extractionDirectory)
 
+    def fileprefix(self, n):
+        '''
+        Feed in a CCD number,
+        spit out the file prefix for
+        that CCD amplifier pair.
+        '''
+        try:
+          return [self.dataDirectory + 'ccd{0:04}'.format(x) for x in n]
+        except TypeError:
+          return self.dataDirectory + 'ccd{0:04}'.format(n)
+
+    def file2prefix(self, filename):
+        '''
+        This function returns a shortened fileprefix from a given filename.
+        '''
+        tail = os.path.split(filename)[-1]
+
+        # LDSS3C is split into two amplifiers, let's pull out the prefix
+        return tail.replace('c2.fits', '').replace('c1.fits', '')
 
 #def identifyImageNumbers(self, lookingfor)

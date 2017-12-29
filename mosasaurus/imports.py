@@ -15,7 +15,7 @@ np.seterr(divide='ignore')
 #import zachopy.display, zachopy.oned
 #from ds9 import *
 
-import glob, os, string, copy, shutil
+import glob, os, string, copy, shutil, warnings
 
 # ... to use
 import scipy.interpolate, scipy.signal, scipy.integrate

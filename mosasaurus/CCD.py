@@ -28,7 +28,7 @@ class CCD(Talker):
     self.set(n, imageType)
 
     # make sure the stitched directory is defined
-    zachopy.utils.mkdir(self.obs.workingDirectory+'/stitched/'	)
+    zachopy.utils.mkdir(self.obs.instrument.workingDirectory+'/stitched/'	)
 
 
   def set(self, n=None, imageType=None):
@@ -40,7 +40,7 @@ class CCD(Talker):
 
     # define the file prefix
     if n is not None:
-      self.fileprefix = self.obs.fileprefix(n)
+      self.fileprefix = self.obs.instrument.fileprefix(n)
 
       # define a nickname for referring to this image
       if self.imageType is None:
@@ -50,7 +50,7 @@ class CCD(Talker):
       self.name = '{1}{0:04d}'.format(n,label)
 
       # define a stitched filename
-      self.stitched_filename = self.obs.workingDirectory + 'stitched/{0}.fits'.format(self.name)
+      self.stitched_filename = self.obs.instrument.workingDirectory + 'stitched/{0}.fits'.format(self.name)
 
     # empty out the header and data variables
     self.header = None
@@ -105,7 +105,7 @@ class CCD(Talker):
       self.createStitched()
 
     if imageType == 'Science':
-        self.cosmicdiagnostic = np.load(self.obs.workingDirectory+'cosmics/rejectedpercolumn{0:04.0f}.npy'.format(n))
+        self.cosmicdiagnostic = np.load(self.obs.instrument.workingDirectory+'cosmics/rejectedpercolumn{0:04.0f}.npy'.format(n))
 
     # print status
     if self.verbose:
@@ -242,7 +242,7 @@ class CCD(Talker):
   def rejectCosmicRays(self, remake=False, threshold=7.5, visualize=False, nBeforeAfter=5):
      '''Stitch all science images, establish a comparison noise level for each pixel.'''
      # make sure a cosmics directory exists
-     cosmics_directory = self.obs.workingDirectory + 'cosmics/'
+     cosmics_directory = self.obs.instrument.workingDirectory + 'cosmics/'
      zachopy.utils.mkdir(cosmics_directory)
 
      # figure out how many images to consider
@@ -253,9 +253,9 @@ class CCD(Talker):
          #print "testing"
          ok = remake == False
          #print 'remake'
-         ok = ok & os.path.exists(self.obs.workingDirectory + 'stitched/Science{0:04.0f}.fits'.format(n))
+         ok = ok & os.path.exists(self.obs.instrument.workingDirectory + 'stitched/Science{0:04.0f}.fits'.format(n))
          #print 'fits'
-         ok = ok & os.path.exists(self.obs.workingDirectory + 'cosmics/rejectedpercolumn{0:04.0f}.npy'.format(n))
+         ok = ok & os.path.exists(self.obs.instrument.workingDirectory + 'cosmics/rejectedpercolumn{0:04.0f}.npy'.format(n))
          #print 'rejected'
          #print ok
          assert(ok)
