@@ -5,8 +5,7 @@ zachopy.Talker.shortcuts = shortcuts
 Talker = zachopy.Talker.Talker
 
 import astropy.io.fits, astropy.io.ascii, astropy.time
-#from astropy.io import fits, ascii
-#from astropy.time import Time
+from astropy import time, coordinates as coord, units as u
 
 import matplotlib.pyplot as plt, numpy as np, matplotlib.animation
 # ignore errors from divide by zero

@@ -24,18 +24,17 @@ class Observation(Talker):
         # come make sure we know the file prefixes we need
         self.setupFilePrefixes()
 
-
-        #self.loadHeaders()
-
-        #self.fileprefixes = self.fileprefix(self.nNeeded)
+        # load a table of all the headers
+        self.loadHeaders()
 
     def __repr__(self):
         '''How should this object be represented as a string?'''
         return '[Observation of {} with {} on {}]'.format(self.target, self.instrument, self.night)
 
     def loadHeaders(self, remake=False):
-        self.headers = Headers(self, mute=self._mute, pithy=self._pithy)
-        self.headers.load(remake=remake)
+        h = Headers(self)
+        h.load(remake=remake)
+        self.headers = h.headers
 
     def setupFilePrefixes(self, **strategy):
         '''

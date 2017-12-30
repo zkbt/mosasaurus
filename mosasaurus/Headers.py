@@ -16,7 +16,7 @@ class Headers(Talker):
         self.obs = obs
 
         # define a filename in which the header timeseries will be stored
-        self.filename = self.obs.directory + 'headers.npy'
+        self.filename = os.path.join(self.obs.directory, 'headers.txt')
 
     def load(self, remake=True):
         '''Make sure the header table is loaded.'''
@@ -37,11 +37,12 @@ class Headers(Talker):
         try:
             # try to load it from a pre-made file
             assert(remake==False)
-            self.headers = astropy.table.Table(np.load(self.filename)[()])
+            #self.headers = astropy.table.Table(np.load(self.filename)[()])
+            self.headers = astropy.io.ascii.read(self.filename, delimiter='|')
 
             # make sure this table is the same length as the desired science exposures
             for k in self.headers.colnames:
-                assert(len(self.headers['k']) == len(self.fileprefixes['science']))
+                assert(len(self.headers[k]) == len(self.obs.fileprefixes['science']))
 
             # say what happened
             self.speak('header timeseries loaded from {0}'.format(self.filename))
@@ -66,13 +67,13 @@ class Headers(Talker):
 
        # loop through the science images
        fileprefixes = self.obs.fileprefixes['science']
-       for prefix in self.obs.fileprefixes:
+       for prefix in fileprefixes:
            # get a number associated with this file
            n = self.obs.instrument.prefix2number(prefix)
            d['n'].append(n)
 
            # what is one file associated with this
-           filename = self.obs.night.dataDirectory + self.instrument.prefix2files(prefix)[0]
+           filename = os.path.join(self.obs.night.dataDirectory, self.obs.instrument.prefix2files(prefix)[0])
 
            # load its header
            hdu = astropy.io.fits.open(filename)
@@ -85,44 +86,40 @@ class Headers(Talker):
        print(self.headers)
 
        # convert times into more useful ones (including BJD)
-       self.convertTimes()
+       self.determineBJD()
 
        # save the table of headers
-       np.save(self.filename, self.headers)
+       self.headers.write(self.filename, **tablekw)
        self.speak('header cube saved to {0}'.format(self.filename))
 
-    def convertTimes(self):
+    def determineBJD(self):
         '''Convert the header keys into more useful times; store them in the cube.'''
+        # (NOTE! This should eventually be moved to an instrument, because it'll vary from one to another)
+
         self.speak('converting times from header into BJD')
 
-        # load one header, to get one-time information
-        filename = self.obs.dataDirectory+'ccd%04dc1.fits' % self.obs.nScience[0]
-        header = astropy.io.fits.open(filename)[0].header
+        # do the instrument-specific thing required to get a mid-transit time in JD_UTC
+        times_earth = self.obs.instrument.extractMidExposureTimes(self.headers)
 
-        self.speak('loaded one header ({}) for site information'.format(filename))
-        # stitch together date+time strings
-        timestrings = ['{0} {1}'.format(row['ut-date'], row['ut-time']) for row in self.headers]
-
-        # pull out the sitename
-        sitename = header['SITENAME'].lower()
-        observatory = coord.EarthLocation.of_site(sitename)
-
-        # calculate a JD from these times (and adding half the exposure time, assuming ut-time is the start of the exposure)
-        starttimes = astropy.time.Time(timestrings, format='iso', scale='utc', location=observatory)
-
-        # mid-exposure
-        times_earth = starttimes + 0.5*self.headers['exptime']*u.second
-
-        # quote the JD_UTC
+        # quote the JD_UTC in the header table
         self.headers['jd_utc']  = times_earth.jd
 
         # pull out RA and Dec (in degrees)
-        ra, dec = header['RA-D'], header['DEC-D']
+        icrs = self.obs.target.star.icrs
 
-        # calculate BJD_TDB
-        times_bary = BJD.toBJD(times_earth, ra=ra, dec=dec)
+        # calculate BJD_TDB for one exposure, and print the results
+        temp = BJD.toBJD(times_earth[0], icrs, verbose=True)
+
+        # calculate BJD_TDB for all exposures
+        times_bary = BJD.toBJD(times_earth, icrs, verbose=False)
+
+        # and add them to the table (all in units of days)
         self.headers['bjd'] = times_bary.jd
         self.headers['tdb-utc'] = times_earth.tdb.jd - times_earth.utc.jd
         self.headers['barycor'] = times_bary.tdb.jd - times_earth.tdb.jd
 
-        a = self.input('Type enter if okay with BJD?!')
+        a = self.input("You just saw the calculation of the BJD times from information"
+                        "\nin the FITS headers. It probably wouldn't be a bad idea to"
+                        "\nspot-check this calculation against Jason Eastman's code at"
+                        "\nhttp://astroutils.astronomy.ohio-state.edu/time/utc2bjd.html"
+                        "\n[Press return if you're satisfied with the BJDs.]")

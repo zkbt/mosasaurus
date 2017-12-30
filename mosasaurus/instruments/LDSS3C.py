@@ -6,7 +6,6 @@ class LDSS3C(Spectrograph):
 
     basicpattern = 'ccd*c1.fits'
 
-
     # which header of the fits file contains the header with useful information
     fitsextensionforheader = 0
 
@@ -106,6 +105,11 @@ class LDSS3C(Spectrograph):
 
         # where is it located? (needed for BJD calculation)
         self.telescope = 'Magellan'
+        self.sitename = 'LCO'
+        self.observatory = coord.EarthLocation.of_site(self.sitename)
+
+        '''
+        # removed this once I realized astropy knew about LCO
         self.observatory = dict(
             name="Las Campanas Observatory",
             timezone="Chilean",
@@ -116,6 +120,7 @@ class LDSS3C(Spectrograph):
             elevsea = 2282.0*astropy.units.m,
             elev = 2282.0*astropy.units.m, # /* for ocean horizon, not Andes! */
             )
+        '''
 
         # what grism is being used ['vph-red', 'vph-all', 'vph-blue']
         self.grism = grism.lower()
@@ -230,6 +235,25 @@ class LDSS3C(Spectrograph):
         self.extractionDirectory = os.path.join(self.baseDirectory,
                                                 extractionDirectory)
         zachopy.utils.mkdir(self.extractionDirectory)
+
+
+    def extractMidExposureTimes(self, headers):
+        '''
+        For an astropy table of extracted header values,
+        extract the mid-exposure times in JD_UTC.
+        '''
+
+        # stitch together date+time strings
+        timestrings = ['{0} {1}'.format(row['ut-date'], row['ut-time']) for row in headers]
+
+        # calculate a JD from these times (and adding half the exposure time, assuming ut-time is the start of the exposure)
+        starttimes = astropy.time.Time(timestrings, format='iso', scale='utc', location=self.observatory)
+
+        # mid-exposure
+        times_earth = starttimes + 0.5*headers['exptime']*u.second
+
+        # return as astropy times, in the UTC system, at the location of the telescope
+        return times_earth
 
     def fileprefix(self, n):
         '''
