@@ -50,35 +50,35 @@ class TransmissionSpectrum(Talker):
 	def binningdirectory(self):
 		'''Parent directory for a particular binning.'''
 		bd =  self.obs.extractionDirectory + "chromatic{binsize:05.0f}/".format(binsize=self.binsize)
-		zachopy.utils.mkdir(bd)
+		mkdir(bd)
 		return bd
 
 	@property
 	def rawlightcurvedirectory(self):
 		'''Directory where the original light curves will be saved (as .lightcurve files).'''
 		rld = self.binningdirectory + 'originalLCs/'
-		zachopy.utils.mkdir(rld)
+		mkdir(rld)
 		return rld
 
 	@property
 	def lightcurvedirectory(self):
 		'''Directory where processed (e.g. trimmed) light curves will be saved (as .npy files).'''
 		ld = self.binningdirectory + 'processedLCs/'
-		zachopy.utils.mkdir(ld)
+		mkdir(ld)
 		return ld
 
 	@property
 	def maskdirectory(self):
 		'''Directory where the (possibly custom) mask will be saved.'''
 		md = self.binningdirectory + "{maskname}/".format(maskname=self.maskname)
-		zachopy.utils.mkdir(md)
+		mkdir(md)
 		return md
 
 	@property
 	def fitdirectory(self):
 		'''Directory where the fit files should be stored.'''
 		fd = self.maskdirectory + '{label}/'.format(label=self.label)
-		zachopy.utils.mkdir(fd)
+		mkdir(fd)
 		return fd
 
 	def __repr__(self):

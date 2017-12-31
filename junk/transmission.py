@@ -36,19 +36,19 @@ class TS(Talker):
 	@property
 	def binningdirectory(self):
 		bd =  self.obs.extractionDirectory + "binby{binsize:05.0f}/".format(binsize=self.binsize)
-		zachopy.utils.mkdir(bd)
+		mkdir(bd)
 		return bd
 
 	@property
 	def fitdirectory(self):
 		fd = self.binningdirectory + '{label}/'.format(label=self.label)
-		zachopy.utils.mkdir(fd)
+		mkdir(fd)
 		return fd
 
 	@property
 	def maskdirectory(self):
 		md = self.fitdirectory + "{maskname}/".format(maskname=self.maskname)
-		zachopy.utils.mkdir(md)
+		mkdir(md)
 		return md
 
 	def loadLCs(self):

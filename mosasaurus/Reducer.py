@@ -1,45 +1,46 @@
 from .imports import *
-from Observation import Observation
-from Night import Night
-from Tools import *
-from CCD import CCD
-from Calibration import Calibration
-from Mask import Mask
-from Aperture import Aperture
+from .Observation import Observation
+#from .CCD import CCD
+from .Calibration import Calibration
+from .Mask import Mask
+from .Aperture import Aperture
 
 class Reducer(Talker):
     '''Reducers are objects for reducing data, either interactively or not.
 
         This could be pictured as a mosasaurus,
-        wearing a loup and carrying lots of
+        wearing a loupe and carrying lots of
         data structures around in its knapsack.'''
 
-    def __init__(self, filename='wasp94_140805.obs', **kwargs):
-        '''initialize from a ".obs" file'''
+    def __init__(self, obs, visualize=True):
+        '''initialize from an observation'''
 
         # decide whether or not this Reducer is chatty
-        Talker.__init__(self, **kwargs)
+        Talker.__init__(self)
 
-        self.speak('the reducing mosasaurus is grabbing a fly swatter to analyze {0}'.format(filename))
-        # store the filename of the reduction parameter file
-        self.filename = filename
+        # should we visualize the steps of the reduction?
+        self.visualize = visualize
 
-        # setup all the components of the reducer
+        # connect to the observation
+        self.obs = obs
+        self.obs.reducer = self
+        self.speak('the reducing mosasaurus is grabbing a fly spanker to analyze\n {0}'.format(self.obs))
+
+        # setup all the other components of the reducer
         self.setup()
-
         self.speak('mosasaurus is ready to reduce')
 
     def setup(self):
+        '''
+        Setup all the basic components, or give them easier shortcuts.
+        '''
 
-        # load in the observation file for this object
-        self.obs = Observation(self.filename)
+        # give ourselves some shortcuts, in case we need them
+        self.instrument = self.obs.instrument
+        self.night = self.obs.night
 
-        self.display = loupe() #''mosasaurus',
-                               # xsize=self.obs.xsize*self.obs.displayscale,
-                               # ysize=self.obs.ysize*self.obs.displayscale)
-
-        # create a night object, associated with this observation
-        self.night = Night(self.obs)
+        # create an interactive display to be associated with this
+        self.display = loupe()
 
         # set up the Calibration
         self.calib = Calibration(self)
@@ -48,30 +49,28 @@ class Reducer(Talker):
         self.mask = Mask(self)
 
     def deleteandrestart(self):
+        '''
+        This deletes all intermediate data files (including log exposure choices)
+        for this particular observation. Use this with great caution!
+        '''
+
         self.speak("WARNING! You're about to erase all files in {0}".
-                            format(self.obs.instrument.workingDirectory))
+                            format(self.obs.directory))
 
         if 'y' in self.input(" are you sure you're okay with this? [y,N]").lower():
             if 'y' in self.input("   for realsies? [y,N]").lower():
-                shutil.rmtree(self.obs.instrument.workingDirectory)
-
-        self.obs = Observation(self.filename)
+                shutil.rmtree(self.obs.directory)
 
     def reduce(self, remake=False):
-        '''process 2D multiobject spectral images into 1D spectra'''
+        '''
+        Process 2D multiobject spectral images into 1D spectra.
+        '''
 
-        self.speak('reducing observations of {0} on {1}'.format(
-                        self.obs.name, self.obs.night))
+        self.speak('starting reductions for {}'.format(self.obs))
 
         # set up the calibrations and mask
         self.calib.setup()
         self.mask.setup()
-
-        # load the headers for this observation
-        self.obs.loadHeaders()
-
-        # create an observing log from all the image headers from this night
-        self.night.obsLog()
 
         # loop over exposures and apertures
         self.mask.extractEverything(remake=remake)

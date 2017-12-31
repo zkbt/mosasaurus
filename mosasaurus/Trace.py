@@ -350,7 +350,7 @@ class Trace(Talker):
             fit for trace using actual centroids'''
 
         # estimate a rough 1D spectrum
-        flattened = self.aperture.images['Science']/self.aperture.images['NormalizedFlat']
+        flattened = self.aperture.images['science']/self.aperture.images['NormalizedFlat']
         roughSky1d=np.average(flattened,
                                 axis=self.aperture.sindex,
                                 weights=self.skymask(np.median(self.extractionwidths)))
@@ -591,18 +591,18 @@ class Trace(Talker):
     def slices(self):
         '''return y, x of a slice along the spatial direction'''
         i = np.interp(self.crosshair['w'], self.waxis, np.arange(len(self.waxis)))
-        return self.aperture.images['Science'][i,:], self.saxis
+        return self.aperture.images['science'][i,:], self.saxis
 
     @property
     def slicew(self):
         '''return x, y of a slice along the wavelength direction'''
         i = np.interp(self.crosshair['s'], self.saxis, np.arange(len(self.saxis)))
-        return self.waxis, self.aperture.images['Science'][:,i]
+        return self.waxis, self.aperture.images['science'][:,i]
 
     @property
     def imagetoplot(self):
         '''for plotting, the science image'''
-        return np.transpose(np.log(self.aperture.images['Science']))
+        return np.transpose(np.log(self.aperture.images['science']))
 
     def extractionmask(self, width):
         '''to define those pixels that fall within the default extraction mask,
@@ -627,7 +627,7 @@ class Trace(Talker):
         '''to define those pixels that are considered sky'''
 
         # create a blank mask
-        mask = np.zeros_like(self.aperture.images['Science'])
+        mask = np.zeros_like(self.aperture.images['science'])
 
         # loop through the sky offsets, and use them to add and subtract
         for d in self.skyoffsets:

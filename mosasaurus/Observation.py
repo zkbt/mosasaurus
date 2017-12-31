@@ -19,9 +19,9 @@ class Observation(Talker):
         # make a directory hold all analyses for this observation
         self.directory = os.path.join(self.instrument.workingDirectory,
                                         "{}_{}".format(self.night.name, self.target.name))
-        zachopy.utils.mkdir(self.directory)
+        mkdir(self.directory)
 
-        # come make sure we know the file prefixes we need
+        # set up the observation with the prefixes it will need
         self.setupFilePrefixes()
 
         # load a table of all the headers
@@ -32,6 +32,10 @@ class Observation(Talker):
         return '[Observation of {} with {} on {}]'.format(self.target, self.instrument, self.night)
 
     def loadHeaders(self, remake=False):
+        '''
+        Load all the headers into one easy-to-manage table.
+        '''
+
         h = Headers(self)
         h.load(remake=remake)
         self.headers = h.headers
@@ -40,7 +44,7 @@ class Observation(Talker):
         '''
         Define the image number arrays based on guesses from information
         in the file headers. These can be overwritten by custom setting the
-        self.n* attributes.
+        strategy attributes.
 
         For each file type (dark, bias, flat, science, reference, various arc lamps),
         you can specify one of ? ways in which to search for that kind of file
@@ -65,7 +69,7 @@ class Observation(Talker):
             except IOError:
                 somethingisnew = True
                 self.speak("couldn't find a list of files for [{}], making a guess".format(k))
-                zachopy.utils.mkdir(choicesDirectory)
+                mkdir(choicesDirectory)
 
                 # create a list of filenames
                 if k in strategy.keys():
@@ -101,7 +105,11 @@ class Observation(Talker):
 
         self.fileprefixes = {}
         for k in everything:
+            # pull out a simple array of filenames
             self.fileprefixes[k] = self.exposures[k]['fileprefix'].data
+
+            # make the array indexable by the fileprefix
+            self.exposures[k].add_index('fileprefix')
         '''
         # modify these to make some guesses -- will need to know the mask name for science data
         self.nReference = np.arange(int(dictionary['nReference'][0]), int(dictionary['nReference'][1])+1)

@@ -80,7 +80,7 @@ class Cube(Talker):
       base = self.obs.extractionDirectory
       toexport = os.path.join(base, 'cube_' + self.obs.name + '_' + self.obs.night)
 
-      zachopy.utils.mkdir(toexport)
+      mkdir(toexport)
       commandstorun = []
 
       # copy the cube npy file
@@ -95,7 +95,7 @@ class Cube(Talker):
       # loop over the star directories
       for s in self.stars:
         stardir = os.path.join(toexport, s)
-        zachopy.utils.mkdir(stardir)
+        mkdir(stardir)
         pdfs = glob.glob(os.path.join(base, s, '*aperture*.pdf'))
         for p in pdfs:
             # copy the finder chart
@@ -949,9 +949,9 @@ class Cube(Talker):
 
 
     lcDirectory = self.obs.extractionDirectory + "chromatic{binsize:05.0f}/".format(binsize=binsize)
-    zachopy.utils.mkdir(lcDirectory)
+    mkdir(lcDirectory)
     lcDirectory = lcDirectory + 'originalLCs/'
-    zachopy.utils.mkdir(lcDirectory)
+    mkdir(lcDirectory)
 
     self.lcs = []
 

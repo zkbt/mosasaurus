@@ -21,6 +21,7 @@ t.star.summarize()
 # create an observation
 from mosasaurus.Observation import Observation
 o = Observation(t, i, n)
-o.summarize()
 
-o.setupFilePrefixes()
+# create a reducer to analyze this observation
+from mosasaurus.Reducer import Reducer
+r = Reducer(o, visualize=False)

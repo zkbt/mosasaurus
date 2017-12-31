@@ -224,17 +224,17 @@ class LDSS3C(Spectrograph):
         # data directory is where raw (not-to-be-modified) files are stored
         self.dataDirectory = os.path.join(self.baseDirectory,
                                                 dataDirectory)
-        zachopy.utils.mkdir(self.dataDirectory)
+        mkdir(self.dataDirectory)
 
         # working directory is where in-progress files + results are created
         self.workingDirectory = os.path.join(self.baseDirectory,
                                                 workingDirectory)
-        zachopy.utils.mkdir(self.workingDirectory)
+        mkdir(self.workingDirectory)
 
         # extraction directory is where extracted spectra land
         self.extractionDirectory = os.path.join(self.baseDirectory,
                                                 extractionDirectory)
-        zachopy.utils.mkdir(self.extractionDirectory)
+        mkdir(self.extractionDirectory)
 
 
     def extractMidExposureTimes(self, headers):

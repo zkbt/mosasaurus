@@ -76,13 +76,13 @@ class WavelengthBin(Talker):
 	@property
 	def datadirectory(self):
 		dd = self.TS.lightcurvedirectory + self.identifier + '/'
-		zachopy.utils.mkdir(dd)
+		mkdir(dd)
 		return dd
 
 	@property
 	def fittingdirectory(self):
 		md = self.TS.fitdirectory + self.identifier + '/'
-		zachopy.utils.mkdir(md)
+		mkdir(md)
 		return md
 
 

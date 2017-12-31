@@ -1,7 +1,7 @@
 from .imports import *
-from Tools import *
-from Trace import Trace
-from WavelengthCalibrator import WavelengthCalibrator
+from .Tools import *
+from .Trace import Trace
+from .WavelengthCalibrator import WavelengthCalibrator
 from zachopy.cmaps import one2another
 from zachopy.displays.movie import Movie
 ignorekw = dict(cmap=one2another('palevioletred', 'palevioletred', alphatop=0.75, alphabottom=0.0),
@@ -48,8 +48,8 @@ class Aperture(Talker):
     #self.createWavelengthCal()
 
   def stampFilename(n):
-	'''Spit out the right stamp filename for this aperture, cut out of CCDn.'''
-	return self.directory + 'stamp{0:04}.fits'.format(n)
+    '''Spit out the right stamp filename for this aperture, cut out of CCDn.'''
+    return self.directory + 'stamp{0:04}.fits'.format(n)
 
   def setup(self,x,y):
     '''Setup the basic geometry of the aperture.'''
@@ -63,8 +63,8 @@ class Aperture(Talker):
       self.xstart = np.maximum(x - self.maskWidth, 0).astype(np.int)
       self.xend = np.minimum(x + self.maskWidth, self.obs.xsize).astype(np.int)
       # remember python indexes arrays by [row,column], which is opposite [x,y]
-      x_fullframe, y_fullframe = np.meshgrid(np.arange(self.calib.images['Science'].shape[1]),
-                        np.arange(self.calib.images['Science'].shape[0]))
+      x_fullframe, y_fullframe = np.meshgrid(np.arange(self.calib.images['science'].shape[1]),
+                        np.arange(self.calib.images['science'].shape[0]))
       self.x_sub = x_fullframe[self.ystart:self.yend, self.xstart:self.xend]
       self.y_sub = y_fullframe[self.ystart:self.yend, self.xstart:self.xend]
 
@@ -87,7 +87,7 @@ class Aperture(Talker):
 
       self.name = 'aperture_{0:.0f}_{1:.0f}'.format(self.x, self.y)
       self.directory = self.obs.extractionDirectory + self.name + '/'
-      zachopy.utils.mkdir(self.directory)
+      mkdir(self.directory)
       self.speak("created a spectroscopic aperture at ({0:.1f}, {1:.1f})".format(self.x, self.y))
     else:
       self.speak("*!$!%()@! no cameras besides LDSS3C have been defined yet!")
@@ -117,28 +117,28 @@ class Aperture(Talker):
 
 
       # cut out stamps from the big images
-      interesting = ['Science' ,
+      interesting = ['science' ,
                     'WideFlat',
                     'He', 'Ne', 'Ar',
-                    'BadPixels', 'Dark', 'Bias']
+                    'BadPixels', 'dark', 'bias']
       for k in interesting:
         self.images[k] = self.stamp(self.calib.images[k])
 
       #self.speak('these are the stamps before interpolating over bad pixels')
-      #self.displayStamps(self.images, keys = ['Science', 'WideFlat', 'BadPixels'])
+      #self.displayStamps(self.images, keys = ['science', 'WideFlat', 'BadPixels'])
       #self.input('', prompt='(press return to continue)')
       for k in interesting:
           if k != 'BadPixels':
               self.images[k] = zachopy.twod.interpolateOverBadPixels(self.images[k], self.images['BadPixels'])
 
       #self.speak('and these are they after interpolating over bad pixels')
-      #self.displayStamps(self.images, keys = ['Science', 'WideFlat', 'BadPixels'])
+      #self.displayStamps(self.images, keys = ['science', 'WideFlat', 'BadPixels'])
       #self.input('', prompt='(press return to continue)')
 
       # subtract dark from everything but the dark
       #for k in self.images.keys():
-      #	if k is not 'Dark':
-      #		self.images[k] -= self.images['Dark']
+      #	if k is not 'dark':
+      #		self.images[k] -= self.images['dark']
 
       # create a normalized flat field stamp, dividing out the blaze + spectrum of quartz lamp
       raw_flatfield = self.images['WideFlat']
@@ -180,7 +180,7 @@ class Aperture(Talker):
   def displayTrace(self):
       for i, width in enumerate(self.trace.extractionwidths):
           self.display.new(frame=i)
-          self.display.rgb( self.images['Science'],
+          self.display.rgb( self.images['science'],
                             self.trace.extractionmask(width),
                             self.trace.skymask(width))
 
@@ -192,21 +192,21 @@ class Aperture(Talker):
 
   def ones(self):
     '''Create a blank array of ones to fill this aperture.'''
-    return np.ones_like(self.images['Science'])
+    return np.ones_like(self.images['science'])
 
   @property
   def extractedFilename(self):
       try:
-          return self.directory + 'extracted{0:04}.npy'.format(self.n)
+          return self.directory + 'extracted{0:04}.npy'.format(self.exposureprefix)
       except ValueError:
-          return self.directory + 'extracted_{}.npy'.format(self.n)
+          return self.directory + 'extracted_{}.npy'.format(self.exposureprefix)
 
   @property
   def supersampledFilename(self):
-      return self.directory + 'supersampled{0:04}.npy'.format(self.n)
+      return self.directory + 'supersampled{0:04}.npy'.format(self.exposureprefix)
 
   def loadExtracted(self, n):
-    self.n = n
+    self.exposureprefix = n
     self.extracted = np.load(self.extractedFilename)[()]
     self.speak('loaded extracted spectrum from {0}'.format(self.extractedFilename))
 
@@ -214,7 +214,7 @@ class Aperture(Talker):
     '''Extract the spectrum from this aperture.'''
 
     # make sure this aperture is pointed at the desired image
-    self.n = n
+    self.exposureprefix = n
     try:
         # try to load a previously saved spectrum
         assert(remake == False)
@@ -223,7 +223,7 @@ class Aperture(Talker):
         #self.speak('raw extracted file {0} already exists'.format(self.supersampledFilename))
         return
     except (AssertionError, IOError):
-        self.speak('extracting spectrum from image {}'.format(self.n))
+        self.speak('extracting spectrum from image {}'.format(self.exposureprefix))
         # make sure the trace is defined
         try:
             self.trace.traceCenter
@@ -232,7 +232,7 @@ class Aperture(Talker):
 
 
         # reassign the image number for this, because createwavelength cal probably reset it
-        self.n = n
+        self.exposureprefix = n
 
         # make sure we don't subtract the sky, if the arcs are set
         subtractsky = subtractsky & (arc == False)
@@ -244,7 +244,7 @@ class Aperture(Talker):
 
         if image is None:
             # make sure the right data have been loaded
-            #assert(self.mask.ccd.n == n)
+            #assert(self.mask.ccd.exposureprefix == n)
             self.mask.load(n)
 
             # extract the raw science stamp from this mask image
@@ -347,7 +347,7 @@ class Aperture(Talker):
   def setupVisualization(self):
         self.thingstoplot = ['raw_counts']#['sky', 'width',  'raw_counts']
         height_ratios = np.ones(len(self.thingstoplot) + 2)
-        suptitletext = '{}, CCD{:04.0f}'.format(self.name, self.n)
+        suptitletext = '{}, CCD{:04.0f}'.format(self.name, self.exposureprefix)
         try:
             self.suptitle.set_text(suptitletext)
             self.plotted
@@ -589,11 +589,11 @@ class Aperture(Talker):
   def addWavelengthCalibration(self, n, remake=False):
       '''just redo the wavelength calibration'''
       # point at this CCD number
-      self.n = n
+      self.exposureprefix = n
 
       # only load and redo if supersampled doesn't exist
       if remake or not os.path.exists(self.supersampledFilename):
-          self.speak('recalibrating wavelengths for {0}'.format(self.n))
+          self.speak('recalibrating wavelengths for {0}'.format(self.exposureprefix))
           # load the spectrum
           self.extracted = np.load(self.extractedFilename)[()]
 
@@ -745,7 +745,7 @@ class Aperture(Talker):
   def removeCosmics(self, stamp):
     '''Subtract out cosmic rays from the science stamp.'''
     # correct for cosmic rays
-    outliers = (stamp - self.images['Science'])/self.images['ScienceStdDev'] > 5
+    outliers = (stamp - self.images['science'])/self.images['ScienceStdDev'] > 5
     # a bit of a kludge!
-    stamp[outliers] = self.images['Science'][outliers]
+    stamp[outliers] = self.images['science'][outliers]
     return stamp

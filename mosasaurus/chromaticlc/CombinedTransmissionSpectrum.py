@@ -12,9 +12,9 @@ class CombinedObs(Talker):
 		self.night = 'combined'
 		self.baseDirectory = obs.baseDirectory
 		self.workingDirectory = obs.baseDirectory + 'working/combinationof{0}observations/'.format(len(listofobs))
-		zachopy.utils.mkdir(self.workingDirectory)
+		mkdir(self.workingDirectory)
 		self.extractionDirectory = self.workingDirectory + obs.extractionDirectory.split('/')[-2] + '/'
-		zachopy.utils.mkdir(self.extractionDirectory)
+		mkdir(self.extractionDirectory)
 
 class CombinedTransmissionSpectrum(TransmissionSpectrum):
 
@@ -136,7 +136,7 @@ class CombinedTransmissionSpectrum(TransmissionSpectrum):
 										self.fitdirectory,
 										self.bins[self.w2bin(w)][0].identifier
 										)
-			zachopy.utils.mkdir(synthesizerdirectory)
+			mkdir(synthesizerdirectory)
 
 			# assign an epoch to the TLC
 			tlc = orig.splitIntoEpochs(planet, newdirectory=synthesizerdirectory, phaseofinterest=self.phaseofinterest)[0]

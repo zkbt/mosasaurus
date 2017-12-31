@@ -1,5 +1,5 @@
 from .imports import *
-from Aperture import Aperture
+from .Aperture import Aperture
 
 class Mask(Talker):
   '''Mask objects keep track of the collection of Apertures
@@ -151,8 +151,8 @@ class Mask(Talker):
 
   def load(self, n):
       '''Make sure the mask's CCD data is set to the correct frame.'''
-      self.ccd.readData(n, imageType='Science')
-      assert(self.ccd.n == n)
+      self.ccd.readData(n, imageType='science')
+      assert(self.ccd.exposureprefix == n)
       self.speak('set CCD data to {0}'.format(self.ccd.name))
 
 
