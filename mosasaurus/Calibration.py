@@ -25,6 +25,10 @@ class Calibration(Talker):
 		self.obs = self.reducer.obs
 		self.display = self.reducer.display
 
+		# create a directory to store calibrations
+		self.calibrationDirectory = os.path.join(self.obs.directory, 'calibrations')
+		mkdir(self.calibrationDirectory)
+
 		# create a CCD object associated with this calibration
 		self.ccd = CCD(self.obs, calib=self)
 
@@ -44,7 +48,7 @@ class Calibration(Talker):
 		self.createMasterImages()
 
 		# figure out which are the bad pixels
-		# self.createBadPixelMask()
+		self.createBadPixelMask()
 
 		self.speak('calibration data are processed and ready for use')
 
@@ -88,7 +92,7 @@ class Calibration(Talker):
 
 		# we're going to save a master stacked image, and its standard deviation
 		self.speak("populating the master {0} image".format(imageType))
-		masterFilePrefix = os.path.join(self.obs.directory, "master_{0}".format(imageType))
+		masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
 		noisestring = 'StdDev'
 		try:
 			# has the master image already been created?
@@ -148,24 +152,26 @@ class Calibration(Talker):
 	def createBadPixelMask(self, visualize=True):
 		'''Try to estimate bad pixels from a flat image. KLUDGE'''
 
-		### STILL NEEDS COMMENTING! ###
 
 		self.speak("populating bad pixel mask")
-		badPixelFilename = self.obs.instrument.workingDirectory + 'master_BadPixels.fits'
+
+		# try to load it, otherwise make it
+		badPixelFilename = os.path.join(self.calibrationDirectory, 'master_badpixels.fits')
 		try:
-			self.images['BadPixels'] = readFitsData(badPixelFilename)
+			self.images['badpixels'] = readFitsData(badPixelFilename)
 			self.speak( "loaded bad pixel mask from {0}".format(badPixelFilename))
 		except:
 			self.speak( "creating bad pixel mask from the master flat frames")
 			c = self.ccd#CCD(self.obs, calib=self)
 
+			# make a cube of flat images
 			cube = []
-			for n in self.obs.nWideFlat:
-				c.set(n, 'WideFlat')
+			for exposureprefix in self.obs.fileprefixes['flat']:
+				c.set(exposureprefix, 'flat')
 				cube.append(c.readData())
-
 			cube = np.array(cube)
 
+			#
 			median = np.median(cube,0)
 			noise = np.median(np.abs(cube - median.reshape(1,cube.shape[1], cube.shape[2])), 0)
 			plt.figure('bad pixel mask')
@@ -176,12 +182,12 @@ class Calibration(Talker):
 			ax.plot(median[bad].flatten(), noise[bad].flatten(), color='red', alpha=0.5, marker='o', markersize=10, markeredgecolor='red', linewidth=0)
 			ax.set_xlabel('Fluence')
 			ax.set_ylabel('RMS')
-			self.images['BadPixels'] = bad.astype(np.int)
+			self.images['badpixels'] = bad.astype(np.int)
 			if visualize:
-				self.display.one(self.images['BadPixels'])
+				self.display.one(self.images['badpixels'])
 				answer = self.input("Does the bad pixel mask seem reasonable? [Y,n]").lower()
 			assert('n' not in answer)
-			writeFitsData(self.images['BadPixels'], badPixelFilename)
+			writeFitsData(self.images['badpixels'], badPixelFilename)
 
 	def bias(self):
 		try:
@@ -212,7 +218,7 @@ class Calibration(Talker):
 		Return the spectroscopic flat (remaking it if necessary).
 		'''
 		try:
-			return self.images['WideFlat']
+			return self.images['flat']
 		except KeyError:
-			self.createMasterImage('WideFlat')
-			return self.images['WideFlat']
+			self.createMasterImage('flat')
+			return self.images['flat']

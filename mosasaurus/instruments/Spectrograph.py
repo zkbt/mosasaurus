@@ -30,3 +30,7 @@ class Spectrograph(Talker):
 
         # return a dictionary containing the interesting keys
         return keys, values
+
+    @property
+    def zapcosmics(self):
+        return self.extractiondefaults['zapcosmics']

@@ -12,7 +12,7 @@ class Reducer(Talker):
         wearing a loupe and carrying lots of
         data structures around in its knapsack.'''
 
-    def __init__(self, obs, visualize=True):
+    def __init__(self, obs, label='default', visualize=True):
         '''initialize from an observation'''
 
         # decide whether or not this Reducer is chatty
@@ -30,6 +30,10 @@ class Reducer(Talker):
         self.setup()
         self.speak('mosasaurus is ready to reduce')
 
+        # set up the directory (inside the observation) to hold this extraction
+        self.label=label
+        self.extractionDirectory = os.path.join(self.obs.directory, "extraction_{}".format(self.label))
+        mkdir(self.extractionDirectory)
     def setup(self):
         '''
         Setup all the basic components, or give them easier shortcuts.

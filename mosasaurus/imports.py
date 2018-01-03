@@ -8,6 +8,8 @@ import astropy.io.fits, astropy.io.ascii, astropy.time
 from astropy import time, coordinates as coord, units as u
 
 import matplotlib.pyplot as plt, numpy as np, matplotlib.animation
+plt.switch_backend('qt5Agg')
+
 # ignore errors from divide by zero
 np.seterr(divide='ignore')
 

@@ -83,7 +83,7 @@ class Observation(Talker):
           self.nFinder = np.arange(int(dictionary['nFinder'][0]),  int(dictionary['nFinder'][1])+1)
         self.nBias = np.arange(int(dictionary['nBias'][0]),  int(dictionary['nBias'][1])+1)
         self.nNeeded = np.concatenate((self.nReference, self.nScience, self.nHe, self.nNe, self.nAr, self.nWideFlat, self.nWideMask, self.nThinMask, self.nFinder))
-        self.cal_dictionary = {'He':self.nHe, 'Ne':self.nNe, 'Ar':self.nAr, 'Reference':self.nReference, 'WideFlat':self.nWideFlat, 'WideMask':self.nWideMask, 'ThinMask':self.nThinMask, 'bias':self.nBias, 'dark':self.nDark, 'science':self.nScience, 'Finder':self.nFinder}
+        self.cal_dictionary = {'He':self.nHe, 'Ne':self.nNe, 'Ar':self.nAr, 'Reference':self.nReference, 'flat':self.nWideFlat, 'WideMask':self.nWideMask, 'ThinMask':self.nThinMask, 'bias':self.nBias, 'dark':self.nDark, 'science':self.nScience, 'Finder':self.nFinder}
         self.traceOrder    =  int(dictionary['traceOrder'])
         self.nFWHM    = float(dictionary['nFWHM'])
         self.blueward = int(dictionary['blueward'])

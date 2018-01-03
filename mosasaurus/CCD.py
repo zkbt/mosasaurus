@@ -61,6 +61,11 @@ class CCD(Talker):
             # define a stitched filename
             self.stitched_filename = os.path.join(self.stitchedDirectory,'{}.fits'.format(self.name))
 
+            # set up directories
+            if self.instrument.zapcosmics:
+                self.cosmicsDirectory = os.path.join(self.obs.directory, 'cosmics')
+                self.cosmicsFilename =  os.path.join(self.cosmicsDirectory, 'rejectedpercolumn_{}.npy'.format(self.name))
+
         # empty out the header and data variables
         self.header = None
         self.data = None
@@ -88,11 +93,6 @@ class CCD(Talker):
 
     def writeData(self):
             self.speak('saving image to {0}'.format(self.stitched_filename))
-
-            # debugging!
-            #if self.imageType == 'science':
-            #            self.display.one(self.data)
-            #            self.input('cosmics or no?')
             writeFitsData(self.data, self.stitched_filename)
 
     def readData(self, exposureprefix=None, imageType=None):
@@ -111,8 +111,9 @@ class CCD(Talker):
             self.createStitched()
 
         ### FIX ME ### (come up with a better solution for cosmic ray mitigation)
-        if imageType == 'science':
-            self.cosmicdiagnostic = np.load(self.cosmicsFilename)
+        if self.instrument.zapcosmics:
+            if imageType == 'science':
+                self.cosmicdiagnostic = np.load(self.cosmicsFilename)
 
         # print status
         self.speak(self.space + "read image from {0}".format(self.name))
@@ -238,8 +239,9 @@ class CCD(Talker):
             self.data = stitched
 
             # find and reject cosmics based on nearby images in time
-            if self.imageType == 'science':
-                self.rejectCosmicRays()
+            if self.instrument.zapcosmics:
+                if self.imageType == 'science':
+                    self.rejectCosmicRays()
 
             # write out the image to a stitched image
             writeFitsData(self.data, self.stitched_filename)
@@ -249,17 +251,13 @@ class CCD(Talker):
         '''Stitch all science images, establish a comparison noise level for each pixel.'''
 
         # make sure a cosmics directory exists
-        cosmics_directory = self.obs.directory + 'cosmics/'
+        cosmics_directory = os.path.join(self.obs.directory, 'cosmics/')
         mkdir(cosmics_directory)
 
         # figure out how many images to consider
         nImages = 2*nBeforeAfter + 1
         imageType = 'ScienceUnmitigated'
         exposureprefix = self.exposureprefix
-
-        # set up directories
-        self.cosmicsDirectory  = os.path.join(self.obs.directory, 'cosmics')
-        self.cosmicsFilename =  self.cosmicsDirectory + 'rejectedpercolumn_{}.npy'.format(self.name)
 
         try:
             #print "testing"
@@ -351,7 +349,7 @@ class CCD(Talker):
         # if n is a single element array, just return one image
         try:
             exposureprefixes[1]
-        except ValueError:
+        except (ValueError, IndexError):
             self.set(exposureprefixes[0])
             return self.readData(imageType=imageType)
 

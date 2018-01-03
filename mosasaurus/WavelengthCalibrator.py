@@ -25,7 +25,7 @@ class WavelengthCalibrator(Talker):
 
     @property
     def wavelengthprefix(self):
-        return self.aperture.directory + '{0}_'.format(self.aperture.name)
+        return os.path.join(self.aperture.directory, '{0}_'.format(self.aperture.name))
 
     @property
     def calibrationfilename(self):
@@ -235,8 +235,8 @@ class WavelengthCalibrator(Talker):
 
             # save the figure
             figure_waverough.savefig(
-            self.aperture.directory + 'roughWavelengthAlignment_{0}.pdf'.format(
-            self.aperture.name))
+                os.path.join(self.aperture.directory, 'roughWavelengthAlignment_{0}.pdf'.format(
+                                self.aperture.name)))
 
     @property
     def peaks(self):

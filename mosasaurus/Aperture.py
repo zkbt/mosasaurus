@@ -38,6 +38,7 @@ class Aperture(Talker):
     self.mask = mask
     self.calib = self.mask.calib
     self.obs = self.calib.obs
+    self.instrument = self.obs.instrument
     self.display = self.calib.display
     #zachods9('aperture', xsize=800, ysize=200, rotate=90)
     self.setup(x,y)
@@ -47,21 +48,29 @@ class Aperture(Talker):
     #self.createTrace()
     #self.createWavelengthCal()
 
+  #@property
+  #def directory(self):
+      # something of a KLUDGE
+      #return self.mask.reducer.extractionDirectory
+
   def stampFilename(n):
     '''Spit out the right stamp filename for this aperture, cut out of CCDn.'''
-    return self.directory + 'stamp{0:04}.fits'.format(n)
+    return os.path.join(self.directory, 'stamp{0:04}.fits'.format(n))
 
   def setup(self,x,y):
     '''Setup the basic geometry of the aperture.'''
-    if self.obs.instrument == 'LDSS3C':
+
+    if self.instrument.name == 'LDSS3C':
       self.x = x
       self.y = y
-      self.maskWidth = self.obs.instrument.extractiondefaults['spatialsubarray']
+      self.maskWidth = self.instrument.extractiondefaults['spatialsubarray']
       #(self.obs.skyWidth + self.obs.skyGap)*2 #+20 +
-      self.ystart = np.maximum(y - self.obs.blueward, 0).astype(np.int)
-      self.yend = np.minimum(y + self.obs.redward, self.obs.ysize).astype(np.int)
+      blueward = self.instrument.extractiondefaults['wavelengthblueward']
+      redward = self.instrument.extractiondefaults['wavelengthredward']
+      self.ystart = np.maximum(y - blueward, 0).astype(np.int)
+      self.yend = np.minimum(y + redward, self.instrument.ysize).astype(np.int)
       self.xstart = np.maximum(x - self.maskWidth, 0).astype(np.int)
-      self.xend = np.minimum(x + self.maskWidth, self.obs.xsize).astype(np.int)
+      self.xend = np.minimum(x + self.maskWidth, self.instrument.xsize).astype(np.int)
       # remember python indexes arrays by [row,column], which is opposite [x,y]
       x_fullframe, y_fullframe = np.meshgrid(np.arange(self.calib.images['science'].shape[1]),
                         np.arange(self.calib.images['science'].shape[0]))
@@ -86,7 +95,7 @@ class Aperture(Talker):
 
 
       self.name = 'aperture_{0:.0f}_{1:.0f}'.format(self.x, self.y)
-      self.directory = self.obs.extractionDirectory + self.name + '/'
+      self.directory = os.path.join(self.mask.reducer.extractionDirectory, self.name)
       mkdir(self.directory)
       self.speak("created a spectroscopic aperture at ({0:.1f}, {1:.1f})".format(self.x, self.y))
     else:
@@ -100,7 +109,7 @@ class Aperture(Talker):
   def createCalibStamps(self, visualize=True, interactive=True):
     '''Populate the necessary postage stamps for the calibrations.'''
     self.speak("populating calibration stamps")
-    filename = self.directory + 'calibStamps_{0}.npy'.format(self.name)
+    filename = os.path.join(self.directory, 'calibStamps_{0}.npy'.format(self.name))
     try:
       self.images = np.load(filename)[()] # i don't understand why i need the "empty tuple" but the internet says so
       self.speak("loaded calibration stamps from {0}".format(filename))
@@ -118,21 +127,21 @@ class Aperture(Talker):
 
       # cut out stamps from the big images
       interesting = ['science' ,
-                    'WideFlat',
+                    'flat',
                     'He', 'Ne', 'Ar',
-                    'BadPixels', 'dark', 'bias']
+                    'badpixels', 'dark', 'bias']
       for k in interesting:
         self.images[k] = self.stamp(self.calib.images[k])
 
       #self.speak('these are the stamps before interpolating over bad pixels')
-      #self.displayStamps(self.images, keys = ['science', 'WideFlat', 'BadPixels'])
+      #self.displayStamps(self.images, keys = ['science', 'flat', 'badpixels'])
       #self.input('', prompt='(press return to continue)')
       for k in interesting:
-          if k != 'BadPixels':
-              self.images[k] = zachopy.twod.interpolateOverBadPixels(self.images[k], self.images['BadPixels'])
+          if k != 'badpixels':
+              self.images[k] = zachopy.twod.interpolateOverBadPixels(self.images[k], self.images['badpixels'])
 
       #self.speak('and these are they after interpolating over bad pixels')
-      #self.displayStamps(self.images, keys = ['science', 'WideFlat', 'BadPixels'])
+      #self.displayStamps(self.images, keys = ['science', 'flat', 'badpixels'])
       #self.input('', prompt='(press return to continue)')
 
       # subtract dark from everything but the dark
@@ -141,13 +150,13 @@ class Aperture(Talker):
       #		self.images[k] -= self.images['dark']
 
       # create a normalized flat field stamp, dividing out the blaze + spectrum of quartz lamp
-      raw_flatfield = self.images['WideFlat']
+      raw_flatfield = self.images['flat']
       overbig_flatfield = np.ones_like(raw_flatfield)
       envelope = np.median(raw_flatfield, self.sindex)
       n_envp = 30
       points = np.linspace(np.min(self.waxis), np.max(self.waxis),n_envp+2)
       spline = scipy.interpolate.LSQUnivariateSpline(self.waxis,envelope,points[1:-2],k=2)
-      self.images['NormalizedFlat'] = self.images['WideFlat']/spline(self.waxis).reshape((self.waxis.shape[0],1))
+      self.images['NormalizedFlat'] = self.images['flat']/spline(self.waxis).reshape((self.waxis.shape[0],1))
       self.images['NormalizedFlat'] /= np.median(self.images['NormalizedFlat'], self.sindex).reshape(self.waxis.shape[0], 1)
 
 
@@ -167,8 +176,8 @@ class Aperture(Talker):
     '''Fit for the position and width of the trace.'''
 
     self.speak("populating the trace parameters")
-    tracefilename = self.directory + 'trace_{0}.npy'.format(self.name)
-    skyfilename = self.directory + 'skyMask_{0}.npy'.format(self.name)
+    tracefilename = os.path.join(self.directory, 'trace_{0}.npy'.format(self.name))
+    skyfilename = os.path.join(self.directory, 'skyMask_{0}.npy'.format(self.name))
 
     # define the trace object (will either load saved, or remake)
     self.trace = Trace(self)
@@ -197,20 +206,20 @@ class Aperture(Talker):
   @property
   def extractedFilename(self):
       try:
-          return self.directory + 'extracted{0:04}.npy'.format(self.exposureprefix)
+          return os.path.join(self.directory, 'extracted{0:04}.npy'.format(self.exposureprefix))
       except ValueError:
-          return self.directory + 'extracted_{}.npy'.format(self.exposureprefix)
+          return os.path.join(self.directory, 'extracted_{}.npy'.format(self.exposureprefix))
 
   @property
   def supersampledFilename(self):
-      return self.directory + 'supersampled{0:04}.npy'.format(self.exposureprefix)
+      return os.path.join(self.directory, 'supersampled{0:04}.npy'.format(self.exposureprefix))
 
   def loadExtracted(self, n):
     self.exposureprefix = n
     self.extracted = np.load(self.extractedFilename)[()]
     self.speak('loaded extracted spectrum from {0}'.format(self.extractedFilename))
 
-  def extract(self, n=0, image=None, subtractsky=True, arc=False, cosmics=False, remake=False):
+  def extract(self, n=0, image=None, subtractsky=True, arc=False, remake=False):
     '''Extract the spectrum from this aperture.'''
 
     # make sure this aperture is pointed at the desired image
@@ -275,13 +284,14 @@ class Aperture(Talker):
             self.intermediates[width]['skyMask'] = self.trace.skymask(width)
 
             # keep track of the cosmics that were rejected along the important columns
-            try:
-                if arc == False:
-                    self.intermediates[width]['smearedcosmics'] = self.mask.ccd.cosmicdiagnostic[self.xstart:self.xend].reshape(1,np.round(self.xend - self.xstart).astype(np.int))*np.ones_like(image)/(self.yend - self.ystart).astype(np.float)
-                    self.extracted[width]['cosmicdiagnostic'] = (self.intermediates[width]['smearedcosmics']*self.intermediates[width]['extractMask']).sum(self.sindex)
-                    self.speak('the cosmic over-correction diagnostic is {0}'.format(np.sum(self.extracted[width]['cosmicdiagnostic'])))
-            except (IOError, AttributeError):
-                self.speak("couldn't find any cosmic over-correction diagnostics for this frame")
+            if self.instrument.zapcosmics:
+                try:
+                    if arc == False:
+                        self.intermediates[width]['smearedcosmics'] = self.mask.ccd.cosmicdiagnostic[self.xstart:self.xend].reshape(1,np.round(self.xend - self.xstart).astype(np.int))*np.ones_like(image)/(self.yend - self.ystart).astype(np.float)
+                        self.extracted[width]['cosmicdiagnostic'] = (self.intermediates[width]['smearedcosmics']*self.intermediates[width]['extractMask']).sum(self.sindex)
+                        self.speak('the cosmic over-correction diagnostic is {0}'.format(np.sum(self.extracted[width]['cosmicdiagnostic'])))
+                except (IOError, AttributeError):
+                    self.speak("couldn't find any cosmic over-correction diagnostics for this frame")
 
             # subtract the sky, if requested
             if subtractsky:
@@ -308,10 +318,12 @@ class Aperture(Talker):
                 # store a few more diagnostics
                 fine = np.isfinite(self.intermediates[width]['subtracted'])
 
-                self.extracted[width]['centroid'] = np.average(
-                                        self.s,
-                                        axis=self.sindex,
-                                        weights=fine*self.intermediates[width]['subtracted']*self.intermediates[width]['extractMask'])
+                weights = fine*self.intermediates[width]['subtracted']*self.intermediates[width]['extractMask']
+                self.extracted[width]['centroid'] = np.sum(weights*self.s, axis=self.sindex)/np.sum(weights, axis=self.sindex)
+                #self.extracted[width]['centroid'] = np.average(
+                #                        self.s,
+                #                        axis=self.sindex,
+                #                        weights=fine*self.intermediates[width]['subtracted']*self.intermediates[width]['extractMask'])
 
                 reshapedFWC = self.extracted[width]['centroid'][:,np.newaxis]
                 weights = fine*self.intermediates[width]['subtracted']*self.intermediates[width]['extractMask']
@@ -322,8 +334,9 @@ class Aperture(Talker):
 
                 self.extracted[width]['peak'] = np.max(self.intermediates[width]['extractMask']*image, self.sindex)
 
-                for k in ['centroid', 'width', 'peak']:
-                    assert(np.isfinite(self.extracted[width][k]).all())
+                # KLUDGE -- am I definitely catching this error later?
+                #for k in ['centroid', 'width', 'peak']:
+                #    assert(np.isfinite(self.extracted[width][k]).all())
             else:
                 self.extracted[width]['raw_counts'] = np.nansum(self.intermediates[width]['extractMask']*image/self.images['NormalizedFlat'], self.sindex)
                 # this is a kludge, to make the plotting look better for arcs
@@ -347,7 +360,7 @@ class Aperture(Talker):
   def setupVisualization(self):
         self.thingstoplot = ['raw_counts']#['sky', 'width',  'raw_counts']
         height_ratios = np.ones(len(self.thingstoplot) + 2)
-        suptitletext = '{}, CCD{:04.0f}'.format(self.name, self.exposureprefix)
+        suptitletext = '{}, {}'.format(self.name, self.exposureprefix)
         try:
             self.suptitle.set_text(suptitletext)
             self.plotted
@@ -586,10 +599,10 @@ class Aperture(Talker):
 
 
 
-  def addWavelengthCalibration(self, n, remake=False):
+  def addWavelengthCalibration(self, exposureprefix, remake=False):
       '''just redo the wavelength calibration'''
       # point at this CCD number
-      self.exposureprefix = n
+      self.exposureprefix = exposureprefix
 
       # only load and redo if supersampled doesn't exist
       if remake or not os.path.exists(self.supersampledFilename):

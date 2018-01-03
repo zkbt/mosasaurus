@@ -25,3 +25,4 @@ o = Observation(t, i, n)
 # create a reducer to analyze this observation
 from mosasaurus.Reducer import Reducer
 r = Reducer(o, visualize=False)
+r.reduce()

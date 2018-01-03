@@ -22,10 +22,11 @@ class Observation(Talker):
         mkdir(self.directory)
 
         # set up the observation with the prefixes it will need
-        self.setupFilePrefixes()
+        try:
+            self.setupFilePrefixes()
+        except ValueError:
+            self.speak('Hmmmmm...something funny happened with default file prefix choices. Please specify them by hand.')
 
-        # load a table of all the headers
-        self.loadHeaders()
 
     def __repr__(self):
         '''How should this object be represented as a string?'''
@@ -73,8 +74,13 @@ class Observation(Talker):
 
                 # create a list of filenames
                 if k in strategy.keys():
-                    # do something custom
-                    pass
+
+                    # if the strategy is a string, then just look for that
+                    if type(strategy[k]) == list:
+                        wordstosearchfor = strategy[k]
+
+                    # add other options?
+
                 else:
                     # find exposures where
                     if k == 'science':
@@ -84,11 +90,11 @@ class Observation(Talker):
                     else:
                         wordstosearchfor = self.instrument.wordstosearchfor[k]
 
-                    match = self.night.find(wordstosearchfor, self.instrument.keytosearch)
-                    self.exposures[k] = self.night.log[match]
-                    self.exposures[k].meta['comments'] = ['mosasaurus will treat these as [{}] exposures for {}'.format(k, self), '']
-                    self.exposures[k].write(fileofiles, **tablekw)
-                    self.speak('saved list of [{}] files to {}'.format(k, fileofiles))
+                match = self.night.find(wordstosearchfor, self.instrument.keytosearch)
+                self.exposures[k] = self.night.log[match]
+                self.exposures[k].meta['comments'] = ['mosasaurus will treat these as [{}] exposures for {}'.format(k, self), '']
+                self.exposures[k].write(fileofiles, **tablekw)
+                self.speak('saved list of [{}] files to {}'.format(k, fileofiles))
 
         # give the user a chance to modify the initial (probably bad) guesses for which filenames to use
         if somethingisnew:
@@ -110,6 +116,10 @@ class Observation(Talker):
 
             # make the array indexable by the fileprefix
             self.exposures[k].add_index('fileprefix')
+
+
+        # load a table of all the headers
+        self.loadHeaders()
         '''
         # modify these to make some guesses -- will need to know the mask name for science data
         self.nReference = np.arange(int(dictionary['nReference'][0]), int(dictionary['nReference'][1])+1)

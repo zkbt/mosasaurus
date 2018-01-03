@@ -322,6 +322,7 @@ class Cube(Talker):
               #self.cubes['ok'][star][widthkey] *= (self.cubes['peak'][star][widthkey] < satlimit)
 
               # mark things exceed the cosmic threshold as not cool
+              
               cosmics = self.squares['cosmicdiagnostic'][star][widthkey]
               self.cubes['ok'][star][widthkey] *= cosmics[:,np.newaxis] < self.obs.cosmicAbandon
               # (DOUBLE CHECK THIS ISN'T A KLUDGE!)

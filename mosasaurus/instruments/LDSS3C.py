@@ -149,6 +149,10 @@ class LDSS3C(Spectrograph):
         self.databottom = 0
         self.datatop = 2048
 
+        # set up the size of the image
+        self.xsize = self.namps*(self.dataright - self.dataleft)
+        self.ysize = (self.datatop - self.databottom)
+
         # what are the calibrations we should expect
         self.detectorcalibrations = ['dark', 'bias', 'flat']
 
@@ -201,9 +205,12 @@ class LDSS3C(Spectrograph):
         self.extractiondefaults['skyWidth'] = 10
         # required minimum gap between extraction and sky apertures
         self.extractiondefaults['skyGap'] = 2
-
+        # should we try to zap cosmic rays?
+        self.extractiondefaults['zapcosmics'] = False
+        
         # what are the kinds of images extractions can work with
         self.extractables = ['science', 'reference']
+
 
     def setupDirectories(self,
             baseDirectory='/Users/zkbt/Cosmos/Data/Magellan/LDSS3/',
