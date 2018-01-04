@@ -2,6 +2,7 @@
 # create an instrument with the appropriate settings
 from mosasaurus.instruments import LDSS3C
 i = LDSS3C(grism='vph-red')
+i.extractiondefaults['zapcosmics'] = False
 i.summarize()
 
 # create a night to analyze

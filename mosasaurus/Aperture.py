@@ -205,14 +205,11 @@ class Aperture(Talker):
 
   @property
   def extractedFilename(self):
-      try:
-          return os.path.join(self.directory, 'extracted{0:04}.npy'.format(self.exposureprefix))
-      except ValueError:
-          return os.path.join(self.directory, 'extracted_{}.npy'.format(self.exposureprefix))
+      return os.path.join(self.directory, 'extracted_{}.npy'.format(self.exposureprefix))
 
   @property
   def supersampledFilename(self):
-      return os.path.join(self.directory, 'supersampled{0:04}.npy'.format(self.exposureprefix))
+      return os.path.join(self.directory, 'supersampled{}.npy'.format(self.exposureprefix))
 
   def loadExtracted(self, n):
     self.exposureprefix = n
@@ -657,9 +654,9 @@ class Aperture(Talker):
             try:
                 self.supersampled['wavelength']
             except:
-                if self.obs.grism == 'vph-all':
+                if self.instrument.grism == 'vph-all':
                     commonwavelength = np.arange(4000, 10500)
-                elif self.obs.grism == 'vph-red':
+                elif self.instrument.grism == 'vph-red':
                     commonwavelength = np.arange(5000, 10500)
 
                 # calculate the number of pixels that go into each wavelength bin
@@ -684,7 +681,7 @@ class Aperture(Talker):
                     widthkey = '{:04.1f}px'.format(width)
                     combinedkey = key + '_' + widthkey
 
-                    self.supersampled[combinedkey] = zachopy.oned.supersample(wavelength, self.extracted[width][key], self.supersampled['wavelength'])
+                    self.supersampled[combinedkey] = zachopy.resample.fluxconservingresample(wavelength, self.extracted[width][key], self.supersampled['wavelength'])
 
                     # set up the plots
                     if self.visualize:

@@ -25,7 +25,7 @@ import scipy.interpolate, scipy.signal, scipy.integrate
 #from numpy.polynomial import polynomial as P
 
 # ... to use utilities from the zachopy toolbox
-import zachopy.regions, zachopy.displays.iplot, zachopy.oned, zachopy.twod, zachopy.cmaps
+import zachopy.regions, zachopy.displays.iplot, zachopy.oned, zachopy.twod, zachopy.cmaps, zachopy.resample
 
 # load tools to interface with ds9
 #from zachopy.displays.ds9 import ds9 as zachods9

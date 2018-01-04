@@ -25,14 +25,17 @@ class WavelengthCalibrator(Talker):
 
     @property
     def wavelengthprefix(self):
+        '''Create the start of a filename to store wavelength calibration information.'''
         return os.path.join(self.aperture.directory, '{0}_'.format(self.aperture.name))
 
     @property
     def calibrationfilename(self):
+        '''Filename to store the wavelength calibration.'''
         return self.wavelengthprefix + 'wavelengthcalibration.npy'
 
     @property
     def waveidfilename(self):
+        '''Filename to store the identified wavelength matches for this solution.'''
         return self.wavelengthprefix + 'waveids.txt'
 
     def loadWavelengthIdentifications(self, restart=False):
@@ -55,9 +58,9 @@ class WavelengthCalibrator(Talker):
             self.speak('no custom wavelength-to-pixel files found')
 
             # load the default for this grism, as set in obs. file
-            d = astropy.io.ascii.read(self.aperture.obs.wavelength2pixelsFile)
+            d = astropy.io.ascii.read(self.aperture.instrument.wavelength2pixelsFile)
             self.rawwaveids = d[['pixel', 'wavelength', 'name']]
-            self.rawwaveids['pixel'] /= self.aperture.obs.binning
+            self.rawwaveids['pixel'] /= self.aperture.instrument.binning
 
             # use a cross-corrlation to find the rough offset
             #  (the function call will define waveids)
@@ -70,7 +73,7 @@ class WavelengthCalibrator(Talker):
 
             # keep track of whcih waveid file is used
             self.whichwaveid = 'Default ({0})'.format(
-                self.aperture.obs.wavelength2pixelsFile.split('/')[-1])
+                self.aperture.instrument.wavelength2pixelsFile.split('/')[-1])
 
 
         self.speak('loaded {0}:'.format(self.whichwaveid))
@@ -162,7 +165,7 @@ class WavelengthCalibrator(Talker):
             yPeak = [p['intensity'] for p in self.peaks[element]]
 
             # create fake spectra using the line positions (reference + new)
-            x = np.arange(-self.aperture.obs.ysize,self.aperture.obs.ysize)
+            x = np.arange(-self.aperture.instrument.ysize,self.aperture.instrument.ysize)
 
             myPeaks, theirPeaks = np.zeros(len(x)), np.zeros(len(x))
             # create fake spectrum of their peaks
@@ -228,7 +231,7 @@ class WavelengthCalibrator(Talker):
             plt.setp(ax.get_xticklabels(), visible=True)
             ax.set_xlabel('Pixel Position')
             fontsize = 8
-            self.ax_wavecor[self.elements[0]].set_title('cross correlation peaks at \n{0} pixels ({1}x{1} binned pixels)'.format(self.peakoffset, self.aperture.obs.binning), fontsize=fontsize)
+            self.ax_wavecor[self.elements[0]].set_title('cross correlation peaks at \n{0} pixels ({1}x{1} binned pixels)'.format(self.peakoffset, self.aperture.instrument.binning), fontsize=fontsize)
             self.ax_waverough[self.elements[0]].set_title(
             'Coarse Wavelength Alignment\nfor ({0:0.1f},{1:0.1f})'.format(
                  self.aperture.x, self.aperture.y),fontsize=fontsize)

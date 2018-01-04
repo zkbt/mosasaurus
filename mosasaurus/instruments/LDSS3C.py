@@ -207,7 +207,7 @@ class LDSS3C(Spectrograph):
         self.extractiondefaults['skyGap'] = 2
         # should we try to zap cosmic rays?
         self.extractiondefaults['zapcosmics'] = False
-        
+
         # what are the kinds of images extractions can work with
         self.extractables = ['science', 'reference']
 
