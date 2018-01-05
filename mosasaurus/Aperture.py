@@ -209,7 +209,7 @@ class Aperture(Talker):
 
   @property
   def supersampledFilename(self):
-      return os.path.join(self.directory, 'supersampled{}.npy'.format(self.exposureprefix))
+      return os.path.join(self.directory, 'supersampled_{}.npy'.format(self.exposureprefix))
 
   def loadExtracted(self, n):
     self.exposureprefix = n
@@ -274,7 +274,7 @@ class Aperture(Talker):
             self.speak('extracting spectrum for width of {}'.format(width))
             self.intermediates[width]['extractMask'] = self.trace.extractionmask(width)
             if arc:
-                self.intermediates[width]['extractMask'] *= self.images['RoughLSF']
+                self.intermediates[width]['extractMask'] = self.intermediates[width]['extractMask']*self.images['RoughLSF']
                 self.speak('using a Gaussian approximation to the line-spread function (for arc extraction)', 2)
 
             # load the appropriate sky estimation mask

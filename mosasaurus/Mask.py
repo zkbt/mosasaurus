@@ -121,7 +121,8 @@ class Mask(Talker):
         a = Aperture(x,y,self)
         self.apertures.append(a)
 
-      if visualize:
+      filename = os.path.join(self.reducer.extractionDirectory, 'genericfinderchart.pdf')
+      if visualize and (os.path.exists(filename) == False):
         # create a finder chart of apertures
         self.loupe = self.reducer.display
         self.loupe.one(self.calib.images['reference'])
@@ -133,7 +134,6 @@ class Mask(Talker):
 
 
           #r.addBox(a.xbox, a.ybox, a.wbox, a.hbox, color='green')
-        filename = os.path.join(self.reducer.extractionDirectory, 'genericfinderchart.pdf')
         plt.savefig(filename)
         self.speak('saved finder chart to {}'.format(filename))
 

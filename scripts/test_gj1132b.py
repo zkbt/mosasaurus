@@ -27,3 +27,9 @@ o = Observation(t, i, n)
 from mosasaurus.Reducer import Reducer
 r = Reducer(o, visualize=False)
 r.reduce()
+
+from mosasaurus.Cube import Cube
+c = Cube(o, max=10)
+#c.listWidths()
+#c.populate(shift=False)
+#c.setStars(target=0, comparisons=[1])

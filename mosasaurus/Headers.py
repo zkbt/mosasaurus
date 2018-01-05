@@ -61,7 +61,7 @@ class Headers(Talker):
 
        # create a dictionary of lists, to contain each key for all headers
        d = {}
-       d['n'] = []
+       d['n'], d['fileprefix'] = [], []
        for k in keys:
            d[k] = []
 
@@ -71,6 +71,7 @@ class Headers(Talker):
            # get a number associated with this file
            n = self.obs.instrument.prefix2number(prefix)
            d['n'].append(n)
+           d['fileprefix'].append(prefix)
 
            # what is one file associated with this
            filename = os.path.join(self.obs.night.dataDirectory, self.obs.instrument.prefix2files(prefix)[0])
@@ -82,7 +83,7 @@ class Headers(Talker):
                d[k].append(header[k])
 
        # convert the dictionary of lists into a table
-       self.headers = astropy.table.Table(d)[keys]
+       self.headers = astropy.table.Table(d)[ ['n', 'fileprefix'] + keys]
        print(self.headers)
 
        # convert times into more useful ones (including BJD)

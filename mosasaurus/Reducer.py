@@ -70,11 +70,20 @@ class Reducer(Talker):
         Process 2D multiobject spectral images into 1D spectra.
         '''
 
-        self.speak('starting reductions for {}'.format(self.obs))
+        filename = os.path.join(self.extractionDirectory, 'reductionstatus.txt')
 
-        # set up the calibrations and mask
-        self.calib.setup()
-        self.mask.setup()
+        if os.path.exists(filename):
+            self.speak('reduction in {} is already complete!'.format(self.extractionDirectory))
+        else:
+            self.speak('starting reductions for {}'.format(self.obs))
 
-        # loop over exposures and apertures
-        self.mask.extractEverything(remake=remake)
+            # set up the calibrations and mask
+            self.calib.setup()
+            self.mask.setup()
+
+            # loop over exposures and apertures
+            self.mask.extractEverything(remake=remake)
+
+            # write out that we're finished
+            with open(filename, 'w') as f:
+                f.write('Reduction was a success. Huzzah!')

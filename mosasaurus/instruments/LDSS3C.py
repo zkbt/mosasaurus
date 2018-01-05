@@ -211,6 +211,11 @@ class LDSS3C(Spectrograph):
         # what are the kinds of images extractions can work with
         self.extractables = ['science', 'reference']
 
+        # we're going to cross-correlate the spectra within this wavelength range
+        self.extractiondefaults['correlationAnchors'] = [8498.0, 8542.0, 8662.0]
+        self.extractiondefaults['correlationRange'] = [8350, 8800]
+        self.extractiondefaults['correlationSmooth'] = 2
+
 
     def setupDirectories(self,
             baseDirectory='/Users/zkbt/Cosmos/Data/Magellan/LDSS3/',
