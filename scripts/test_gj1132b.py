@@ -29,7 +29,9 @@ r = Reducer(o, visualize=False)
 r.reduce()
 
 from mosasaurus.Cube import Cube
-c = Cube(o, max=10)
+c = Cube(o)
+c.populate(shift=False)
+c.movieCube(stride=1, figsize=(12,8))
 #c.listWidths()
 #c.populate(shift=False)
 #c.setStars(target=0, comparisons=[1])
