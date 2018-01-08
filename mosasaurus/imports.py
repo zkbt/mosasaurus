@@ -26,6 +26,7 @@ import scipy.interpolate, scipy.signal, scipy.integrate
 
 # ... to use utilities from the zachopy toolbox
 import zachopy.regions, zachopy.displays.iplot, zachopy.oned, zachopy.twod, zachopy.cmaps, zachopy.resample
+from zachopy.resample import fluxconservingresample
 
 # load tools to interface with ds9
 #from zachopy.displays.ds9 import ds9 as zachods9

@@ -26,12 +26,16 @@ o = Observation(t, i, n)
 # create a reducer to analyze this observation
 from mosasaurus.Reducer import Reducer
 r = Reducer(o, visualize=False)
+r.visualize = True
 r.reduce()
 
 from mosasaurus.Cube import Cube
-c = Cube(o)
+c = Cube(o, width=6)
 c.populate(shift=False)
-c.movieCube(stride=1, figsize=(12,8))
+c.setStars(target='aperture_100_809', comparisons=['aperture_693_656'])
+c.shiftCube(plot=True)
+#c.nudgeWavelengths()
+#c.movieCube(stride=1, figsize=(12,8))
 #c.listWidths()
 #c.populate(shift=False)
-#c.setStars(target=0, comparisons=[1])
+#

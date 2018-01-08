@@ -1,5 +1,6 @@
 from .imports import *
 from .Observation import Observation
+from numpy.polynomial import Legendre
 
 cubehelp = '''
 Independental measured variables:
@@ -98,8 +99,8 @@ class Cube(Talker):
     self.reducer = self.obs.reducer
 
     # the temporary filename for the cube
-    self.tempfilename = os.path.join(self.reducer.extractionDirectory, 'tempSpectralCube.npy')
-    self.cubekeys = ['sky',  'centroid', 'width', 'peak', 'raw_counts']
+    self.tempfilename = os.path.join(self.directory, 'tempSpectralCube.npy')
+    self.cubekeys = ['raw_counts', 'sky',  'centroid', 'width', 'peak']
 
     # what attributes are savable/loadable?
     self.savable = ['cubes', 'squares', 'temporal', 'spectral', 'stellar']
@@ -118,16 +119,41 @@ class Cube(Talker):
         self.speak('Yikes! Nobody set an extraction width with which to create this cube!')
         self.listWidths()
         width = np.float(self.input("What width would you like? [as a number]"))
+
     self.width = width
 
+  def __repr__(self):
+      return '<Cube of {} Spectra for {} Stars for {}>'.format(self.numberoftimes, self.numberofstars, self.obs)
+
+  # keep - shortcut for this cube's directory
+  @property
+  def directory(self):
+    return self.reducer.extractionDirectory
+
+  # keep - lists the stars that are available (and shows finder chart)
+  def listStars(self):
+    '''
+    List the available stars for this cube,
+    and open the finder chart.
+    '''
+    self.speak('the stars available for {} are'.format(self.obs))
+    for s in self.stars:
+        self.speak("   '{}'".format(s))
+    self.speak('as shown in the finder chart')
+    os.system('open {}'.format(os.path.join(self.directory, 'genericfinderchart.pdf')))
+
   # keep - setting which stars to use as comparisions
-  def setStars(self, target=0, comparisons=[1], other=None):
+  def setStars(self, target=None, comparisons=[1], other=None):
     '''
     Decide with stars should be used as
     the target, the comparison[s], or something else.
     '''
 
-    # this should be just one star
+    if target == None:
+        self.listStars()
+        raise ValueError("Please specify the target and comparison(s).")
+
+    # this should be just one star (with a string name)
     self.target = target
 
     # these can be one or more stars (and we'll make sure they're 1D arrays)
@@ -178,11 +204,14 @@ class Cube(Talker):
             # otherwise, load individual spectra an populate this cube
             self.loadSpectra(remake=remake, max=max, visualize=visualize)
 
+    # make some summary images of this cube
+    #self.imageCube()
+
   # keep - shortcut for the star directories
   @property
   def starDirectories(self):
       '''return the absolute paths of all star directories created for this mask'''
-      return glob.glob(os.path.join(self.reducer.extractionDirectory, 'aperture_*'))
+      return glob.glob(os.path.join(self.directory, 'aperture_*'))
 
   # keep - the filename of this cube, based on lots of parameters
   @property
@@ -196,7 +225,7 @@ class Cube(Talker):
         self.numberoftimes,
         self.widthkey.replace('.0', ''),
         s[self.shift])
-    return os.path.join(self.reducer.extractionDirectory, name)
+    return os.path.join(self.directory, name)
 
   # keep - a short cut for the stars that are present in the cube
   @property
@@ -255,8 +284,14 @@ class Cube(Talker):
         for istar, star in enumerate(self.stars):
 
           # find the available spectrum
-          spectrumFile = os.path.join(self.starDirectories[istar], 'supersampled_{0}.npy'.format(fileprefix))
-          extractedFile = os.path.join(self.starDirectories[istar], 'extracted_{0}.npy'.format(fileprefix))
+
+          # use the updated wavelengths if we're looking at the shifted cube
+          if self.shift:
+            extractedFile = os.path.join(self.starDirectories[istar], 'updatedwavelengthextracted_{0}.npy'.format(fileprefix))
+            spectrumFile = os.path.join(self.starDirectories[istar], 'updatedwavelengthsupersampled_{0}.npy'.format(fileprefix))
+          else:
+            extractedFile = os.path.join(self.starDirectories[istar], 'extracted_{0}.npy'.format(fileprefix))
+            spectrumFile = os.path.join(self.starDirectories[istar], 'supersampled_{0}.npy'.format(fileprefix))
 
           self.speak('trying to load {0}'.format(spectrumFile))
           # load the extracted spectrum (or truncate the cubes at this point)
@@ -275,18 +310,16 @@ class Cube(Talker):
           try:
             # have I already loaded these ingredients?
             self.spectral['wavelength']
-            self.spectral['dnpixelsdw']
+            self.spectral['fractionofapixel']
             self.numberofwavelengths
           except (KeyError,AttributeError):
             # define some useful arrays
             self.spectral['wavelength'] = supersampled['wavelength']
-            self.spectral['dnpixelsdw'] = supersampled['dnpixelsdw']
+            self.spectral['fractionofapixel'] = supersampled['fractionofapixel']
             self.numberofwavelengths = len(self.spectral['wavelength'])
 
           # make sure the wavelength grid matches what we've stored (should be same across all stars)
           assert((self.spectral['wavelength'] == supersampled['wavelength']).all())
-          #finite = np.isfinite(self.spectral['dnpixelsdw'])
-          #assert((self.spectral['dnpixelsdw'][finite] == supersampled['dnpixelsdw'][finite]).all())
 
           # loop over the measurement types and populate the cubes
           for key in self.cubekeys + ['ok']:
@@ -328,7 +361,7 @@ class Cube(Talker):
               except KeyError:
                   self.squares[key][star] = np.zeros(self.numberoftimes).astype(np.float32)
 
-              self.squares[key][star][timepoint] = np.median(extracted[self.width][key])
+              self.squares[key][star][timepoint] = np.nanmedian(extracted[self.width][key])
               self.speak("updating squares['{key}']['{star}'][{timepoint}]".format(**locals()))
 
         # if we've run out of spectra, then break out of the loop (with truncated cubes)
@@ -390,11 +423,10 @@ class Cube(Talker):
           self.__dict__[thing] = loaded[thing]
           self.speak('  loading [{0}] from the saved cube structure'.format(thing))
       self.numberofstars = len(self.stellar['aperture'])
-      self.numberofwavelengths = len(self.spectral)
+      self.numberofwavelengths = len(self.spectral['wavelength'])
       self.numberoftimes = len(self.temporal)
 
-
-  # ??????
+  # keep - automated tool to package this observation into a nice directory
   def packageandexport(self):
       '''make a tidy package that contains necessary information for sending to someone else'''
 
@@ -428,6 +460,437 @@ class Cube(Talker):
       for c in commandstorun:
           print(c)
           os.system(c)
+
+  @property
+  def cubeMegaComparison(self):
+    '''
+    Return a fake cube entry for an combined mega-comparison star.
+    '''
+    if len(self.comparisons) == 1:
+        d = {}
+        star = self.comparisons[0]
+        for key in self.cubes.keys():
+            d[key] = self.cubes[key][star]
+        return d
+    else:
+        raise NameError("Darn it -- the mega-comparison hasn't been implemented yet!")
+
+  # keep - makes tidy image plots of spectral quantities
+  def imageCube(self, normalized=False, remake=False):
+    '''
+    Show an imshow of every cube key.
+    '''
+
+    # we'll plot various types of images
+    options = {
+                'raw':'Raw Extracted Quantities',
+                'wavelength':'Wavelength-normalized Quantities',
+                'comparison':'Comparison-divided Quantities'
+              }
+
+    for option, description in options.items():
+        filename = os.path.join(self.directory, 'imagedcube_{}.pdf'.format(option))
+        if os.path.exists(filename) and (remake == False):
+            continue
+        nrows = len(self.cubekeys)
+        ncols = len(self.stars)
+
+        fi, ax = plt.subplots(nrows, ncols,
+                                sharex=True, sharey=True, figsize=(12,8),
+                                gridspec_kw=dict(hspace=0.1, wspace=0.02))
+        plt.suptitle('{}, [width={}]\n{}'.format(description, self.widthkey, self.obs))
+
+        w = self.spectral['wavelength']
+        t = np.arange(self.numberoftimes)
+
+        # set up the imshow parameters
+        imkw = dict(
+            extent = [np.min(w), np.max(w), np.min(t), np.max(t)],
+            cmap = 'gray',
+            interpolation='nearest',
+            aspect = 'auto',
+            origin = 'lower'
+        )
+
+        for i, key in enumerate(self.cubekeys):
+            for j, star in enumerate(self.stars):
+                a = ax[i,j]
+
+
+                if option == 'raw':
+                    # don't modify the measurements at all
+                    self.speak('displaying the raw measurements for {}'.format(key))
+                    z = self.cubes[key][star]
+
+                if option == 'wavelength':
+                    # normalize along the wavelength axis
+                    self.speak('displaying the measurements normalized by their median spectrum for {}'.format(key))
+                    z = self.cubes[key][star]
+                    oned = np.median(z, 0)
+                    z = z/oned[np.newaxis,:]
+
+                if option == 'comparison':
+                    # divide by the comparison star[s]
+
+                    self.speak('displaying the measurements divided by the comparison[s] for {}'.format(key))
+                    target = self.cubes[key][star]
+                    comparison = self.cubeMegaComparison[key]
+                    z = target/comparison
+                    oned = np.median(z, 0)
+                    z = z/oned[np.newaxis,:]
+
+                vmin, vmax = np.percentile(z, [1,99])
+                a.imshow(z, vmin=vmin, vmax=vmax, **imkw)
+
+                # fuss with the axis labels
+                if j == 0:
+                    a.set_ylabel('{}\n(timepoints)'.format(key))
+                else:
+                    plt.setp(a.get_yticklabels(), visible=False)
+                if i == 0:
+                    a.set_title('{}'.format(star))
+
+                if i == (len(self.cubekeys)-1):
+                    a.set_xlabel('Wavelength (angstroms)')
+                else:
+                    plt.setp(a.get_xticklabels(), visible=False)
+
+        filename = os.path.join(self.directory, 'imagedcube_{}.pdf'.format(option))
+        plt.savefig(filename)
+        self.speak('saved image of this cube to {}'.format(filename))
+
+
+  def nudgeWavelengths(self):
+    '''
+    This function loops through the extracted*.npy files
+    and determines corrected wavelength solutions that will match up
+    their lines. It writes a new array of wavelengths for each,
+    into a file that aligns with the original extracted file.
+
+    (Can be run before an unshifted cube is populated.)
+
+    The code for this was developed by Hannah Diamond-Lowe.
+
+    '''
+
+    def align_lines(stars, line_range, offset, line_pos, line_poses, plot=False):
+        '''
+        This function takes
+            stars:    the extracted*.npy file
+            line_range:    the pre-determined fixed alignment range for a given feature to use for the alignment
+            offset:   how many angstroms to shift over when performing the cross-correlation of a given feature in a spectrum
+            line_pos:    a list that this function will append values to; amount of shift in wavelength space for each star width
+            line_poses:    a list of line_pos lists; amount of shifts in wavelength space for each star with all its widths
+            plot:  do you want plots to pop up? (T/F)
+
+        This code assumes that the stellar spectra may shift slowly throughout the night but do not suddenly jump around from one exposure to the next.
+
+        '''
+
+        #### ZKBT: pulling out starmaster from the end of stars?
+        starmaster = stars[-1]
+
+        # find the wavelengths between the wavelength range of the feature for the master star
+        idxmaster = (starmaster['wavelength']>=line_range[0])*(starmaster['wavelength']<=line_range[1])
+        # get the corresponding values from raw_counts; this will be the main thing to correlate against
+        corrmaster = starmaster[width]['raw_counts'][idxmaster]
+
+        ####### KLUDGE?????
+        # corrmaster = zachopy.oned.subtractContinuum(corrmaster, n=2) + 0.0
+
+        # this is where the "true" value of the line is; i.e., the reference position on the master spectrum
+        line = starmaster['wavelength'][idxmaster][0]
+        # where that line falls in pixel space; uses the wavelength solution from mosasaurus
+        linepx = np.interp(line, starmaster['wavelength'], starmaster['w'])
+
+        # list of stars is the stars from "aperture" in mosasaurus, plus the master star appended at the end
+        for s in range(len(stars)):
+
+            if (plot) and (s != (len(stars)-1)): self.speak('checking correlations for {}'.format(self.stars[s]))
+
+            # find the wavelengths between the wavelenth range of the feature for this particular star
+            idxstar = (stars[s]['wavelength']>=line_range[0])*(stars[s]['wavelength']<=line_range[1])
+            # this is the spectrum of the star that you want to correlate to the master
+            corrstar = stars[s][width]['raw_counts']
+            ####### KLUDGE?????
+            # corrstar = zachopy.oned.subtractContinuum(corrstar) + 0.0
+
+            # need to know now many wavelengths are being covered
+            arraylen = len(np.where(idxmaster)[0])
+            # this is the pixel where we will start the shift
+            initpx = np.where(idxstar)[0][0] - offset
+            #if corrstar[initpx] == 0.0:
+            #    initpx = np.where(corrstar != 0.)[0][0]
+            #    corrmaster = wavemaster[initpx+offset:initpx+offset+arraylen]
+            # empty lists for the correlation coeffients and the actual pixel shifts
+            corrs, shifts = [], []
+
+            # set the number of shifts you will try in the cross correlation; the finer the shift the more accurate everything will be but it will take longer
+            for shift in np.linspace(0, arraylen+offset, (arraylen+offset)*10+1):
+                # this is to make sure we're not losing counts at the ends of pixels when we're shifting by sub-pixels
+                newbit = shift%1
+                therest = 1 - newbit
+                startpx = int(np.floor(shift))
+                # create the array at the sub-pixel level that will be compared to the master star feature
+                corrarray = corrstar[initpx+startpx : initpx+startpx+arraylen]*therest + corrstar[initpx+startpx+1 : initpx+startpx+arraylen+1]*newbit
+                #if shift == 0:
+                #    plt.plot(corrmaster)
+                #    plt.plot(corrarray)
+                #    plt.show()
+                corrs.append(np.corrcoef(corrmaster, corrarray)[0,1])
+                shifts.append(corrarray)
+
+            if plot == True and (s != len(stars)-1):
+                # can inspect where the code thinks the peak of the correlation is (careful! it doesn't always pick the right one!)
+                #print('1st corr')
+                color = self.starcolor(self.stars[s])
+                plt.plot(corrs, color=color)
+                plt.axvline(np.where(corrs == np.max(corrs))[0], color=color)
+                plt.title(str(line_range))
+                plt.xlim(0,400)
+                #plt.draw()
+                #plt.show()
+                #a = input('hmmm?')
+
+            # try a shift based on the correlation coefficients
+            # this first try may be wrong so we have to compare to past shifts
+            firstshiftind = np.where(corrs == np.max(corrs))[0][0]
+            firstrange = np.linspace(0, arraylen+offset, (arraylen+offset)*10+1)
+            firstshift = firstrange[firstshiftind]
+            # offset should be reasonably small since we assume the spectral features do not suddenly jump around from one exposure to the next
+            if len(line_poses) < 13:
+                while ((firstshift - offset) > 5.) or ((firstshift - offset) < -5.):
+                    self.speak('doing an extra correlation {}: {}'.format(line_range, firstshift-offset))
+                    currentmaxind = np.where(corrs == np.max(corrs))
+                    # delete the correlation coefficient that is the maximum but is not providing a reasonably small shift
+                    corrs = np.delete(corrs, currentmaxind)
+                    # find a new shift value
+                    firstshiftind = np.where(corrs == np.max(corrs))[0][0]
+                    firstshift = firstrange[firstshiftind]
+                    if ((firstshift - offset) < 5.) and ((firstshift - offset) > -5.) and plot == True and s != len(stars)-1:
+                        color = self.starcolor(self.stars[s])
+                        plt.plot(corrs, color=color)
+                        plt.axvline(np.where(corrs == np.max(corrs))[0], color=color)
+                        assert(False)
+                        #plt.title(str(line_range))
+                        #plt.show()
+
+            # once we have made enough reasonably small shifts we can use past shifts to determine whether or not the next shift is a reasonable jump
+            # there is probably a better way to do this... like going through the whole thing and then looking for outliers
+            else:
+                # look at the last 13 shifts in line position for this particular star
+                med = np.median(np.array(line_poses)[:, s][-13:] - np.array(line_poses)[:, -1][-13:])
+                std = np.std(np.array(line_poses)[:, s][-13:] - np.array(line_poses)[:, -1][-13:])
+                # this is apparently a good number of sigma to go by
+                timesstd = 22
+                # eventually the value that gets save in line_poses is a wavelength; make the transformation into wavelength space so that we can compare the current shift to the previous ones
+                if (pxtowavemaster(linepx + firstshift - offset)-line > (med + timesstd*std)) or (pxtowavemaster(linepx + firstshift - offset)-line < (med - timesstd*std)):
+                    print('range: ', med - timesstd*std, '-', med + timesstd*std, pxtowavemaster((linepx + firstshift - offset))-line)
+                    print('stddev corr', line_range)
+                    corrind = np.where((pxtowavemaster(linepx + firstrange - offset)-line >= (med - timesstd*std)) & (pxtowavemaster(linepx + firstrange - offset)-line <= (med + timesstd*std)))
+                    corrsclipped = np.array(corrs)[corrind]
+                    firstshiftind = np.where(corrsclipped == np.max(corrsclipped))[0][0] + corrind[0][0]
+                    firstshift = firstrange[firstshiftind]
+                    #if plot == True and s != len(stars)-1:
+                    #    #plt.figure('something - ' + str(line_range))
+                    #    plt.plot(corrs, color='orange')
+                    #    plt.axvline(np.where(corrsclipped == np.max(corrsclipped))[0][0] + corrind[0][0], color='orange')
+
+            # interpolate shift using a parabola to find the true peak cross correlation value
+            parabinds = range(firstshiftind-2,firstshiftind+3)
+            parabrange = np.linspace(parabinds[0], parabinds[-1], 100*(len(parabinds)-1))
+            parabfit = np.polyfit(parabinds, np.array(corrs)[parabinds], 2)
+            parabfit1d = np.poly1d(parabfit)
+            parabcorrs = parabfit1d(parabrange)
+            parabshiftind = np.where(parabcorrs == np.max(parabcorrs))[0]
+            parabshift = parabrange[parabshiftind]
+            #if plot == True:
+            #    plt.plot(parabinds, np.array(corrs)[parabinds])
+            #    plt.plot(parabrange, parabcorrs)
+            #    plt.axvline(parabshift)
+            #   plt.show()
+            frac = parabshift - firstshiftind
+            finalshift = firstshift + frac*np.median(np.diff(firstrange))
+
+            # transform all these shifts in pixel space into wavelength space
+            newlinepx = (linepx + finalshift - offset)[0]
+            newline = pxtowavemaster(newlinepx)
+            #print newline
+            # remember that the last "star" in the list is actually just the master spectrum; again, not sure why I did it this way
+            if s == len(stars)-1: line_pos.append(line)
+            else: line_pos.append(newline)
+            if plot == True: self.speak(' shift = {}'.format(finalshift - offset))
+            #print newline
+
+            # this was left-over from some test I did to see how much the GJ1132 spectrum was stretching/shifting throughout the night
+            #shift1132.append((starline+finalshift-offset)[0])
+
+            #newbit = finalshift%1
+            #therest = 1 - newbit
+            #startpx = int(np.floor(finalshift))
+            #newarray = corrstar[initpx+startpx:initpx+startpx+arraylen]*therest + corrstar[initpx+startpx+1:initpx+startpx+arraylen+1]*newbit
+
+            #if plot == True:
+            #    plt.plot(newarray, label=str(s))
+
+        #if plot == True:
+        #    plt.plot(corrmaster, label='corrmaster')
+        #    plt.title(str(line_range))
+        #    plt.legend()
+        #    plt.show()
+
+    # pick one star and exposures that will be the reference for all
+    # what's the master's directory
+    masterstar = self.stars[0]
+    masterexposure = self.obs.fileprefixes['science'][0]
+    aperturedirectory = os.path.join(self.directory, masterstar)
+    # what's the master star file?
+    starmasterstr = os.path.join(aperturedirectory,'extracted_{}.npy'.format(masterexposure))
+    starmaster = np.load(starmasterstr)[()]
+    self.speak('loaded {} as the master reference'.format(masterstar))
+
+    # load the original wavelength calibration
+    wavecalfile = os.path.join(aperturedirectory, '{}_wavelengthcalibration.npy'.format(masterstar))
+    coef, domain =  np.load(wavecalfile)[()]
+    self.speak('loaded {} as the original wavelength calibration file for {}'.format(wavecalfile, masterstar))
+
+
+    # reacreate the wavelength solution (way to go from pixel space to wavelength space) from mosasaurus
+    pxtowavemaster = Legendre(coef, domain)
+    # apertures form a given night (Need to have run mosasaurus in ipython or similar and then copy and paste this monster code in. This is not ideal.)
+    makeplot = False
+    ### UV_poses, O2_poses, Ca1_poses, Ca2_poses, Ca3_poses, H2O_poses = [], [], [], [], [], []
+    x_poses = []
+    #shifts_1132 = []
+
+    # the alignment ranges are set by the instrument and gratings
+    alignmentranges = self.obs.instrument.alignmentranges
+
+
+    plt.clf()
+
+    rangenames = alignmentranges.keys()
+    all_poses = {}
+    for k in alignmentranges.keys():
+        all_poses[k] = []
+    # Fixed alignment ranges for each prominent freature
+    ### align_UV = (6870, 6900)
+    ### align_O2 = (7580, 7650)
+    ### #align_H2Osmall = (8220, 8260)
+    ### align_Ca1 = (8490, 8525)
+    ### align_Ca2 = (8535, 8580)
+    ### align_Ca3 = (8650, 8700)
+    ### align_H2O = (9300, 9700)
+    for prefix in self.obs.fileprefixes['science']:
+        self.speak('checking line positions in {}'.format(prefix))
+        stars = []
+        for d in self.starDirectories:
+            extractedpathname = os.path.join(d, 'extracted_{}.npy'.format(prefix))
+            stars.append(np.load(extractedpathname)[()])
+        # append to the list of stars the master spectrum; not sure why I did it this way but we do need to know the "master" line position in wavelength space so we can later calculate how many wavelengths to shift over
+        stars.append(starmaster)
+
+        # loop over all the widths
+        widths = [x for x in stars[0].keys() if type(x) != str]
+        for width in widths:
+            # make a directory
+            corrdir = os.path.join(self.directory, 'correlations_{}'.format(width))
+            mkdir(corrdir)
+
+            self.speak('  aligning lines for [{:04.1f}px]'.format(width))
+
+            # the change in position of each of these features
+            ### UV_pos, O2_pos, Ca1_pos, Ca2_pos, Ca3_pos, H2O_pos = [], [], [], [], [], []
+            # NOW GO UP TO THE aling_star FUNCTION
+            #align_lines(stars, align_UV, 10, UV_pos, UV_poses, makeplot)
+            #align_lines(stars, align_O2, 20, O2_pos, O2_poses, makeplot)
+
+            # a dictionary to store the pos for each line
+            all_pos = {}
+            for k in rangenames:
+                all_pos[k] = []
+
+            if True:
+                plt.clf()
+                plt.figure('correlations', figsize=(20,3), dpi=30)
+                gs = plt.matplotlib.gridspec.GridSpec(1, len(rangenames),
+                            hspace=0.2, wspace=0.25, left=0.05, right=0.95)
+                self.ax_corr = {}
+
+            for i, k in enumerate(rangenames):
+
+                self.ax_corr[k] = plt.subplot(gs[i])
+                plt.xlabel('Offset')
+
+                temp = all_pos[k]
+                align_lines(stars, alignmentranges[k], 10, temp, all_poses[k], True)
+                all_pos[k] = temp
+                all_poses[k].append(all_pos[k])
+
+
+            pltfilename = os.path.join(corrdir, 'wavelengthcorrelations_{}.pdf'.format(prefix))
+            plt.savefig(pltfilename)
+            self.speak('saved plot to {}'.format(pltfilename))
+
+            ### align_lines(stars, align_Ca1, 10, Ca1_pos, Ca1_poses, makeplot)
+            ### align_lines(stars, align_Ca2, 10, Ca2_pos, Ca2_poses, makeplot)
+            ### align_lines(stars, align_Ca3, 10, Ca3_pos, Ca3_poses, makeplot)
+            ### align_lines(stars, align_H2O, 10, H2O_pos, H2O_poses, makeplot)
+
+            #UV_poses.append(UV_pos)
+            ### O2_poses.append(O2_pos)
+            ### Ca1_poses.append(Ca1_pos)
+            ### Ca2_poses.append(Ca2_pos)
+            ### Ca3_poses.append(Ca3_pos)
+            ### H2O_poses.append(H2O_pos)
+
+
+            # do some list re-arranging; we need to know what the shift and stretch in wavelength are for each star
+            # x_pos just means any of the feature positions we've calculated
+            # x_pos = np.array([O2_pos, Ca1_pos, Ca2_pos, Ca3_pos, H2O_pos])
+            x_pos = np.array([all_pos[k] for k in rangenames])
+
+            # here is where we remembered the master line position for each feature so we can subtract it off and know how much we moved
+            x_poses.append((x_pos.transpose() - x_pos[:, -1]).transpose())
+            known_wave = x_pos[:,-1]
+
+
+            for i in range(len(stars)-1):
+                # create a new list wavelength solution that goes from the wavelength mosasurus gives to the new wavelength we have moved to
+                fit = np.polyfit(x_pos[:,i], known_wave, 1)
+                fit1d = np.poly1d(fit)
+                # save the new wavelength array, as well as the coefficients so that we can re-create this fine-tuned wavelength solution later on in detrendersaurus
+                newwavelength = stars[i]['wavelength']
+                stars[i][width]['wavelength_adjusted'] = fit1d(newwavelength)
+                stars[i][width]['stretch'] = fit[0]
+                stars[i][width]['shift'] = fit[1]
+
+                if makeplot:
+                    color = self.starcolor(self.stars[i])
+                    plt.cla()
+                    plt.scatter(x_pos[:,i], known_wave - x_pos[:,i], color=color)
+                    plt.plot(newwavelength, fit1d(newwavelength) - newwavelength, label=self.stars[i], color=color)
+                    plt.xlabel('Original Wavelength (angstroms)')
+                    plt.ylabel('New - Original (angstroms)')
+                    dw = np.mean(known_wave - x_pos[:,i])
+                    plt.ylim(- 10, 10)
+                    plt.title(self.stars[i])
+
+                    # make a directory
+                    widthdir = os.path.join(self.starDirectories[i], 'wavelengthupdate_{}'.format(width))
+                    mkdir(widthdir)
+                    pltfilename = os.path.join(widthdir, 'wavelengthupdate_{}.pdf'.format(prefix))
+                    plt.savefig(pltfilename)
+                    self.speak('saved wavelength update plot to {}'.format(pltfilename))
+
+        #a = input("how is {}?".format(width))
+
+        for i in range(len(stars)-1):
+            adir = self.starDirectories[i]
+            newextractedpathname = os.path.join(adir, 'updatedwavelengthextracted_{}.npy'.format(prefix))
+            #newextractedpathname = os.path.join(adir, 'extracted_{}.npy'.format(prefix))
+            np.save(newextractedpathname, stars[i])
+            self.speak('saved updated wavelengths in {}'.format(newextractedpathname))
 
   # ??????? (not sure if I'm using this) ### FIX ME ###
   def markBad(self):
@@ -615,12 +1078,22 @@ class Cube(Talker):
 
       # set the filename based on whether cube was shifted
       if self.shift:
-          filename = os.path.join(self.reducer.extractionDirectory, 'shifted_cube_{0}stars_{1}spectra_{2}stride.mp4'.format(self.numberofstars, self.numberoftimes, stride))
+          filename = os.path.join(self.directory, 'shifted_cube_{0}stars_{1}spectra_{2}stride.mp4'.format(self.numberofstars, self.numberoftimes, stride))
       else:
-          filename = os.path.join(self.reducer.extractionDirectory, 'cube_{0}stars_{1}spectra_{2}stride.mp4'.format(self.numberofstars, self.numberoftimes, stride))
+          filename = os.path.join(self.directory, 'cube_{0}stars_{1}spectra_{2}stride.mp4'.format(self.numberofstars, self.numberoftimes, stride))
+
+
+      if os.path.exists(filename):
+          self.speak('a movie already exists at {}; skipping'.format(filename))
+          return
 
       # plot the first spectrum, to set up the plots
       plt.ioff()
+      try:
+          # make sure we're restarting from scratch
+          del self.ax_spectra
+      except:
+          pass
       self.plotSpectra(0, remake=True, **kw)
 
       # make the movie
@@ -641,6 +1114,7 @@ class Cube(Talker):
     number = {s:i for i,s in enumerate(self.stellar['aperture'])}[s]
     return starcm(number/(self.numberofstars-1.0))
 
+
   # plots the spectra (and other things) for a single time-point (couples to movieCube)
   def plotSpectra(self, which, remake=False, wavelengthscale=10.0, figsize=None):
         '''For the ith component in the cube, plot all the spectra.'''
@@ -657,8 +1131,9 @@ class Cube(Talker):
         self.linekeys = self.starlinekeys + self.globallinekeys
 
         # set up a plot figure
-        if figsize == None:
-            figsize = (8 + self.numberofstars*4,24)
+        #if figsize == None:
+        #    figsize = (8 + self.numberofstars*4,24)
+        figsize = (12, 8)
         self.figure = plt.figure('spectra', figsize=figsize, dpi=100)
 
         try:
@@ -744,12 +1219,14 @@ class Cube(Talker):
                 else:
                     for s in self.stars:
                         x = self.squares[l][s]
-                        ok = self.cubes['ok'][s][:,:].max(1)
+                        ok = np.isfinite(x)#self.cubes['ok'][s][:,:].max(1)
                         if l == 'cosmicdiagnostic':
                             x = np.log(x)
                         ax.plot(x[ok], np.arange(self.numberoftimes)[ok],
                                     color=self.starcolor(s),
                                     **kw)
+                        print(x)
+                        ax.set_xlim(np.nanmin(x[ok]), np.nanmax(x[ok]))
 
                 # tidy up the plot
                 ax.set_xlabel(l,rotation=45)
@@ -785,7 +1262,6 @@ class Cube(Talker):
             self.ax_spectra[self.cubekeys[0]][istar].set_title('image {0},\nstar {1}, aperture {2}'.format(self.temporal['fileprefix'][which], istar, s.replace('aperture_', '')))
         self.timestamp.set_text('{0}: {1} {2}'.format(self.obs.target.name, self.temporal['ut-date'][which], self.temporal['ut-time'][which]))
 
-
   ### FIX ME! ### (only partially switched back to single width)
   def shiftCube(self,plot=False):
     '''Shift all the spectra for a star to line up in wavelength.'''
@@ -798,7 +1274,8 @@ class Cube(Talker):
 
     # select a narrow wavelength range near the Ca triplet
     l, r = self.obs.instrument.extractiondefaults['correlationRange']
-
+    l, r = 7500, 7750
+    # define the range for this correlation
     left = np.argmin(np.abs(self.spectral['wavelength'] - l))
     right = np.argmin(np.abs(self.spectral['wavelength'] - r))
     width = self.obs.instrument.extractiondefaults['correlationSmooth']
@@ -808,11 +1285,21 @@ class Cube(Talker):
 
     # create a template to shift relative to (some fake, broadened absorption lines)
     wave = self.spectral['wavelength'][left:right]
+    '''
     start = np.ones_like(wave).astype(np.float)
     for t in triplet:
       start *= 1 - np.exp(-(wave - t)**2/2/width**2)
     start -= np.median(start)
+    '''
 
+    def subtractcontinuum(y):
+        return y - np.mean(y)
+
+    # create a master template
+    wave = self.spectral['wavelength'][left:right]
+    masterexposure = 0
+    master = self.cubes['raw_counts'][self.target][masterexposure, left:right]
+    start = subtractcontinuum(master)
 
     # create an a structure to store the shifts in
     shifts = {}
@@ -829,10 +1316,10 @@ class Cube(Talker):
           spectrum = c[star][i,left:right]
 
           # subtract its continuum
-          this = zachopy.oned.subtractContinuum(spectrum)
+          this = subtractcontinuum(spectrum)
 
           # cross correlation with the anchors
-          xc = np.correlate(this,start,'same')
+          xc = np.correlate(this, start, 'same')
 
           # do a quadratic fit to estimate the peak
           x = np.arange(len(xc))
@@ -842,7 +1329,7 @@ class Cube(Talker):
           peak = der.roots()
 
           # calculate the offset from the peak
-          offset = peak - len(start)/2 + 1
+          offset = peak - len(wave)/2 + 1
 
           # now, use interpolation to shift all the arrays
           pixels = np.arange(self.numberofwavelengths)
@@ -855,7 +1342,13 @@ class Cube(Talker):
                                 bounds_error=False,
                                 fill_value=0.0)
 
-              self.cubes[key][star][i,:] = interpolation(pixels + offset)
+              interpolated = fluxconservingresample(pixels,
+                                                    self.cubes[key][star][i,:],
+                                                    pixels + offset,
+                                                    treatnanas=0.0)
+
+              self.cubes[key][star][i,:] = interpolated
+              #interpolation(pixels + offset)
               #self.speak('shifting [{0}] by {1}A'.format(key, offset))
 
           if plot:
@@ -875,14 +1368,18 @@ class Cube(Talker):
             ax[1].plot(wave, start/np.std(start), color='black')
             ax[1].plot(wave, start/np.std(start), color='black', alpha=0.2, linewidth=5)
             ax[1].plot(wave, this/np.std(this), color='gray', alpha=0.2, linewidth=5)
-            new = zachopy.oned.subtractContinuum(self.cubes[key][star][i,left:right])
+            new = subtractcontinuum(self.cubes['raw_counts'][star][i,left:right])
             ax[1].plot(wave, new/np.std(new), color='green', alpha=0.9, linewidth=2)
             ax[1].set_xlim(wave.min(), wave.max())
             ax[1].set_autoscaley_on
             ax[0].set_title('star {0}; {2}/{3} spectra'.format(star, len(self.cubes[key]), i+1, len(self.cubes[key][star][:,0])))
             ax[0].axvline(len(x)/2.0)
-            plt.draw()
-            self.input('?')
+            #plt.draw()
+            #self.input('?')
+            pltdir = os.path.join(self.directory, star, 'shifts')
+            mkdir(pltdir)
+            pltfilename = os.path.join(pltdir, 'shift_{}.pdf'.format(self.obs.fileprefixes['science'][i]))
+            plt.savefig(pltfilename)
           shifts[star][i] = offset
       self.speak( "shift = {4} for star {0}; {2}/{3} spectra".format(star, len(self.cubes[key]), i+1, len(self.cubes[key][star][:,0]), offset))
 
@@ -915,7 +1412,7 @@ class Cube(Talker):
       #self.shiftCube(plot=True)
       #self.show()
       wavelength = self.spectral['wavelength']
-      dnpixelsdw = self.spectral['dnpixelsdw']
+      #dnpixelsdw = self.spectral['dnpixelsdw']
 
       # the shape of the cube
       nStars, nTimes, nWaves = self.cubes['raw_counts'].shape
@@ -942,10 +1439,10 @@ class Cube(Talker):
           # !!!!! DO I NEED TO INCLUDE DNPIXELSDW??
           # this was the old version:
           #                      self.binned_cubes[newkey][star, time, bin] = scipy.integrate.trapz(wholespectrum[mask]*dnpixelsdw[mask], wavelength[mask])
-          if k == 'ok':
-              dndw = 1
-          else:
-              dndw = self.spectral['dnpixelsdw'].reshape(1, 1, self.numberofwavelengths)
+          #if k == 'ok':
+          #      dndw = 1
+          #else:
+          #  dndw = self.spectral['dnpixelsdw'].reshape(1, 1, self.numberofwavelengths)
           self.binned_cubes[k] = (self.cubes[k]*dndw).reshape(shape).sum(-1)
           if k=='width' or k =='centroid' or k =='peak':
               self.binned_cubes[k] /= (dndw).reshape((1,1, self.numberofwavelengths/binsize, binsize)).sum(-1)
@@ -1017,7 +1514,7 @@ class Cube(Talker):
         ax.set_xlabel('Wavelength (nm)')
         ax.set_ylabel('Flux (photons/nm/exposure)')
     self.speak("saving median spectrum to")
-    filename = os.path.join(self.reducer.extractionDirectory, 'medianSpectrum.npy')
+    filename = os.path.join(self.directory, 'medianSpectrum.npy')
     self.speak(filename)
     np.save(filename, (wavelength, spectrum))
 
@@ -1046,7 +1543,7 @@ class Cube(Talker):
     bin_ends = bw + binsize/2.0
 
 
-    lcDirectory = os.path.join(self.reducer.extractionDirectory,  "chromatic{binsize:05.0f}/".format(binsize=binsize))
+    lcDirectory = os.path.join(self.directory,  "chromatic{binsize:05.0f}/".format(binsize=binsize))
     mkdir(lcDirectory)
     lcDirectory = os.path.join(lcDirectory, 'originalLCs/')
     mkdir(lcDirectory)
@@ -1135,7 +1632,7 @@ class Cube(Talker):
           self.lcs.append(lc)'''
 
   def loadLCs(self, binsize=250):
-    lcDirectory = os.path.join(self.reducer.extractionDirectory, 'lc_binby' + ('%d' % binsize) + '/')
+    lcDirectory = os.path.join(self.directory, 'lc_binby' + ('%d' % binsize) + '/')
     g = glob.glob(os.path.join(lcDirectory, 'lc_*.npy'))
     wavelengths = []
     lcs = []
@@ -1212,7 +1709,7 @@ class LC():
   def setup(self):
     self.wavelength = (self.left + self.right)/2.0
     self.binsize = self.right - self.left
-    self.filename = os.path.join(self.reducer.extractionDirectory, 'lc_binby' + ('%d' % self.binsize) + '/lc_{0:05d}to{1:05d}.npy'.format(np.int(self.left), np.int(self.right)))
+    self.filename = os.path.join(self.directory, 'lc_binby' + ('%d' % self.binsize) + '/lc_{0:05d}to{1:05d}.npy'.format(np.int(self.left), np.int(self.right)))
 
   def populate(self, bjd, flux, error, **kwargs):
     # set up the column names for the light curve record array

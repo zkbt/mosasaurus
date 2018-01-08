@@ -165,6 +165,26 @@ class LDSS3C(Spectrograph):
         self.dispersertype = 'grism'
         self.disperser = self.grism
 
+        # define a uniform grid of wavelengths for supersampling onto, later
+        if self.grism == 'vph-all':
+            self.uniformwavelengths = np.arange(4000, 10500)
+            self.alignmentranges = dict(    a=(4700,5000),
+                                            Halpha=(6500,6700),
+                                            b=(6800,7000),
+                                            O2=(7500,7800),
+                                            Ca=(8400,8800),
+                                            H2O=(9300, 9700),
+                                            )
+        elif self.grism == 'vph-red':
+            self.uniformwavelengths = np.arange(6000, 10500)
+            self.alignmentranges = dict(#UV=(6870, 6900),
+                                            O2=(7580, 7650),
+                                            Ca1=(8490, 8525),
+                                            Ca2=(8535, 8580),
+                                            Ca3=(8650, 8700),
+                                            H2O=(9300, 9700)
+                                            )
+
         # the available arc lamps for wavelength calibration
         self.arclamps = ['He', 'Ne', 'Ar']
 
