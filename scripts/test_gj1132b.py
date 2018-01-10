@@ -33,7 +33,7 @@ from mosasaurus.Cube import Cube
 c = Cube(o, width=6)
 c.populate(shift=False)
 c.setStars(target='aperture_100_809', comparisons=['aperture_693_656'])
-c.shiftCube(plot=True)
+#c.shiftCube(plot=True)
 #c.nudgeWavelengths()
 #c.movieCube(stride=1, figsize=(12,8))
 #c.listWidths()

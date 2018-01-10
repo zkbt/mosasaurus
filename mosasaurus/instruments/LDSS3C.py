@@ -168,13 +168,13 @@ class LDSS3C(Spectrograph):
         # define a uniform grid of wavelengths for supersampling onto, later
         if self.grism == 'vph-all':
             self.uniformwavelengths = np.arange(4000, 10500)
-            self.alignmentranges = dict(    a=(4700,5000),
-                                            Halpha=(6500,6700),
-                                            b=(6800,7000),
-                                            O2=(7500,7800),
-                                            Ca=(8400,8800),
-                                            H2O=(9300, 9700),
-                                            )
+            self.alignmentranges = {    r'$H\beta$':(4750,5050),
+                                        r'$H\alpha$':(6425,6725),
+                                        r'$O_2$ - B':(6750,7050),
+                                        r'$O_2$ - A':(7500,7800),
+                                        r'Ca triplet':(8450,8750),
+                                        r'$H_2O$':(9200, 9700),
+                                            }
         elif self.grism == 'vph-red':
             self.uniformwavelengths = np.arange(6000, 10500)
             self.alignmentranges = dict(#UV=(6870, 6900),

@@ -71,7 +71,7 @@ explained by seeing alone might point to problems in the detector non-linearity
 plt.ion()
 
 # set a cmap for stars
-starcm = zachopy.cmaps.one2another('magenta', 'limegreen')
+starcm = zachopy.cmaps.one2another('royalblue', 'sienna')
 
 class Cube(Talker):
   '''
@@ -202,6 +202,7 @@ class Cube(Talker):
             self.load()
         except (IOError, AssertionError): #AttributeError
             # otherwise, load individual spectra an populate this cube
+            self.shift=False
             self.loadSpectra(remake=remake, max=max, visualize=visualize)
 
     # make some summary images of this cube
@@ -283,15 +284,10 @@ class Cube(Talker):
         # loop over all the stars
         for istar, star in enumerate(self.stars):
 
-          # find the available spectrum
 
-          # use the updated wavelengths if we're looking at the shifted cube
-          if self.shift:
-            extractedFile = os.path.join(self.starDirectories[istar], 'updatedwavelengthextracted_{0}.npy'.format(fileprefix))
-            spectrumFile = os.path.join(self.starDirectories[istar], 'updatedwavelengthsupersampled_{0}.npy'.format(fileprefix))
-          else:
-            extractedFile = os.path.join(self.starDirectories[istar], 'extracted_{0}.npy'.format(fileprefix))
-            spectrumFile = os.path.join(self.starDirectories[istar], 'supersampled_{0}.npy'.format(fileprefix))
+          # find the available spectra
+          extractedFile = os.path.join(self.starDirectories[istar], 'extracted_{0}.npy'.format(fileprefix))
+          spectrumFile = os.path.join(self.starDirectories[istar], 'supersampled_{0}.npy'.format(fileprefix))
 
           self.speak('trying to load {0}'.format(spectrumFile))
           # load the extracted spectrum (or truncate the cubes at this point)
@@ -397,8 +393,8 @@ class Cube(Talker):
     self.meta['extractiondefaults'] = self.obs.instrument.extractiondefaults
 
 
-    if self.shift:
-        self.shiftCube(plot=visualize)
+    #if self.shift:
+    #    self.shiftCube(plot=visualize)
 
     self.speak("Done loading spectral cube.")
 
@@ -483,14 +479,16 @@ class Cube(Talker):
 
     # we'll plot various types of images
     options = {
-                'raw':'Raw Extracted Quantities',
+                'basic':'Raw Extracted Quantities',
                 'wavelength':'Wavelength-normalized Quantities',
                 'comparison':'Comparison-divided Quantities'
               }
 
     for option, description in options.items():
-        filename = os.path.join(self.directory, 'imagedcube_{}.pdf'.format(option))
+        filename = os.path.join(self.directory, 'imagedcube_{}_{}.pdf'.format(option, {True:'shifted', False:'raw'}[self.shift]))
         if os.path.exists(filename) and (remake == False):
+            self.speak('{} already exists'.format(filename))
+            #assert(False)
             continue
         nrows = len(self.cubekeys)
         ncols = len(self.stars)
@@ -498,7 +496,7 @@ class Cube(Talker):
         fi, ax = plt.subplots(nrows, ncols,
                                 sharex=True, sharey=True, figsize=(12,8),
                                 gridspec_kw=dict(hspace=0.1, wspace=0.02))
-        plt.suptitle('{}, [width={}]\n{}'.format(description, self.widthkey, self.obs))
+        plt.suptitle('{}, [width={}], [{}shifted]\n{}'.format(description, self.widthkey, {True:'', False:'un'}[self.shift], self.obs))
 
         w = self.spectral['wavelength']
         t = np.arange(self.numberoftimes)
@@ -515,12 +513,13 @@ class Cube(Talker):
         for i, key in enumerate(self.cubekeys):
             for j, star in enumerate(self.stars):
                 a = ax[i,j]
+                a.cla()
 
-
-                if option == 'raw':
+                if option == 'basic':
                     # don't modify the measurements at all
                     self.speak('displaying the raw measurements for {}'.format(key))
                     z = self.cubes[key][star]
+                    vmin, vmax = np.min(z), np.max(z)
 
                 if option == 'wavelength':
                     # normalize along the wavelength axis
@@ -528,6 +527,7 @@ class Cube(Talker):
                     z = self.cubes[key][star]
                     oned = np.median(z, 0)
                     z = z/oned[np.newaxis,:]
+                    vmin, vmax = 0.8, 1.2
 
                 if option == 'comparison':
                     # divide by the comparison star[s]
@@ -538,8 +538,10 @@ class Cube(Talker):
                     z = target/comparison
                     oned = np.median(z, 0)
                     z = z/oned[np.newaxis,:]
-
-                vmin, vmax = np.percentile(z, [1,99])
+                    vmin, vmax = 0.98, 1.02
+                #vmin, vmax = np.percentile(z, [1,99])
+                self.speak('the limits for {} on {} are [{} to {}]'.format(key, star, vmin, vmax))
+                #self.input('are these OK?')
                 a.imshow(z, vmin=vmin, vmax=vmax, **imkw)
 
                 # fuss with the axis labels
@@ -555,7 +557,7 @@ class Cube(Talker):
                 else:
                     plt.setp(a.get_xticklabels(), visible=False)
 
-        filename = os.path.join(self.directory, 'imagedcube_{}.pdf'.format(option))
+        plt.draw()
         plt.savefig(filename)
         self.speak('saved image of this cube to {}'.format(filename))
 
@@ -781,7 +783,11 @@ class Cube(Talker):
     ### align_Ca2 = (8535, 8580)
     ### align_Ca3 = (8650, 8700)
     ### align_H2O = (9300, 9700)
-    for prefix in self.obs.fileprefixes['science']:
+
+
+
+
+    for iprefix, prefix in enumerate(self.obs.fileprefixes['science']):
         self.speak('checking line positions in {}'.format(prefix))
         stars = []
         for d in self.starDirectories:
@@ -1069,6 +1075,7 @@ class Cube(Talker):
   # keep - displays the entire dataset, by making a movie of the individual spectra
   def movieCube(self,   fps=30, # how many frames per second
                         bitrate=1800*20, # bitrate (this seems to work well),
+                        remake=False, # should we remake it?
                         stride=10, **kw):# each frame will skip over this many timepoints):
       '''Create movie of the spectral cube.'''
 
@@ -1083,7 +1090,7 @@ class Cube(Talker):
           filename = os.path.join(self.directory, 'cube_{0}stars_{1}spectra_{2}stride.mp4'.format(self.numberofstars, self.numberoftimes, stride))
 
 
-      if os.path.exists(filename):
+      if (remake == False) and os.path.exists(filename):
           self.speak('a movie already exists at {}; skipping'.format(filename))
           return
 
@@ -1125,7 +1132,7 @@ class Cube(Talker):
         # these (star-by-star) values will be plotted along the right side
         self.starlinekeys = ['sky', 'width', 'centroid']#, 'shift']# 'cosmicdiagnostic', #, 'lc']
         if self.shift:
-            self.starlinekeys = self.starlinekeys + ['shift']
+            self.starlinekeys = self.starlinekeys + ['shift', 'stretch']
 
         # these are the combination of linekeys
         self.linekeys = self.starlinekeys + self.globallinekeys
@@ -1146,7 +1153,7 @@ class Cube(Talker):
             self.ax_spectra, self.ps = {}, {}
 
             # make gridspec structure with a row for each cubekey to plot, and a column for each star
-            gs = plt.matplotlib.gridspec.GridSpec(len(self.cubekeys),self.numberofstars,hspace=0.08,wspace=0.2, left=0.1,right=0.75, bottom=0.1, top=0.9)
+            gs = plt.matplotlib.gridspec.GridSpec(len(self.cubekeys),self.numberofstars, height_ratios=[1] + [0.5]*(len(self.cubekeys)-1), hspace=0.11,wspace=0.2, left=0.1,right=0.75, bottom=0.1, top=0.9)
 
             # make a gridspec structure for vertical plots along the right side
             gstemporal = plt.matplotlib.gridspec.GridSpec(1, len(self.globallinekeys) + len(self.starlinekeys), left=0.78, right=0.98, wspace=0.05, bottom=0.1, top=0.9)
@@ -1220,6 +1227,8 @@ class Cube(Talker):
                     for s in self.stars:
                         x = self.squares[l][s]
                         ok = np.isfinite(x)#self.cubes['ok'][s][:,:].max(1)
+                        x -= np.median(x[ok])
+
                         if l == 'cosmicdiagnostic':
                             x = np.log(x)
                         ax.plot(x[ok], np.arange(self.numberoftimes)[ok],
@@ -1263,129 +1272,240 @@ class Cube(Talker):
         self.timestamp.set_text('{0}: {1} {2}'.format(self.obs.target.name, self.temporal['ut-date'][which], self.temporal['ut-time'][which]))
 
   ### FIX ME! ### (only partially switched back to single width)
-  def shiftCube(self,plot=False):
+  def shiftCube(self, plot=True):
+
     '''Shift all the spectra for a star to line up in wavelength.'''
-    self.speak('shifting all spectra to line up at the calcium triplet')
+    self.speak('shifting all spectra to line up...')
+    self.speak('')
 
+    try:
+        self.shift = True
+        self.load()
+        self.speak('successfully loaded a shifted cube')
+        return
+    except IOError:
+        self.speak("didn't find a shifted cube; making a new one!")
+        self.shift=False
 
-    if plot:
-        plt.figure('shifting spectra')
-        plt.ion()
+    def subtractcontinuum(y):
+        '''
+        Make an array zero-meaned, so it's easier to correlate.
+        '''
 
-    # select a narrow wavelength range near the Ca triplet
-    l, r = self.obs.instrument.extractiondefaults['correlationRange']
-    l, r = 7500, 7750
-    # define the range for this correlation
-    left = np.argmin(np.abs(self.spectral['wavelength'] - l))
-    right = np.argmin(np.abs(self.spectral['wavelength'] - r))
-    width = self.obs.instrument.extractiondefaults['correlationSmooth']
-    triplet = self.obs.instrument.extractiondefaults['correlationAnchors']
+        # figure out an overall slope
+        x = np.arange(len(y))
+        initialfit = np.polyfit(x, y, 1)
+        model = np.polyval(initialfit, x)
+        # fit only to the things above that slope
+        top = y > np.percentile(y - model, 70)
+        fit = np.polyfit(x[top], y[top], 1)
+        model = np.polyval(fit, x)
+
+        subtracted = y - model
+        return subtracted/np.std(subtracted)
+        #return residy - np.mean(y)
 
     c = self.cubes['raw_counts']
 
-    # create a template to shift relative to (some fake, broadened absorption lines)
-    wave = self.spectral['wavelength'][left:right]
-    '''
-    start = np.ones_like(wave).astype(np.float)
-    for t in triplet:
-      start *= 1 - np.exp(-(wave - t)**2/2/width**2)
-    start -= np.median(start)
-    '''
+    # pull out an array of ranges to consider for correlations
+    alignmentranges = self.obs.instrument.alignmentranges
 
-    def subtractcontinuum(y):
-        return y - np.mean(y)
-
-    # create a master template
-    wave = self.spectral['wavelength'][left:right]
-    masterexposure = 0
-    master = self.cubes['raw_counts'][self.target][masterexposure, left:right]
-    start = subtractcontinuum(master)
-
+    localshifts = {}
     # create an a structure to store the shifts in
-    shifts = {}
     for star in self.stars:
-        shifts[star] = np.zeros(self.numberoftimes)
+        localshifts[star] = {}
+        #shift = np.zeros(self.numberoftimes)
 
-    # calculate all the shifts
+    # these are going to be populated in the squares, as we go
+    for key in ['shift', 'stretch']:
+        self.squares[key] = {}
+        for star in self.stars:
+            self.squares[key][star] = np.zeros(self.numberoftimes).astype(np.float32)
+    for line in alignmentranges.keys():
+        key = 'offset_{}'.format(line)
+        self.squares[key] = {}
+        for star in self.stars:
+            self.squares[key][star] = np.zeros(self.numberoftimes).astype(np.float32)
+
+
+    #plottables, correlations, shifts = {}, {}, {}
+
+    # make a plot to put everything in
+    plt.figure(figsize=(20,10), dpi=72)
+    gs = plt.matplotlib.gridspec.GridSpec(3*len(self.stars) + 1,len(alignmentranges),
+                hspace=0.25,
+                left=0.05, right=0.95, bottom=0.05, top=0.95, height_ratios=[1,1,0.5]*len(self.stars)+[1.5])
+    self.axshifts = {}
+
     for i in range(self.numberoftimes):
-      for star in self.stars:
+        for a in self.axshifts.values():
+            a.cla()
 
-          # pull out the spectrum for one star,
-          # at one extraction width, at one time point,
-          # and trim it to a narrow range around the correlation anchors
-          spectrum = c[star][i,left:right]
+        for iline, line in enumerate(alignmentranges.keys()):
 
-          # subtract its continuum
-          this = subtractcontinuum(spectrum)
+            # set up the arrays for this correlation
+            l, r = alignmentranges[line]
 
-          # cross correlation with the anchors
-          xc = np.correlate(this, start, 'same')
+            # define the range for this correlation
+            left = np.argmin(np.abs(self.spectral['wavelength'] - l))
+            right = np.argmin(np.abs(self.spectral['wavelength'] - r))
 
-          # do a quadratic fit to estimate the peak
-          x = np.arange(len(xc))
-          coeff = np.polynomial.polynomial.polyfit(x[xc.argmax()-5:xc.argmax()+5], xc[xc.argmax()-5:xc.argmax()+5], 2)
-          fit = np.polynomial.polynomial.Polynomial(coeff)
-          der = fit.deriv()
-          peak = der.roots()
+            # create a master template
+            wave = self.spectral['wavelength'][left:right]
+            masterexposure = 0
+            master = self.cubes['raw_counts'][self.target][masterexposure, left:right]
+            start = subtractcontinuum(master)
 
-          # calculate the offset from the peak
-          offset = peak - len(wave)/2 + 1
-
-          # now, use interpolation to shift all the arrays
-          pixels = np.arange(self.numberofwavelengths)
-          for key in self.cubes.keys():
-
-              # should this be 'linear' or 'nearest'?
-              interpolation = scipy.interpolate.interp1d(
-                                pixels,self.cubes[key][star][i,:],
-                                kind='linear',
-                                bounds_error=False,
-                                fill_value=0.0)
-
-              interpolated = fluxconservingresample(pixels,
-                                                    self.cubes[key][star][i,:],
-                                                    pixels + offset,
-                                                    treatnanas=0.0)
-
-              self.cubes[key][star][i,:] = interpolated
-              #interpolation(pixels + offset)
-              #self.speak('shifting [{0}] by {1}A'.format(key, offset))
-
-          if plot:
+            # calculate all the shifts
             # set up the plotting axes
-            if i == 0:
-              fi,ax = plt.subplots(2,1)
-            else:
-              for a in ax:
-                a.cla()
 
-            # plot the correlation function in the top panel
-            ax[0].plot(x, xc, alpha=0.3)
-            ax[0].scatter(peak, fit(peak))
-            ax[0].set_xlim(0,len(x))
+            for istar, star in enumerate(self.stars):
 
-            # plot the spectrum
-            ax[1].plot(wave, start/np.std(start), color='black')
-            ax[1].plot(wave, start/np.std(start), color='black', alpha=0.2, linewidth=5)
-            ax[1].plot(wave, this/np.std(this), color='gray', alpha=0.2, linewidth=5)
-            new = subtractcontinuum(self.cubes['raw_counts'][star][i,left:right])
-            ax[1].plot(wave, new/np.std(new), color='green', alpha=0.9, linewidth=2)
-            ax[1].set_xlim(wave.min(), wave.max())
-            ax[1].set_autoscaley_on
-            ax[0].set_title('star {0}; {2}/{3} spectra'.format(star, len(self.cubes[key]), i+1, len(self.cubes[key][star][:,0])))
-            ax[0].axvline(len(x)/2.0)
-            #plt.draw()
-            #self.input('?')
-            pltdir = os.path.join(self.directory, star, 'shifts')
-            mkdir(pltdir)
-            pltfilename = os.path.join(pltdir, 'shift_{}.pdf'.format(self.obs.fileprefixes['science'][i]))
-            plt.savefig(pltfilename)
-          shifts[star][i] = offset
-      self.speak( "shift = {4} for star {0}; {2}/{3} spectra".format(star, len(self.cubes[key]), i+1, len(self.cubes[key][star][:,0]), offset))
+
+
+              # pull out the spectrum for one star,
+              # at one extraction width, at one time point,
+              # and trim it to a narrow range around the correlation anchors
+              spectrum = c[star][i,left:right]
+
+              # subtract its continuum
+              this = subtractcontinuum(spectrum)
+
+              # cross correlation with the anchors
+              xc = np.correlate(this, start, 'same')
+
+              # do a quadratic fit to estimate the peak
+              x = np.arange(len(xc))
+              coeff = np.polynomial.polynomial.polyfit(x[xc.argmax()-5:xc.argmax()+5], xc[xc.argmax()-5:xc.argmax()+5], 2)
+              fit = np.polynomial.polynomial.Polynomial(coeff)
+              der = fit.deriv()
+              peak = der.roots()
+
+              # calculate the offset from the peak
+              offset = peak - len(wave)/2 + 1
+
+              linecenter = (l + r)/2.0
+              localshifts[star][linecenter] = offset
+
+              # store this for later
+              self.squares['offset_{}'.format(line)][star][i] = offset
+
+
+
+
+
+
+
+
+
+              # plot spectrum and reference
+              pair = '{line}+{star}'.format(**locals())
+              try:
+                  ax = self.axshifts['spectrum+'+pair]
+              except KeyError:
+                  ax = plt.subplot(gs[3*istar + 1,iline])
+                  self.axshifts['spectrum+'+pair] = ax
+
+              ax.set_xlim(wave.min(), wave.max())
+              ax.set_autoscaley_on
+
+              ax.plot(wave, start/np.std(start), color='gray', linewidth=3, alpha=0.4)
+              ax.plot(wave, this/np.std(this), color=self.starcolor(star))
+              if iline == 0:
+                ax.set_ylabel('{}/{}'.format(i+1, self.numberoftimes))
+              plt.setp(ax.get_yticklabels(), visible=False)
+              ax.set_xlabel('Wavelength\n(angstroms)')
+
+              #new = subtractcontinuum(self.cubes['raw_counts'][star][i,left:right])
+              #ax[1].plot(wave, new/np.std(new), color='green', alpha=0.9, linewidth=2)
+
+              # plot the correlation function
+              try:
+                ax = self.axshifts['correlation+'+pair]
+              except KeyError:
+                ax = plt.subplot(gs[3*istar,iline])
+                self.axshifts['correlation+'+pair] = ax
+              ax.set_autoscaley_on
+              ax.plot(x - len(wave)/2 + 1, xc, alpha=0.5, color='gray')
+              plt.setp(ax.get_yticklabels(), visible=False)
+              ax.scatter(peak - len(wave)/2 + 1, fit(peak), color='gray')
+              #ax.set_xlim(0,len(x))
+              if iline == 0:
+                  ax.set_ylabel('{}'.format(star))
+
+              if istar == 0:
+                  ax.set_title(line)
+
+              ax.axvline(len(x)/2.0- len(wave)/2 + 1, color='gray', zorder=-2, alpha=0.4, linestyle='--')
+
+        # plot the dwavelength vs wavelength
+
+        try:
+            ax = self.axshifts['compilation']
+        except KeyError:
+            ax = plt.subplot(gs[-1,:])
+            self.axshifts['compilation'] = ax
+        plt.sca(ax)
+        for star in localshifts.keys():
+            linecenters = list(localshifts[star].keys())
+            offsets = [localshifts[star][l][0] for l in linecenters]
+
+            originalwavelength = self.spectral['wavelength']
+            midpoint = np.mean(originalwavelength)
+            x = linecenters - midpoint
+            fit = np.polyfit(x, offsets, 1)
+            self.squares['stretch'][star][i] = fit[0]
+            self.squares['shift'][star][i] = fit[1]
+            dw = np.polyval(fit, originalwavelength - midpoint)
+            phrase = 'dw = {:.4}xw{:+.4}'.format(*fit)
+
+            for key in self.cubes.keys():
+                interpolated = fluxconservingresample(
+                                    originalwavelength - dw,
+                                    self.cubes[key][star][i,:],
+                                    originalwavelength)
+                self.cubes[key][star][i,:] = interpolated
+                self.speak('shifted [{}] by {}'.format(key, phrase))
+            color = self.starcolor(star)
+            plt.plot(self.spectral['wavelength'], dw, color=color)
+            plt.scatter(linecenters, offsets, color=color)
+
+        plt.xlim(np.min(self.spectral['wavelength']), np.max(self.spectral['wavelength']))
+        plt.xlabel('Original Wavelength (angstroms)')
+        plt.ylim(-10,10)
+        plt.ylabel('New - Original')
+
+        #plt.draw()
+        #plt.show()
+        #a = input('?')
+        pltdir = os.path.join(self.directory, 'shifts')
+        mkdir(pltdir)
+        pltfilename = os.path.join(pltdir, 'shift_{}.pdf'.format(self.obs.fileprefixes['science'][i]))
+        plt.savefig(pltfilename)
+
+        #self.speak( "shift = {4} for star {0}; {2}/{3} spectra".format(star, self.numberoftimes, i+1, len(self.cubes['raw_counts'][star][:,0]), offset))
+        self.speak('plot saved to {}'.format(pltfilename))
+
+    self.shift = True
+    self.save()
+  '''
+  ##### KLUDGE! THIS STILL NEEDS WORK!
+  # now, use interpolation to shift all the arrays
+  pixels = np.arange(self.numberofwavelengths)
+  for key in self.cubes.keys():
+
+      interpolated = fluxconservingresample(pixels,
+                                            self.cubes[key][star][i,:],
+                                            pixels + offset,
+                                            treatnanas=0.0)
+
+      self.cubes[key][star][i,:] = interpolated
+      #interpolation(pixels + offset)
+      #self.speak('shifting [{0}] by {1}A'.format(key, offset))
 
     self.squares['shift'] = shifts
     #self.temporal['shift'] = self.squares['shift'][self.obs.target[0],:]
-
+  '''
   ### FIX ME (not used)
   def convolveCube(self,width=0.5):
     '''Take a spectral cube, convolve it with a Gaussian (NOT USED!).'''
