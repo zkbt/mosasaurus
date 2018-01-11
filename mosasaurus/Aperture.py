@@ -226,6 +226,8 @@ class Aperture(Talker):
         assert(remake == False)
         assert(arc == False)
         assert(os.path.exists(self.extractedFilename))
+
+        #self.extracted = np.load(self.extractedFilename)[()]
         #self.speak('raw extracted file {0} already exists'.format(self.supersampledFilename))
         return
     except (AssertionError, IOError):
@@ -596,10 +598,20 @@ class Aperture(Talker):
 
 
 
-  def addWavelengthCalibration(self, exposureprefix, remake=False):
+  def addWavelengthCalibration(self, exposureprefix, remake=False, shift=False):
       '''just redo the wavelength calibration'''
       # point at this CCD number
       self.exposureprefix = exposureprefix
+
+      if shift:
+          dir = os.path.join(self.directory, 'stretchedsupersampled')
+          mkdir(dir)
+          self.supersampledFilename = os.path.join(dir, 'shiftedsupersampled_{}.npy'.format(self.exposureprefix))
+      else:
+          dir = os.path.join(self.directory, 'supersampled')
+          mkdir(dir)
+          self.supersampledFilename = os.path.join(dir, 'supersampled_{}.npy'.format(self.exposureprefix))
+
 
       # only load and redo if supersampled doesn't exist
       if remake or not os.path.exists(self.supersampledFilename):
@@ -615,7 +627,7 @@ class Aperture(Talker):
 
           # redo the interpolation
           # self.visualize = False
-          self.interpolate(remake=remake)
+          self.interpolate(remake=remake, shift=shift)
       else:
           #self.speak('supersampled+calibrated file {0} already exists'.format(self.supersampledFilename))
           pass
@@ -631,16 +643,19 @@ class Aperture(Talker):
         # these are all the keys that will be supersampled
         self.keys = self.additivekeys + self.intrinsickeys
 
-        if shift:
-            self.supersampledFilename = os.path.join(self.directory, 'shiftedsupersampled_{}.npy'.format(self.exposureprefix))
-        else:
-            self.supersampledFilename = os.path.join(self.directory, 'supersampled_{}.npy'.format(self.exposureprefix))
-
         try:
             assert(remake == False)
             self.supersampled = np.load(self.supersampledFilename)
             self.speak('loaded supersampled spectrum from {0}'.format(self.supersampledFilename))
         except (AssertionError, IOError):
+
+            if shift:
+                try:
+                    self.stretches
+                except AttributeError:
+                    stretchfilename = os.path.join(self.mask.reducer.extractionDirectory,  'spectralstretch.npy')
+                    self.stretches = np.load(stretchfilename)[()]
+                    self.speak('loaded stretches from {}'.format(stretchfilename))
 
             # we're going to supersample multiple keys, to keep everything together
             nkeys = len(self.keys)
@@ -675,7 +690,15 @@ class Aperture(Talker):
 
             # pull out the extracted wavelength and column pixel number
             if shift:
-                wavelength = self.extracted['wavelength_adjusted']
+
+                originalwavelength = self.extracted['wavelength']
+                midpoint = self.stretches['midpoint']
+                star = self.name
+                coefficients = self.stretches['stretch'][star][self.exposureprefix], self.stretches['shift'][star][self.exposureprefix]
+                dw = np.polyval(coefficients, originalwavelength - midpoint)
+                wavelength = originalwavelength + dw
+                phrase = 'dw = {:.4}x(w - {midpoint}){:+.4}'.format(*coefficients, midpoint=midpoint)
+                self.speak('nudge wavelengths for {} by {}'.format(self.exposureprefix, phrase))
             else:
                 wavelength = self.extracted['wavelength']
             pixelnumber = self.extracted['w']

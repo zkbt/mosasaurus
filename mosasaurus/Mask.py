@@ -193,7 +193,7 @@ class Mask(Talker):
     self.speak('adding wavelength calibrations to all spectra (if not already done)')
     self.addWavelengthCalibration()
 
-  def addWavelengthCalibration(self, remake=False):
+  def addWavelengthCalibration(self, remake=False, shift=False):
       '''don't extract, just addWavelengthCalibration the wavelengths and resample'''
 
       self.speak('creating wavelength calibrators')
@@ -204,4 +204,4 @@ class Mask(Talker):
       for exposureprefix in self.obs.fileprefixes['science']:
           for a in self.apertures:
               # a.visualize = False
-              a.addWavelengthCalibration(exposureprefix)
+              a.addWavelengthCalibration(exposureprefix, shift=shift)

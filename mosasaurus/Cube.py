@@ -286,8 +286,12 @@ class Cube(Talker):
 
 
           # find the available spectra
-          extractedFile = os.path.join(self.starDirectories[istar], 'extracted_{0}.npy'.format(fileprefix))
-          spectrumFile = os.path.join(self.starDirectories[istar], 'supersampled_{0}.npy'.format(fileprefix))
+          extractedFile = os.path.join(self.starDirectories[istar], 'extracted', 'extracted_{0}.npy'.format(fileprefix))
+          if self.shift:
+              spectrumFile = os.path.join(self.starDirectories[istar], 'supersampled, ''supersampled_{0}.npy'.format(fileprefix))
+          else:
+              spectrumFile = os.path.join(self.starDirectories[istar], 'shiftedsupersampled', 'supersampled_{0}.npy'.format(fileprefix))
+
 
           self.speak('trying to load {0}'.format(spectrumFile))
           # load the extracted spectrum (or truncate the cubes at this point)
@@ -472,10 +476,16 @@ class Cube(Talker):
         raise NameError("Darn it -- the mega-comparison hasn't been implemented yet!")
 
   # keep - makes tidy image plots of spectral quantities
-  def imageCube(self, normalized=False, remake=False):
+  def imageCube(self, keys=None, stars=None, remake=False):
     '''
     Show an imshow of every cube key.
     '''
+
+    if keys == None:
+        keys = self.cubekeys
+
+    if stars == None:
+        stars = self.stars
 
     # we'll plot various types of images
     options = {
@@ -484,14 +494,16 @@ class Cube(Talker):
                 'comparison':'Comparison-divided Quantities'
               }
 
+    dir = os.path.join(self.directory, 'imagedcubes')
+    mkdir(dir)
     for option, description in options.items():
-        filename = os.path.join(self.directory, 'imagedcube_{}_{}.pdf'.format(option, {True:'shifted', False:'raw'}[self.shift]))
+        filename = os.path.join(dir, '{}+{}+{}+{}.pdf'.format(option, {True:'shifted', False:'raw'}[self.shift], '-'.join(keys), '-'.join(stars)))
         if os.path.exists(filename) and (remake == False):
             self.speak('{} already exists'.format(filename))
             #assert(False)
             continue
-        nrows = len(self.cubekeys)
-        ncols = len(self.stars)
+        nrows = len(keys)
+        ncols = len(stars)
 
         fi, ax = plt.subplots(nrows, ncols,
                                 sharex=True, sharey=True, figsize=(12,8),
@@ -510,9 +522,14 @@ class Cube(Talker):
             origin = 'lower'
         )
 
-        for i, key in enumerate(self.cubekeys):
-            for j, star in enumerate(self.stars):
-                a = ax[i,j]
+        # is this just a single panel?
+        single = len(keys)*len(stars) == 1
+        for i, key in enumerate(keys):
+            for j, star in enumerate(stars):
+                if single:
+                    a = ax
+                else:
+                    a = ax[i,j]
                 a.cla()
 
                 if option == 'basic':
@@ -539,6 +556,7 @@ class Cube(Talker):
                     oned = np.median(z, 0)
                     z = z/oned[np.newaxis,:]
                     vmin, vmax = 0.98, 1.02
+
                 #vmin, vmax = np.percentile(z, [1,99])
                 self.speak('the limits for {} on {} are [{} to {}]'.format(key, star, vmin, vmax))
                 #self.input('are these OK?')
@@ -558,7 +576,7 @@ class Cube(Talker):
                     plt.setp(a.get_xticklabels(), visible=False)
 
         plt.draw()
-        plt.savefig(filename)
+        plt.savefig(filename, dpi=600)
         self.speak('saved image of this cube to {}'.format(filename))
 
 
@@ -1271,8 +1289,8 @@ class Cube(Talker):
             self.ax_spectra[self.cubekeys[0]][istar].set_title('image {0},\nstar {1}, aperture {2}'.format(self.temporal['fileprefix'][which], istar, s.replace('aperture_', '')))
         self.timestamp.set_text('{0}: {1} {2}'.format(self.obs.target.name, self.temporal['ut-date'][which], self.temporal['ut-time'][which]))
 
-  ### FIX ME! ### (only partially switched back to single width)
-  def shiftCube(self, plot=True):
+
+  def determineStretches(self, plot=True):
 
     '''Shift all the spectra for a star to line up in wavelength.'''
     self.speak('shifting all spectra to line up...')
@@ -1436,7 +1454,7 @@ class Cube(Talker):
               if istar == 0:
                   ax.set_title(line)
 
-              ax.axvline(len(x)/2.0- len(wave)/2 + 1, color='gray', zorder=-2, alpha=0.4, linestyle='--')
+              ax.axvline(len(x)/2.0 - len(wave)/2 + 1, color='gray', zorder=-2, alpha=0.4, linestyle='--')
 
         # plot the dwavelength vs wavelength
 
@@ -1506,6 +1524,41 @@ class Cube(Talker):
     self.squares['shift'] = shifts
     #self.temporal['shift'] = self.squares['shift'][self.obs.target[0],:]
   '''
+
+  def exportShiftStretch(self):
+      '''
+      Send out the spectral stretches to a separate file (to make it easier to make
+      individual resampled spectra)/
+      '''
+
+      subset = {}
+      subset['prefixes'] = self.obs.fileprefixes['science']
+      subset['midpoint'] = np.mean(self.spectral['wavelength'])
+      for line in self.obs.instrument.alignmentranges:
+          linekey = 'offset_{}'.format(line)
+          subset[linekey] = {}
+          for star in self.stars:
+              subset[linekey][star] = {}
+              for i, prefix in enumerate(subset['prefixes']):
+                  subset[linekey][star][prefix] = self.squares[linekey][star][i]
+
+      for key in ['shift', 'stretch']:
+          subset[key] = {}
+          for star in self.stars:
+              subset[key][star] = {}
+              for i, prefix in enumerate(subset['prefixes']):
+                  subset[key][star][prefix] = self.squares[key][star][i]
+
+
+
+      filename = os.path.join(self.directory, 'spectralstretch.npy')
+
+      np.save(filename, subset)
+      self.speak('exported the spectral shifts and stretches to {}'.format(filename))
+
+
+
+
   ### FIX ME (not used)
   def convolveCube(self,width=0.5):
     '''Take a spectral cube, convolve it with a Gaussian (NOT USED!).'''
