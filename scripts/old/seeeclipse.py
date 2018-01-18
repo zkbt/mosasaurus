@@ -1,5 +1,5 @@
 import matplotlib.pyplot as plt
-import zachopy.oned, numpy as np
+import craftroom.oned, numpy as np
 trans = np.load('onetrans.npy')[()]
 plt.ion()
 bins = {}
@@ -37,7 +37,7 @@ for b in trans.bins:
 
     axbin.plot(t[ok], scale(data[ok]), color='gray', alpha=0.5)
     axbin.plot(t, scale(model), color='red', alpha=0.5)
-    bx, by, be = zachopy.oned.binto(t[ok], data[ok], binwidth=0.01)
+    bx, by, be = craftroom.oned.binto(t[ok], data[ok], binwidth=0.01)
     axbin.plot(bx, scale(by), marker='o', alpha=0.5, color='black', linewidth=0)
     ax = plt.gca()
     ax.set_ylim(-5000,5000)

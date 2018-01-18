@@ -105,7 +105,7 @@ class TS(Talker):
 		nColumns = 3
 		nRows = len(keys)
 		plt.figure('masking')
-		ip = zachopy.displays.iplot.iplot(nRows, nColumns)
+		ip = craftroom.displays.iplot.iplot(nRows, nColumns)
 
 		kw = dict(cmap='gray', interpolation='nearest', aspect='auto', vmin=None, vmax=None)
 
@@ -346,11 +346,11 @@ class TS(Talker):
 
 			# plot the model for this bin
 			#time, planetmodel, instrumentmodel = bin.tlc.TM.smooth_model()
-			#kw = {'color':zachopy.color.nm2rgb([bin.left/self.unit, bin.right/self.unit], intensity=0.25), 'linewidth':3, 'alpha':0.5}
+			#kw = {'color':craftroom.color.nm2rgb([bin.left/self.unit, bin.right/self.unit], intensity=0.25), 'linewidth':3, 'alpha':0.5}
 			#self.ax_lc.plot(normalize(planetmodel) + bin.wavelength/self.unit, bin.tlc.TM.planet.timefrommidtransit(time), **kw)
 
 			# plot the (instrument corrected) datapoints
-			kw = {'marker':'.', 'color':zachopy.color.nm2rgb([bin.left/self.unit, bin.right/self.unit]), 'alpha':0.25, 'linewidth':0, 'marker':'o'}
+			kw = {'marker':'.', 'color':craftroom.color.nm2rgb([bin.left/self.unit, bin.right/self.unit]), 'alpha':0.25, 'linewidth':0, 'marker':'o'}
 			self.ax_lc.plot(normalize(bin.tlc.corrected()[bin.tlc.bad == False]) + bin.wavelength/self.unit, bin.tlc.timefrommidtransit()[bin.tlc.bad == False], **kw)
 			colors.append(kw['color'])
 
@@ -358,7 +358,7 @@ class TS(Talker):
 			self.speak(bin.tlc.TM.planet)
 
 			width = 3
-			self.ax_ts.errorbar(self.wavelengths[i]/self.unit, self.rp_over_rs[i], self.uncertainty[i], marker='o', color=zachopy.color.nm2rgb([bin.left/self.unit, bin.right/self.unit]), markersize=10, linewidth=width, elinewidth=width, capsize=5, capthick=width)
+			self.ax_ts.errorbar(self.wavelengths[i]/self.unit, self.rp_over_rs[i], self.uncertainty[i], marker='o', color=craftroom.color.nm2rgb([bin.left/self.unit, bin.right/self.unit]), markersize=10, linewidth=width, elinewidth=width, capsize=5, capthick=width)
 
 	def fitRigid(self, plot=False):
 		plt.ion()

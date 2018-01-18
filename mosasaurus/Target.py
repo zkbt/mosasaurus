@@ -1,5 +1,5 @@
 from .imports import *
-from zachopy.star import Star
+from craftroom.star import Star
 
 class Target(Talker):
     def __init__(self, starname='GJ1132', name='GJ1132b', **kw):

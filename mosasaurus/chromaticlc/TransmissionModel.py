@@ -1,5 +1,5 @@
 import glob, os, string, copy
-from  zachopy.borrowed.mpfit.mpfit import mpfit
+from  craftroom.borrowed.mpfit.mpfit import mpfit
 
 
 import astropy.io.fits, astropy.io.ascii, astropy.time
@@ -7,9 +7,9 @@ import astropy.io.fits, astropy.io.ascii, astropy.time
 #from astropy.time import Time
 
 import matplotlib.pyplot as plt, numpy as np, matplotlib.animation
-import zachopy.units as u
-from zachopy.Talker import Talker
-import zachopy.oned
+import craftroom.units as u
+from craftroom.Talker import Talker
+import craftroom.oned
 tablefile = '/Users/zkbt/Dropbox/poptrans/data/exoplanets.org.txt'
 
 
@@ -64,7 +64,7 @@ class TransmissionModel(Talker):
         return self.smoothed_nscaleheights
 
     def binned(self, binwidth=100):
-        return zachopy.oned.binto(self.wavelength, self.nscaleheights, binwidth)
+        return craftroom.oned.binto(self.wavelength, self.nscaleheights, binwidth)
 
     def deviates(self, p, fjac=None, spectrum=None):
         self.nudge = p[0]

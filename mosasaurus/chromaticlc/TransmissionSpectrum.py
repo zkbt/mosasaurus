@@ -250,7 +250,7 @@ class WithTLCs(TransmissionSpectrum):
 			nColumns = 3
 			nRows = len(keys)
 			plt.figure('masking')
-			ip = zachopy.displays.iplot.iplot(nRows, nColumns)
+			ip = craftroom.displays.iplot.iplot(nRows, nColumns)
 
 			kw = dict(cmap='gray', interpolation='nearest', aspect='auto', vmin=None, vmax=None)
 

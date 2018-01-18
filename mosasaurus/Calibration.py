@@ -144,7 +144,7 @@ class Calibration(Talker):
 			return array, array*0
 
 		# calculate the outlier-rejected mean, and the 1.48*MAD for the cube
-		mean, noise = zachopy.twod.stack(array, axis=0, threshold=threshold)
+		mean, noise = craftroom.twod.stack(array, axis=0, threshold=threshold)
 
 		#self.ccd.display.many(array, depth=0, clobber=True)
 		return mean, noise

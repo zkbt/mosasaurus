@@ -272,7 +272,7 @@ class WavelengthCalibrator(Talker):
             flux = self.aperture.arcs[element][width]['raw_counts']
 
              # identify my peaks
-            xPeak, yPeak, xfiltered, yfiltered = zachopy.oned.peaks(
+            xPeak, yPeak, xfiltered, yfiltered = craftroom.oned.peaks(
                                                 self.aperture.waxis,
                                                 flux,
                                                 plot=False,
@@ -417,7 +417,7 @@ class WavelengthCalibrator(Talker):
                                                     w=self.weights
                                                     )
             # identify outliers
-            limit = 1.48*zachopy.oned.mad(self.residuals[self.good])*4
+            limit = 1.48*craftroom.oned.mad(self.residuals[self.good])*4
             limit = np.maximum(limit, 1.0)
             # outliers get reset each time (so don't lose at edges)
             outlier = np.abs(self.residuals) > limit
@@ -477,7 +477,7 @@ class WavelengthCalibrator(Talker):
         self.speak('{}, {}'.format(self.pixelstowavelengths, self.pixelstowavelengths.domain, self.pixelstowavelengths.window))
         self.figcal = plt.figure('wavelength calibration',
                                         figsize=(15,6), dpi=72)
-        self.interactivewave = zachopy.displays.iplot.iplot(4,1,
+        self.interactivewave = craftroom.displays.iplot.iplot(4,1,
                 height_ratios=[0.1, 0.4, 0.2, .2], hspace=0.1,
                 bottom=0.15)
 
@@ -558,7 +558,7 @@ class WavelengthCalibrator(Talker):
 
 
         # plot the calibration
-        x = np.linspace(*zachopy.oned.minmax(self.aperture.waxis),num=200)
+        x = np.linspace(*craftroom.oned.minmax(self.aperture.waxis),num=200)
         self.ax_wcal.plot(x, self.pixelstowavelengths(x), alpha=0.5, color='black')
         self.ax_wcal.set_ylabel('Wavelength (angstroms)')
 
@@ -577,7 +577,7 @@ class WavelengthCalibrator(Talker):
         self.ax_wres.scatter(self.pixel[bad], self.residuals[bad], **scatterkw)
         self.ax_wres.set_xlabel('Pixel # (by python rules)')
 
-        self.ax_wres.set_xlim(*zachopy.oned.minmax(self.aperture.waxis))
+        self.ax_wres.set_xlim(*craftroom.oned.minmax(self.aperture.waxis))
 
         self.ax_walign.scatter(   self.pixel[self.handpicked],
                                 self.intensity[self.handpicked],
@@ -599,13 +599,13 @@ class WavelengthCalibrator(Talker):
                             self.pixelstowavelengths.__class__.__name__)
         performance += ' the calibration has an RMS of {0:.2f}A'.format(rms)
         performance += ' with {0:.0f} good points'.format(np.sum(self.good))
-        performance += ' from {:.0f} to {:.0f}'.format(*zachopy.oned.minmax(self.pixel[self.good]))
+        performance += ' from {:.0f} to {:.0f}'.format(*craftroom.oned.minmax(self.pixel[self.good]))
         self.ax_wres.text(0.98, 0.05, performance,
                             fontsize=10,
                             ha='right', va='bottom',
                             transform=self.ax_wres.transAxes)
 
-        self.ax_wres.set_ylim(*np.array([-1,1])*np.maximum(zachopy.oned.mad(self.residuals[self.good])*10, 1))
+        self.ax_wres.set_ylim(*np.array([-1,1])*np.maximum(craftroom.oned.mad(self.residuals[self.good])*10, 1))
         plt.draw()
         self.speak('check out the wavelength calibration')
 

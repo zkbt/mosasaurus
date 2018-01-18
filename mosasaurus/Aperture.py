@@ -2,8 +2,8 @@ from .imports import *
 from .Tools import *
 from .Trace import Trace
 from .WavelengthCalibrator import WavelengthCalibrator
-from zachopy.cmaps import one2another
-from zachopy.displays.movie import Movie
+from craftroom.cmaps import one2another
+from craftroom.displays.movie import Movie
 ignorekw = dict(cmap=one2another('palevioletred', 'palevioletred', alphatop=0.75, alphabottom=0.0),
                     interpolation='nearest',
                     aspect='auto',
@@ -138,7 +138,7 @@ class Aperture(Talker):
       #self.input('', prompt='(press return to continue)')
       for k in interesting:
           if k != 'badpixels':
-              self.images[k] = zachopy.twod.interpolateOverBadPixels(self.images[k], self.images['badpixels'])
+              self.images[k] = craftroom.twod.interpolateOverBadPixels(self.images[k], self.images['badpixels'])
 
       #self.speak('and these are they after interpolating over bad pixels')
       #self.displayStamps(self.images, keys = ['science', 'flat', 'badpixels'])
@@ -299,7 +299,7 @@ class Aperture(Talker):
                 self.speak('estimating a sky background image')
 
                 # do polynomial interpolation along each column to estimate sky
-                self.intermediates[width]['sky'] = zachopy.twod.polyInterpolate(image/self.images['NormalizedFlat'], self.intermediates[width]['skyMask'] == 0, order=2, visualize=False)
+                self.intermediates[width]['sky'] = craftroom.twod.polyInterpolate(image/self.images['NormalizedFlat'], self.intermediates[width]['skyMask'] == 0, order=2, visualize=False)
                 self.extracted[width]['sky'] = (self.intermediates[width]['sky']*self.intermediates[width]['extractMask']).sum(self.sindex)
 
                 # for raw counts, weight by extraction mask, divide by flat, subtract the sky
@@ -385,7 +385,7 @@ class Aperture(Talker):
                 self.ax[width]['subtracted'] = plt.subplot(gs[-1, i], sharex=sharex, sharey=sharesubtracted)
                 sharesubtracted = self.ax[width]['subtracted']
                 self.ax[width]['subtracted'].set_xlabel('Pixels')
-                self.ax[width]['apertures'].set_ylim(*zachopy.oned.minmax(self.saxis))
+                self.ax[width]['apertures'].set_ylim(*craftroom.oned.minmax(self.saxis))
                 if i == 0:
                     self.ax[width]['apertures'].set_ylabel('extraction apertures')
                     self.ax[width]['subtracted'].set_ylabel('sky-subtracted, and coarsely rectified')
@@ -446,7 +446,7 @@ class Aperture(Talker):
         # create grid of coordinates
         ok = self.intermediates[width]['skyMask'] > 0
         offsets = self.s[ok] - self.trace.traceCenter(self.w[ok])
-        ylim = zachopy.oned.minmax(offsets)
+        ylim = craftroom.oned.minmax(offsets)
 
         rectifiedw, rectifieds = np.meshgrid(self.waxis, np.arange(*ylim))
         rectifieds += self.trace.traceCenter(rectifiedw)
@@ -479,7 +479,7 @@ class Aperture(Talker):
             self.plotted[width]['subtractedandrectified'].set_data(rectified)
         except KeyError:
             nbackgrounds = 3
-            vmin = -nbackgrounds*np.min([1.48*zachopy.oned.mad(self.intermediates[onewidth]['subtracted'][self.intermediates[width]['skyMask'] > 0]) for onewidth in self.widths])
+            vmin = -nbackgrounds*np.min([1.48*craftroom.oned.mad(self.intermediates[onewidth]['subtracted'][self.intermediates[width]['skyMask'] > 0]) for onewidth in self.widths])
             vmax = 0.001*np.percentile(self.extracted[width]['raw_counts'], 99)
             extent =[ rectifiedw.min(), rectifiedw.max(), ylim[0], ylim[1]]
             self.plotted[width]['subtractedandrectified'] = ax.imshow(rectified,
@@ -501,7 +501,7 @@ class Aperture(Talker):
 
 
 
-            ax.set_xlim(*zachopy.oned.minmax(rectifiedw))
+            ax.set_xlim(*craftroom.oned.minmax(rectifiedw))
             ax.set_ylim(*ylim)
 
             '''offsets = np.array([-1,1])*width

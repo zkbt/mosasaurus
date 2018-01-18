@@ -2,7 +2,7 @@ from .imports import *
 from TransmissionSpectrum import WithTLCs, TransmissionSpectrum
 from WavelengthBin import WavelengthBin
 import transit
-from zachopy.painting import ink_errorbar
+from craftroom.painting import ink_errorbar
 
 class CombinedObs(Talker):
 
