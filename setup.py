@@ -46,7 +46,8 @@ setup(name = "mosasaurus",
       'Programming Language :: Python',
       'Topic :: Scientific/Engineering :: Astronomy'
       ],
-    install_requires=['numpy', 'astropy>=2.0.3', 'scipy', 'matplotlib', 'emcee', 'corner', 'astroquery'],
+    install_requires=['numpy', 'astropy>=2.0.3', 'scipy', 'matplotlib', 'emcee', 'corner', 'astroquery', 'craftroom'],
+    dependency_links=['git+https://github.com/zkbt/craftroom.git@master#egg=craftroom'],
     zip_safe=False,
     license='MIT',
 )
