@@ -55,6 +55,7 @@ class Aperture(Talker):
 
   @property
   def visualize(self):
+    '''should we visualize the steps in this process?'''
     return self.mask.reducer.visualize
 
   def setup(self,x,y):
@@ -193,7 +194,6 @@ class Aperture(Talker):
                             self.trace.extractionmask(width),
                             self.trace.skymask(width))
 
-
   def createWavelengthCal(self, remake=False):
     '''Populate the wavelength calibration for this aperture.'''
     self.speak("populating wavelength calibration")
@@ -206,10 +206,6 @@ class Aperture(Talker):
   @property
   def extractedFilename(self):
       return os.path.join(self.directory, 'extracted_{}.npy'.format(self.exposureprefix))
-
-  #@property
-  #def supersampledFilename(self):
-  #      return os.path.join(self.directory, 'supersampled_{}.npy'.format(self.exposureprefix))
 
   def loadExtracted(self, n):
     self.exposureprefix = n
@@ -414,7 +410,6 @@ class Aperture(Talker):
                     if thing == 'raw_counts':
                         self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width]['raw_counts'], 99)*1.5)
 
-
   def visualizeExtraction(self, width):
         # make sure the axes have been setup
         self.setupVisualization()
@@ -432,7 +427,8 @@ class Aperture(Talker):
 
   @property
   def widths(self):
-        return np.array([k for k in self.extracted.keys() if type(k) != str])
+    '''list all the widths available for this extraction'''
+    return np.array([k for k in self.extracted.keys() if type(k) != str])
 
   def plotRectified(self, width, ax=None):
         '''plot the rectified, sky-subtracted image'''
@@ -512,7 +508,6 @@ class Aperture(Talker):
                                                 alpha=0.5,
                                                 color='darkgreen',
                                                 zorder = 1000)'''
-
 
   def plotApertures(self, width, ax=None):
         '''plot the extraction and sky apertures on top of the 2D exposure'''

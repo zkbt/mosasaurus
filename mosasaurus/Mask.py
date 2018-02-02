@@ -204,4 +204,5 @@ class Mask(Talker):
       for exposureprefix in self.obs.fileprefixes['science']:
           for a in self.apertures:
               # a.visualize = False
+              print(a)
               a.addWavelengthCalibration(exposureprefix, shift=shift)

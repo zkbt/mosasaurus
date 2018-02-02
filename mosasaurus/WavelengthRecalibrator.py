@@ -26,7 +26,12 @@ def subtractcontinuum(y):
 		#return residy - np.mean(y)
 
 class WavelengthRecalibrator(Talker):
-	def __init__(self, reducer):
+	'''
+	This object latches onto an unshifted cube, and uses it
+	to determine the streches needed to line up all its spectra.
+	'''
+
+	def __init__(self, cube, visualize=False):
 		'''
 		initialize by assigning to a cube
 		'''
@@ -37,6 +42,9 @@ class WavelengthRecalibrator(Talker):
 
 		# store the unshifted cube in here
 		self.unshiftedcube = cube
+
+		#
+		self.visualize = visualize
 
 		# load the correction, or create it from scratch
 		try:
@@ -100,6 +108,7 @@ class WavelengthRecalibrator(Talker):
 		self.corrections['prefixes'] = self.unshiftedcube.obs.fileprefixes['science']
 		# what's the wavelength zero-point for the polynomial correction?
 		self.corrections['midpoint'] = np.mean(self.unshiftedcube.spectral['wavelength'])
+		self.corrections['commonwavelength'] = self.unshiftedcube.spectral['wavelength']
 
 
 		###subset['midpoint'] = np.mean(self.unshiftedcube.spectral['wavelength'])
@@ -128,16 +137,18 @@ class WavelengthRecalibrator(Talker):
 				localshifts[star] = {}
 				#shift = np.zeros(self.unshiftedcube.numberoftimes)
 
-		# make a plot to put everything in
-		plt.figure(figsize=(20,10), dpi=72)
-		gs = plt.matplotlib.gridspec.GridSpec(3*len(self.unshiftedcube.stars) + 1,len(alignmentranges),
-								hspace=0.25,
-								left=0.05, right=0.95, bottom=0.05, top=0.95, height_ratios=[1,1,0.5]*len(self.unshiftedcube.stars)+[1.5])
-		self.axshifts = {}
+		if self.visualize:
+			# make a plot to put everything in
+			plt.figure(figsize=(20,10), dpi=72)
+			gs = plt.matplotlib.gridspec.GridSpec(3*len(self.unshiftedcube.stars) + 1,len(alignmentranges),
+									hspace=0.25,
+									left=0.05, right=0.95, bottom=0.05, top=0.95, height_ratios=[1,1,0.5]*len(self.unshiftedcube.stars)+[1.5])
+			self.axshifts = {}
 
 		# loop over timepoints
 		for i, prefix in enumerate(self.corrections['prefixes']):
-				for a in self.axshifts.values():
+				if self.visualize:
+					for a in self.axshifts.values():
 						a.cla()
 
 				for iline, line in enumerate(alignmentranges.keys()):
@@ -189,54 +200,52 @@ class WavelengthRecalibrator(Talker):
 							# self.unshiftedcube.squares['offset_{}'.format(line)][star][i] = offset
 							self.corrections['offset_{}'.format(line)][star][prefix] = offset
 
-							# plot spectrum and reference
-							pair = '{line}+{star}'.format(**locals())
-							try:
-									ax = self.axshifts['spectrum+'+pair]
-							except KeyError:
-									ax = plt.subplot(gs[3*istar + 1,iline])
-									self.axshifts['spectrum+'+pair] = ax
+							if self.visualize:
+								# plot spectrum and reference
+								pair = '{line}+{star}'.format(**locals())
+								try:
+										ax = self.axshifts['spectrum+'+pair]
+								except KeyError:
+										ax = plt.subplot(gs[3*istar + 1,iline])
+										self.axshifts['spectrum+'+pair] = ax
 
-							ax.set_xlim(wave.min(), wave.max())
-							ax.set_autoscaley_on(True)
+								ax.set_xlim(wave.min(), wave.max())
+								ax.set_autoscaley_on(True)
 
-							ax.plot(wave, start/np.std(start), color='gray', linewidth=3, alpha=0.4)
-							ax.plot(wave, this/np.std(this), color=self.unshiftedcube.starcolor(star))
-							if iline == 0:
-								ax.set_ylabel('{}/{}'.format(i+1, self.unshiftedcube.numberoftimes))
-							plt.setp(ax.get_yticklabels(), visible=False)
-							ax.set_xlabel('Wavelength\n(angstroms)')
+								ax.plot(wave, start/np.std(start), color='gray', linewidth=3, alpha=0.4)
+								ax.plot(wave, this/np.std(this), color=self.unshiftedcube.starcolor(star))
+								if iline == 0:
+									ax.set_ylabel('{}/{}'.format(i+1, self.unshiftedcube.numberoftimes))
+								plt.setp(ax.get_yticklabels(), visible=False)
+								ax.set_xlabel('Wavelength\n(angstroms)')
 
-							#new = subtractcontinuum(c[star][i,left:right])
-							#ax[1].plot(wave, new/np.std(new), color='green', alpha=0.9, linewidth=2)
 
-							# plot the correlation function
-							try:
-								ax = self.axshifts['correlation+'+pair]
-							except KeyError:
-								ax = plt.subplot(gs[3*istar,iline])
-								self.axshifts['correlation+'+pair] = ax
-							ax.set_autoscaley_on(True)
-							ax.plot(x - len(wave)/2 + 1, xc, alpha=0.5, color='gray')
-							plt.setp(ax.get_yticklabels(), visible=False)
-							ax.scatter(peak - len(wave)/2 + 1, fit(peak), color='gray')
-							#ax.set_xlim(0,len(x))
-							if iline == 0:
-									ax.set_ylabel('{}'.format(star))
+								# plot the correlation function
+								try:
+									ax = self.axshifts['correlation+'+pair]
+								except KeyError:
+									ax = plt.subplot(gs[3*istar,iline])
+									self.axshifts['correlation+'+pair] = ax
+								ax.set_autoscaley_on(True)
+								ax.plot(x - len(wave)/2 + 1, xc, alpha=0.5, color='gray')
+								plt.setp(ax.get_yticklabels(), visible=False)
+								ax.scatter(peak - len(wave)/2 + 1, fit(peak), color='gray')
+								#ax.set_xlim(0,len(x))
+								if iline == 0:
+										ax.set_ylabel('{}'.format(star))
 
-							if istar == 0:
-									ax.set_title(line)
+								if istar == 0:
+										ax.set_title(line)
 
-							ax.axvline(len(x)/2.0 - len(wave)/2, color='gray', zorder=-2, alpha=0.4, linestyle='--')
+								ax.axvline(len(x)/2.0 - len(wave)/2, color='gray', zorder=-2, alpha=0.4, linestyle='--')
 
-				# plot the dwavelength vs wavelength
-
-				try:
-					ax = self.axshifts['compilation']
-				except KeyError:
-					ax = plt.subplot(gs[-1,:])
-					self.axshifts['compilation'] = ax
-				plt.sca(ax)
+				if self.visualize:
+					try:
+						ax = self.axshifts['compilation']
+					except KeyError:
+						ax = plt.subplot(gs[-1,:])
+						self.axshifts['compilation'] = ax
+					plt.sca(ax)
 				for star in localshifts.keys():
 
 						# pull out the approximate line centers
@@ -259,6 +268,7 @@ class WavelengthRecalibrator(Talker):
 						dw = np.polyval(fit, originalwavelength - midpoint)
 						phrase = 'dw = {:.4}xw{:+.4}'.format(*fit)
 
+						self.speak('stretch for {}+{} is {}'.format(star, prefix, phrase))
 						# (MOVE THIS TO EXTRACTED TO SUPERSAMPLED!)
 						#for key in self.unshiftedcube.cubes.keys():
 						#		interpolated = fluxconservingresample(
@@ -267,22 +277,72 @@ class WavelengthRecalibrator(Talker):
 						#												originalwavelength)
 						#		self.unshiftedcube.cubes[key][star][i,:] = interpolated
 						#		self.speak('shifted [{}] by {}'.format(key, phrase))
-						color = self.unshiftedcube.starcolor(star)
-						plt.plot(self.unshiftedcube.spectral['wavelength'], dw, color=color)
-						plt.scatter(linecenters, offsets, color=color)
+						if self.visualize:
+							color = self.unshiftedcube.starcolor(star)
+							plt.plot(self.unshiftedcube.spectral['wavelength'], dw, color=color)
+							plt.scatter(linecenters, offsets, color=color)
 
-				plt.xlim(np.min(self.unshiftedcube.spectral['wavelength']), np.max(self.unshiftedcube.spectral['wavelength']))
-				plt.xlabel('Original Wavelength (angstroms)')
-				plt.ylim(-15, 15)
-				plt.ylabel('New - Original')
+				if self.visualize:
+					plt.xlim(np.min(self.unshiftedcube.spectral['wavelength']), np.max(self.unshiftedcube.spectral['wavelength']))
+					plt.xlabel('Original Wavelength (angstroms)')
+					plt.ylim(-15, 15)
+					plt.ylabel('New - Original')
 
-				#plt.draw()
-				#plt.show()
-				#a = input('?')
-				pltdir = os.path.join(self.unshiftedcube.directory, 'shifts')
-				mkdir(pltdir)
-				pltfilename = os.path.join(pltdir, 'shift_{}.pdf'.format(self.unshiftedcube.obs.fileprefixes['science'][i]))
-				plt.savefig(pltfilename)
+					pltdir = os.path.join(self.unshiftedcube.directory, 'shifts')
+					mkdir(pltdir)
+					pltfilename = os.path.join(pltdir, 'shift_{}.pdf'.format(self.unshiftedcube.obs.fileprefixes['science'][i]))
+					plt.savefig(pltfilename)
 
-				#self.speak( "shift = {4} for star {0}; {2}/{3} spectra".format(star, self.unshiftedcube.numberoftimes, i+1, len(c[star][:,0]), offset))
-				self.speak('plot saved to {}'.format(pltfilename))
+					#self.speak( "shift = {4} for star {0}; {2}/{3} spectra".format(star, self.unshiftedcube.numberoftimes, i+1, len(c[star][:,0]), offset))
+					self.speak('plot saved to {}'.format(pltfilename))
+
+	def recreateSupersampled(self):
+		'''
+		Loop through all the extracted spectra,
+		and resample them onto their new grids,
+		using the new stretched wavelength calibration
+		necessary for each.
+		'''
+
+        # these are things where we care about the sum matching extracted to supersampled
+        self.additivekeys = ['raw_counts', 'sky']
+        # these are things where we want the individual values matching extracted to supersampled
+        self.intrinsickeys = ['centroid', 'width', 'peak']
+        # these are all the keys that will be supersampled
+        self.keys = self.additivekeys + self.intrinsickeys
+
+		# what's the wavelength grid we're resampling onto
+		self.commonwavelength = self.unshiftedcube.spectral['wavelength']
+
+		# loop over stars
+		for star in self.unshiftedcube.stars:
+			directory = os.path.join(self.unshiftedcube.directory, star)
+
+			# loop over prefixes
+			for prefix in self.corrections['prefixes']:
+				extractedFilename = os.path.join(directory, 'extracted_{}.npy'.format(prefix))
+
+				# load the original extracted file
+				extracted = np.load(extractedFilename)
+
+				# nudge the wavelengths
+				originalwavelength = extracted['wavelength'] + 0.0
+				midpoint = self.corrections['midpoint']
+				coefficients = self.corrections['stretch'][star][prefix], self.corrections['shift'][star][prefix]
+				dw = np.polyval(coefficients, originalwavelength - midpoint)
+				wavelength = originalwavelength + dw
+				phrase = 'dw = {:.4}x(w - {midpoint}){:+.4}'.format(*coefficients, midpoint=midpoint)
+				self.speak('nudge wavelengths for {} by {}'.format(prefix, phrase))
+				extracted['wavelength'] = wavelength
+
+				# save the new shifted spectrum out to a file
+				shiftedExtractedFilename = os.path.join(directory, 'shiftedextracted_{}.npy'.format(prefix))
+				np.save(shiftedExtractedFilename, extracted)
+
+				# this function should create a supersampled dictionary of a spectrum
+				supersampled = extracted2supersampled(
+									extracted=extracted,
+									wavelength=self.commonwavelength,
+									additivekeys=['raw_counts', 'sky'],
+									intrinsickeys=['centroid', 'width', 'peak'],
+									)

@@ -34,6 +34,7 @@ class Reducer(Talker):
         self.label=label
         self.extractionDirectory = os.path.join(self.obs.directory, "extraction_{}".format(self.label))
         mkdir(self.extractionDirectory)
+
     def setup(self):
         '''
         Setup all the basic components, or give them easier shortcuts.
