@@ -7,7 +7,7 @@ This package is set up so that it should (eventually) be installable via `python
 
 Dependencies include:
 
-+ [zachopy](https://github.com/zkbt/zachopy)
++ [craftroom](https://github.com/zkbt/craftroom)
 + [astroquery](https://github.com/astropy/astroquery)
 + astropy 1.2.1
 + (Fitting transits will also require [transit](https://github.com/zkbt/transit))
