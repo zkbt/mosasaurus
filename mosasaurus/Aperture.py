@@ -601,7 +601,7 @@ class Aperture(Talker):
       if shift:
           dir = os.path.join(self.directory, 'stretchedsupersampled')
           mkdir(dir)
-          self.supersampledFilename = os.path.join(dir, 'shiftedsupersampled_{}.npy'.format(self.exposureprefix))
+          self.supersampledFilename = os.path.join(dir, 'stretchedsupersampled_{}.npy'.format(self.exposureprefix))
       else:
           dir = os.path.join(self.directory, 'supersampled')
           mkdir(dir)
@@ -622,10 +622,9 @@ class Aperture(Talker):
 
           # redo the interpolation
           # self.visualize = False
-          self.interpolate(remake=remake, shift=shift)
+          self.interpolate(shift=shift)
       else:
-          #self.speak('supersampled+calibrated file {0} already exists'.format(self.supersampledFilename))
-          pass
+          self.speak('{0} already exists'.format(self.supersampledFilename))
 
   def interpolate(self, remake=False, shift=False):
         '''Interpolate the spectra onto a common (uniform) wavelength scale.'''
@@ -691,7 +690,7 @@ class Aperture(Talker):
                 star = self.name
                 coefficients = self.stretches['stretch'][star][self.exposureprefix], self.stretches['shift'][star][self.exposureprefix]
                 dw = np.polyval(coefficients, originalwavelength - midpoint)
-                wavelength = originalwavelength + dw
+                wavelength = originalwavelength - dw
                 phrase = 'dw = {:.4}x(w - {midpoint}){:+.4}'.format(*coefficients, midpoint=midpoint)
                 self.speak('nudge wavelengths for {} by {}'.format(self.exposureprefix, phrase))
             else:
@@ -719,7 +718,6 @@ class Aperture(Talker):
                 self.supersampled = {}
                 self.supersampled['wavelength'] = commonwavelength
                 self.supersampled['fractionofapixel'] = doriginaldnew
-
             # loop over the measurement types
             sharex=None
             for i, key in enumerate(self.keys):

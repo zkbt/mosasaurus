@@ -304,12 +304,12 @@ class WavelengthRecalibrator(Talker):
 		necessary for each.
 		'''
 
-        # these are things where we care about the sum matching extracted to supersampled
-        self.additivekeys = ['raw_counts', 'sky']
-        # these are things where we want the individual values matching extracted to supersampled
-        self.intrinsickeys = ['centroid', 'width', 'peak']
-        # these are all the keys that will be supersampled
-        self.keys = self.additivekeys + self.intrinsickeys
+		# these are things where we care about the sum matching extracted to supersampled
+		self.additivekeys = ['raw_counts', 'sky']
+		# these are things where we want the individual values matching extracted to supersampled
+		self.intrinsickeys = ['centroid', 'width', 'peak']
+		# these are all the keys that will be supersampled
+		self.keys = self.additivekeys + self.intrinsickeys
 
 		# what's the wavelength grid we're resampling onto
 		self.commonwavelength = self.unshiftedcube.spectral['wavelength']

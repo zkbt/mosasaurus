@@ -202,7 +202,7 @@ class Cube(Talker):
             self.load()
         except (IOError, AssertionError): #AttributeError
             # otherwise, load individual spectra an populate this cube
-            self.shift=False
+            #self.shift=False
             self.loadSpectra(remake=remake, max=max, visualize=visualize)
 
     # make some summary images of this cube
@@ -276,6 +276,11 @@ class Cube(Talker):
     # load the names of the stars
     self.stellar['aperture'] = [x.split('/')[-1] for x in self.starDirectories]
 
+
+    if self.shift:
+        shiftsFile = os.path.join(self.directory, 'spectralstretch.npy')
+        self.wavelengthstretches = np.load(shiftsFile)[()]
+
     # loop over the spectra
     for timepoint in range(self.numberoftimes):
         # pull out the file prefix for this star
@@ -286,11 +291,11 @@ class Cube(Talker):
 
 
           # find the available spectra
-          extractedFile = os.path.join(self.starDirectories[istar], 'extracted', 'extracted_{0}.npy'.format(fileprefix))
+          extractedFile = os.path.join(self.starDirectories[istar], 'extracted_{0}.npy'.format(fileprefix))
           if self.shift:
-              spectrumFile = os.path.join(self.starDirectories[istar], 'supersampled, ''supersampled_{0}.npy'.format(fileprefix))
+              spectrumFile = os.path.join(self.starDirectories[istar], 'stretchedsupersampled', 'stretchedsupersampled_{0}.npy'.format(fileprefix))
           else:
-              spectrumFile = os.path.join(self.starDirectories[istar], 'shiftedsupersampled', 'supersampled_{0}.npy'.format(fileprefix))
+              spectrumFile = os.path.join(self.starDirectories[istar], 'supersampled', 'supersampled_{0}.npy'.format(fileprefix))
 
 
           self.speak('trying to load {0}'.format(spectrumFile))
@@ -305,6 +310,8 @@ class Cube(Talker):
               truncate = True
               self.speak('failed to find {}'.format(spectrumFile))
               self.speak('truncating cube!')
+              if timepoint == 0:
+                  raise IOError("No spectra were found at all!")
               break
 
           try:
@@ -350,7 +357,10 @@ class Cube(Talker):
                 assert(s>0.0)
 
           # pull out data from the (unsupersampled) spectra to populate a square with dimensions self.numberofstars x self.numberoftimes
-          for key in ['sky', 'width', 'centroid']:#, 'cosmicdiagnostic']:
+          for key in ['sky', 'width', 'centroid', 'shift', 'stretch']:#, 'cosmicdiagnostic']:
+
+              if (self.shift == False) and (key in ['shift', 'stretch']):
+                  continue
 
               try:
                   self.squares[key]
@@ -361,8 +371,11 @@ class Cube(Talker):
               except KeyError:
                   self.squares[key][star] = np.zeros(self.numberoftimes).astype(np.float32)
 
-              self.squares[key][star][timepoint] = np.nanmedian(extracted[self.width][key])
-              self.speak("updating squares['{key}']['{star}'][{timepoint}]".format(**locals()))
+              if key in ['shift', 'stretch']:
+                  self.squares[key][star][timepoint] = self.wavelengthstretches[key][star][fileprefix]
+              else:
+                  self.squares[key][star][timepoint] = np.nanmedian(extracted[self.width][key])
+              self.speak("updating squares['{key}']['{star}'][{timepoint}] = {value}".format(value=self.squares[key][star][timepoint], **locals()))
 
         # if we've run out of spectra, then break out of the loop (with truncated cubes)
         if truncate:
@@ -397,10 +410,8 @@ class Cube(Talker):
     self.meta['extractiondefaults'] = self.obs.instrument.extractiondefaults
 
 
-    if self.shift:
-        raise ValueError("You need to store the shifts and stretches in the cube!")
     #if self.shift:
-    #    self.shiftCube(plot=visualize)
+    #    raise ValueError("You need to store the shifts and stretches in the cube!")
 
     self.speak("Done loading spectral cube.")
 

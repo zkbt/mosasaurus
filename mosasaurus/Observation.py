@@ -101,7 +101,7 @@ class Observation(Talker):
             answer = self.input("mosasaurus just created some guesses for filenames for {}".format(self) +
                                 "\nPlease check the tables in {}".format(choicesDirectory) +
                                 "\nand edit them as necessary, before proceeding." +
-                                "\nThis sets what exposures will be used for what." +
+                                "\nThis sets what exposures will be used for what."  +
                                 "\n[Press enter to continue.]")
 
             self.speak('reloading from text files in {}, in case you made any changes'.format(choicesDirectory))

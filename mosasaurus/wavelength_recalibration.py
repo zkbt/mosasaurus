@@ -36,7 +36,7 @@ def align_lines(stars, line_range, offset, line_pos, line_poses, plot=False):
     # list of stars is the stars from "aperture" in mosasaurus, plus the master star appended at the end
     for s in range(len(stars)):
 
-        if plot == True: print 'star', s
+        if plot == True: print('star', s)
 
         # find the wavelengths between the wavelenth range of the feature for this particular star
         idxstar = (stars[s]['wavelength']>=line_range[0])*(stars[s]['wavelength']<=line_range[1])
@@ -69,7 +69,7 @@ def align_lines(stars, line_range, offset, line_pos, line_poses, plot=False):
 
         if plot == True and (s != len(stars)-1):
             # can inspect where the code thinks the peak of the correlation is (careful! it doesn't always pick the right one!)
-            print '1st corr'
+            print('1st corr')
             plt.plot(corrs)
             plt.axvline(np.where(corrs == np.max(corrs))[0])
             plt.title(str(line_range))
@@ -83,7 +83,7 @@ def align_lines(stars, line_range, offset, line_pos, line_poses, plot=False):
         # offset should be reasonably small since we assume the spectral features do not suddenly jump around from one exposure to the next
         if len(line_poses) < 13:
             while ((firstshift - offset) > 5.) or ((firstshift - offset) < -5.):
-                print 'extra corr', line_range, firstshift-offset
+                print('extra corr', line_range, firstshift-offset)
                 currentmaxind = np.where(corrs == np.max(corrs))
                 # delete the correlation coefficient that is the maximum but is not providing a reasonably small shift
                 corrs = np.delete(corrs, currentmaxind)
@@ -106,8 +106,8 @@ def align_lines(stars, line_range, offset, line_pos, line_poses, plot=False):
             timesstd = 22
             # eventually the value that gets save in line_poses is a wavelength; make the transformation into wavelength space so that we can compare the current shift to the previous ones
             if (pxtowavemaster(linepx + firstshift - offset)-line > (med + timesstd*std)) or (pxtowavemaster(linepx + firstshift - offset)-line < (med - timesstd*std)):
-                print 'range: ', med - timesstd*std, '-', med + timesstd*std, pxtowavemaster((linepx + firstshift - offset))-line
-                print 'stddev corr', line_range
+                print('range: ', med - timesstd*std, '-', med + timesstd*std, pxtowavemaster((linepx + firstshift - offset))-line)
+                print('stddev corr', line_range)
                 corrind = np.where((pxtowavemaster(linepx + firstrange - offset)-line >= (med - timesstd*std)) & (pxtowavemaster(linepx + firstrange - offset)-line <= (med + timesstd*std)))
                 corrsclipped = np.array(corrs)[corrind]
                 firstshiftind = np.where(corrsclipped == np.max(corrsclipped))[0][0] + corrind[0][0]
@@ -141,7 +141,7 @@ def align_lines(stars, line_range, offset, line_pos, line_poses, plot=False):
         # remember that the last "star" in the list is actually just the master spectrum; again, not sure why I did it this way
         if s == len(stars)-1: line_pos.append(line)
         else: line_pos.append(newline)
-        if plot == True: print finalshift - offset
+        if plot == True: print(finalshift - offset)
         #print newline
 
         # this was left-over from some test I did to see how much the GJ1132 spectrum was stretching/shifting throughout the night
@@ -208,7 +208,7 @@ align_Ca3 = (8650, 8700)
 align_H2O = (9300, 9700)
 for n in r.obs.nScience:
     extracted = '{0:04}.npy'.format(n)
-    print 'working on frame {0:04}'.format(n)
+    print('working on frame {0:04}'.format(n))
     stars = []
     for a in apertures:
         extractedpathname = a.directory + 'extracted' + extracted
