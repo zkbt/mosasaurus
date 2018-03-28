@@ -1,43 +1,47 @@
-from Observation import Observation
-from WavelengthBin import WavelengthBin
-from Cube import Cube
-from transit import *
-import limbdarkening.phoenix as LD
-from .imports import *
+from .WavelengthBin import WavelengthBin
+#import limbdarkening.phoenix as LD
+from ..imports import *
+from transit.Planet import Planet
+from transit.Star import Star
+from transit.Instrument import Instrument
+
+from ldtk import BoxcarFilter, LDPSetCreator
 import multiprocessing
 
 class TransmissionSpectrum(Talker):
 	""" Transmission spectrum object, which can contain depths + uncertainties, lightcurves, covariance matrices, and structures for refitting every point."""
 
-	def __init__(self, obs=None, binsize=100, remake=False, label='fixedGeometry', ):
-		'''Initialize a transmission spectrum object, using a normal Observation file.'''
-		Talker.__init__(self, line=200)
+	def __init__(self, 	cube,
+						name='some-planet', night='some-night',
+						remake=False,
+						label='fixedGeometry'):
+		'''Initialize a transmission spectrum object, using a normal Observation file.
+
+		Parameters
+		----------
+		cube is a binned cube object
+
+
+		'''
+		Talker.__init__(self)
 
 		self.speak('initializing a transmission spectrum')
+
 
 		# should we remake everything?
 		self.remake = remake
 
-		# manage the directories
-		self.initializeFromObs(obs)
+		# set up the basics
+		self.name = name
+		self.night = night
+		self.cube = cube
+		self.binningdirectory = self.cube.directory
 
 		# manage the bins
-		self.setBinsize(binsize)
+		self.setBinsize(self.cube.binsize)
 
 		# manage the label, initializing the fit
 		self.label = label
-
-	def initializeFromObs(self, obs):
-		'''Initialize a spectrum from an observation filename or instance.'''
-
-		# load the observation structure for this file
-		if type(obs) == str:
-			self.obs = Observation(obs, nods9=True)
-		else:
-			self.obs = obs
-
-		# keep track of the name and binsize
-		self.name = self.obs.name
 
 	def setBinsize(self, binsize, unit=10, unitstring='nm'):
 		'''Set the transmission spectrum's binsize.'''
@@ -46,31 +50,25 @@ class TransmissionSpectrum(Talker):
 		self.unitstring = unitstring
 
 
-	@property
-	def binningdirectory(self):
-		'''Parent directory for a particular binning.'''
-		bd =  self.obs.extractionDirectory + "chromatic{binsize:05.0f}/".format(binsize=self.binsize)
-		mkdir(bd)
-		return bd
 
 	@property
 	def rawlightcurvedirectory(self):
 		'''Directory where the original light curves will be saved (as .lightcurve files).'''
-		rld = self.binningdirectory + 'originalLCs/'
+		rld = os.path.join(self.binningdirectory,'lightcurves/')
 		mkdir(rld)
 		return rld
 
 	@property
 	def lightcurvedirectory(self):
 		'''Directory where processed (e.g. trimmed) light curves will be saved (as .npy files).'''
-		ld = self.binningdirectory + 'processedLCs/'
+		ld = os.path.join(self.binningdirectory, 'processed_lightcurves/')
 		mkdir(ld)
 		return ld
 
 	@property
 	def maskdirectory(self):
 		'''Directory where the (possibly custom) mask will be saved.'''
-		md = self.binningdirectory + "{maskname}/".format(maskname=self.maskname)
+		md = os.path.join(self.binningdirectory,  "{maskname}/".format(maskname=self.maskname))
 		mkdir(md)
 		return md
 
@@ -85,9 +83,9 @@ class TransmissionSpectrum(Talker):
 		"""How should this object be represented (e.g. when shown as an element in a list)"""
 
 		try:
-			return '<TransmissionSpectrum {name}|{night}|{left}to{right}{unitstring}|{binsize}{unitstring}>'.format(left=self.bins[0].left/self.unit, right=self.bins[-1].right/self.unit, unitstring=self.unitstring, binsize=self.binsize/self.unit, name=self.obs.name,night=self.obs.night)
+			return '<TransmissionSpectrum {name}|{night}|{left}to{right}{unitstring}|{binsize}{unitstring}>'.format(left=self.bins[0].left/self.unit, right=self.bins[-1].right/self.unit, unitstring=self.unitstring, binsize=self.binsize/self.unit, name=self.name,night=self.night)
 		except AttributeError:
-			return '<TransmissionSpectrum {name}|{night}|[bins unspecified]>'.format(name=self.obs.name,night=self.obs.night)
+			return '<TransmissionSpectrum {name}|{night}|[bins unspecified]>'.format(name=self.name,night=self.night)
 
 	def w2bin(self, w):
 		''' return the bin index of a particular wavelength '''
@@ -96,12 +94,11 @@ class TransmissionSpectrum(Talker):
 class WithTLCs(TransmissionSpectrum):
 	"""Transmission spectrum object that also contains the light curves (needed for initial fits, not for later plotting.)"""
 
-	def __init__(self, obs=None, maskname='defaultMask', **kwargs):
-		TransmissionSpectrum.__init__(self, obs=obs, **kwargs)
+	def __init__(self, cube, maskname='defaultMask', **kwargs):
+		TransmissionSpectrum.__init__(self, cube, **kwargs)
 
 		# load the light curves associate with this transmission spectrum
 		self.constructBins()
-
 		self.speak('its name is {0}'.format(self))
 
 		# manage the mask, and create a default dummy mask if need be
@@ -122,11 +119,8 @@ class WithTLCs(TransmissionSpectrum):
 		if len(possibleTLCs) == 0:
 			self.speak("creating .lightcurve(s) from the spectroscopic cube")
 
-			# initialize a cube object for this observation
-			cube = Cube(self.obs)
-
 			# bin and save the light curves for this binsize
-			cube.makeLCs(binsize=self.binsize)
+			self.cube.makeLCs()
 
 			# return the list of light curve filenames now
 			possibleTLCs = glob.glob(self.rawlightcurvedirectory + '*.lightcurve')
@@ -199,7 +193,6 @@ class WithTLCs(TransmissionSpectrum):
 
 	def toArray(self, key):
 		'''Create an image array of a TLC variable.'''
-
 
 
 		# create an empty array
@@ -512,8 +505,32 @@ class WithTLCs(TransmissionSpectrum):
 		self.initial['star'] = Star(u1 = 0.47, u2=0.33, temperature=6170.0, logg=4.27, metallicity=0.26)
 		self.initial['instrument'] = Instrument(self.bins[0].tlc, order=2)
 
+		self.speak('using LDTk to estimate limb-darkening coefficients')
+
+
+		self.ldtk_filename = os.path.join(self.binningdirectory, 'ldtk_coefs.npy')
+		try:
+			self.ldtk_coefs, self.ldtk_coefuncertainties = np.load(self.ldtk_filename )
+			self.speak('loaded LD coefficients from {}'.format(self.ldtk_filename))
+		except IOError:
+			# create some filters for the limb-darkening
+			self.ldtk_filters = [BoxcarFilter(b.identifier, b.left/10, b.right/10) for b in self.bins]
+
+			# set up the profile creator
+			self.ldtk_sc = LDPSetCreator(	teff=(6170, 80),    # Define your star, and the code
+											logg=(4.27, 0.07),    # downloads the uncached stellar
+											z=(0.26, 0.15),    # spectra from the Husser et al.
+											filters=self.ldtk_filters)    # FTP server automatically.
+
+			self.ldtk_profiles =  self.ldtk_sc.create_profiles()
+
+			self.ldtk_coefs, self.ldtk_coefuncertainties = self.ldtk_profiles.coeffs_qd(do_mc=False)
+			np.save(self.ldtk_filename, (self.ldtk_coefs, self.ldtk_coefuncertainties))
+			self.speak('saved new LD coefficients to {}'.format(self.ldtk_filename))
+
 		# initialize a limb-darkening object
-		self.ld = LD.LD(temperature=self.initial['star'].temperature.value, gravity=self.initial['star'].logg.value, metallicity=self.initial['star'].metallicity.value, directory = self.binningdirectory, plot=True)
+		#self.ld = LD.LD(temperature=self.initial['star'].temperature.value, gravity=self.initial['star'].logg.value, metallicity=self.initial['star'].metallicity.value, directory = self.binningdirectory, plot=True)
+
 
 
 	def setupFit(self, label='fixedGeometry', maskname='defaultMask', remake=True):
@@ -529,6 +546,7 @@ class WithTLCs(TransmissionSpectrum):
 		# pull out the initial planet, star, and instrument
 		p, s, i = self.initial['planet'], self.initial['star'], self.initial['instrument']
 
+		instrumentallimits = [-0.05, 0.05]
 		# modify these according to what kind of a fit we want to use
 		if label == 'fixedGeometry' or label == 'floatingLD':
 
@@ -536,46 +554,54 @@ class WithTLCs(TransmissionSpectrum):
 			p.k.float(limits=[0.05, 0.15])
 
 			# a constant baseline
-			i.C.float(value=1.0,limits=[0.9, 1.1])
+			i.C.float(value=1.0,limits=[0.5, 1.5])
+
+
 
 			# instrument rotator angle (seems to matter!)
-			i.rotatore_tothe1.float(value=0.002, limits=[-0.005, 0.005])
+		 	i.rotatore_tothe1.float(value=0.002, limits=instrumentallimits)
 
 			# width of the whole spectrum, and the width in the wavelength range
-			i.width_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			i.dwidth_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
+			i.width_target_tothe1.float(value=0.002, limits=instrumentallimits)
+			i.dwidth_target_tothe1.float(value=0.002, limits=instrumentallimits)
 
 			# cross-dispersion centroid of the whole spectrum, and in the wavelength range
-			i.centroid_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			i.dcentroid_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
+			i.centroid_target_tothe1.float(value=0.002, limits=instrumentallimits)
+			i.dcentroid_target_tothe1.float(value=0.002, limits=instrumentallimits)
 
 			# applied wavelength offset
-			i.shift_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
+			i.shift_target_tothe1.float(value=0.002, limits=instrumentallimits)
 
 			# the sky brightness in
-			i.sky_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			i.peak_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
+			i.sky_target_tothe1.float(value=0.002, limits=instrumentallimits)
+			i.peak_target_tothe1.float(value=0.002, limits=instrumentallimits)
 
 
 			# allow the limbdarkening to float [a prior for each bin will be set later]
-			s.u1.float(value=s.u1.value, limits=[0.0, 1.0])
-			s.u2.float(value=s.u2.value, limits=[0.0, 1.0])
+			if label == 'floatingLD':
+				s.u1.float(value=s.u1.value, limits=[0.0, 1.0])
+				s.u2.float(value=s.u2.value, limits=[0.0, 1.0])
+			else:
+				s.u1.fix(value=s.u1.value)
+				s.u2.fix(value=s.u2.value)
+
+
 			return
 
 		if label == 'floatingGeometry':
-			p.rs_over_a.float(value=0.14, limits=[0.0,1.0], shrink=1000.0)
+			p.rs_over_a.float(value=0.14, limits=[0.0,0.3], shrink=1000.0)
 			p.k.float(limits=[0.05, 0.15])
 			p.b.float(value=0.8, limits=[0.0, 1.0], shrink=1000.0)
 			p.dt.float(limits=np.array([-0.01, 0.01]))
 			i.C.float(value=1.0,limits=[0.9, 1.1])
-			i.rotatore_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			i.width_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			i.centroid_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			i.shift_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			i.dwidth_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			i.dcentroid_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			i.sky_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
-			i.peak_target_tothe1.float(value=0.002, limits=[-0.005, 0.005])
+			i.rotatore_tothe1.float(value=0.002, limits=instrumentallimits)
+			i.width_target_tothe1.float(value=0.002, limits=instrumentallimits)
+			i.centroid_target_tothe1.float(value=0.002, limits=instrumentallimits)
+			i.shift_target_tothe1.float(value=0.002, limits=instrumentallimits)
+			i.dwidth_target_tothe1.float(value=0.002, limits=instrumentallimits)
+			i.dcentroid_target_tothe1.float(value=0.002, limits=instrumentallimits)
+			i.sky_target_tothe1.float(value=0.002, limits=instrumentallimits)
+			i.peak_target_tothe1.float(value=0.002, limits=instrumentallimits)
 			return
 
 		assert(False)
@@ -593,9 +619,9 @@ class WithTLCs(TransmissionSpectrum):
 		self.speak('about to fit {0} bins with:')
 		for k in locals().keys():
 			self.speak('   {0} = {1}'.format(k, locals()[k]))
-		self.input('are you okay with that?')
+		#self.input('are you okay with that?')
 
-		self.setupFit( label=label, maskname=maskname, remake=True)
+		self.setupFit(label=label, maskname=maskname, remake=True)
 
 		if label == 'floatingLD':
 			kw['ldpriors'] = False
@@ -616,5 +642,5 @@ def slowfit(inputs):
 	i, kw = inputs
 	t = TransmissionSpectrum(**kw)
 	t.speak('starting fit for bin {0}'.format(i))
-	t.bins[i].fit( plot=False, slow=True, interactive=False, nburnin=500, ninference=500, **kw)
+	t.bins[i].fit(plot=False, slow=True, interactive=False, nburnin=500, ninference=500, **kw)
 	return "done!"

@@ -1,6 +1,8 @@
-from .imports import *
-from transit import TLC, TM
-from SpectrumPlot import Gradient
+from ..imports import *
+from transit.TLC import TLC
+from transit.TM import TM
+from .SpectrumPlot import Gradient
+
 howtocolor = Gradient(bottom='indigo', top='orange', range=[400,1050])
 
 class WavelengthBin(Talker):
@@ -27,7 +29,7 @@ class WavelengthBin(Talker):
 	def __repr__(self):
 		"""How should this object be represented (e.g. when shown as an element in a list)"""
 
-		return '<WavelengthBin {name}|{night}|{left}to{right}{unitstring}>'.format(left=self.left/self.unit, right=self.right/self.unit, unitstring=self.unitstring, name=self.TS.obs.name,night=self.TS.obs.night)
+		return '<WavelengthBin {name}|{night}|{left}to{right}{unitstring}>'.format(left=self.left/self.unit, right=self.right/self.unit, unitstring=self.unitstring, name=self.TS.name,night=self.TS.night)
 
 	@property
 	def wavelength(self):
@@ -44,7 +46,7 @@ class WavelengthBin(Talker):
 			assert(self.TS.remake == False)
 			assert(remake==False)
 			self.readProcessedLC()
-		except (IOError,AssertionError):
+		except (IOError,AssertionError,AttributeError):
 			self.readRawLC()
 		assert(len(self.tlc.flux) > 0)
 
@@ -52,7 +54,7 @@ class WavelengthBin(Talker):
 		'''read a light curve that has already been loaded and saved as a TLC object'''
 		self.speak( "attempting to load a processed light curve from {0}".format( self.datadirectory))
 
-		self.tlc = TLC(directory=self.datadirectory, name=self.TS.name, left=self.left, right=self.right, telescope=self.identifier, color=howtocolor)
+		self.tlc = TLC(directory=self.datadirectory, name=self.TS.name, left=self.left, right=self.right, telescope=self.identifier, color=self.color)
 		assert(self.tlc is not None)
 		self.speak( "   ...success!")
 
@@ -65,11 +67,11 @@ class WavelengthBin(Talker):
 		lcFile = self.TS.rawlightcurvedirectory + self.identifier + ".lightcurve"
 		self.speak("attempting to load a raw light curve from {0}".format(lcFile))
 
-		self.tlc = TLC(inputfilename=lcFile,
+		self.tlc = TLC( inputfilename=lcFile,
 						name=self.TS.name,
 						left=self.left, right=self.right, directory=self.datadirectory,
 						telescope=self.identifier,
-						color=howtocolor)
+						color=self.color)
 		self.speak('...success!')
 		self.tlc.save(self.datadirectory)
 
@@ -112,7 +114,7 @@ class WavelengthBin(Talker):
 			self.readTLC()
 
 		# apply the spectrum-level mask
-		self.tlc.bad *= self.TS.mask[self.TS.w2bin[self.wavelength], :]
+		self.tlc.bad += self.TS.mask[self.TS.w2bin(self.wavelength), :].flatten()
 
 
 		# initialize some structures
@@ -125,14 +127,23 @@ class WavelengthBin(Talker):
 
 
 		# initialize the limb darkening values and uncertainties, with prior from atmosphere models
-		u1, u2, du1dt, du2dt = self.TS.ld.quadratic(self.left, self.right, nudge=True)
+
+
+		ibin = self.TS.w2bin(self.wavelength)[0]
+		u1, u2 = self.TS.ldtk_coefs[ibin]
+		u1_unc, u2_unc = self.TS.ldtk_coefuncertainties[ibin]
+
+
+		#self.TS.ldt
+		#u1, u2, du1dt, du2dt = self.TS.ld.quadratic(self.left, self.right, nudge=True)
+		# this doesn't use the covariances -- it should!
 		self.star.u1.value = u1
 		self.star.u2.value = u2
-		self.star.u1.uncertainty = np.abs(du1dt)*200.0
-		self.star.u2.uncertainty = np.abs(du2dt)*200.0
+		self.star.u1.uncertainty = u1_unc
+		self.star.u2.uncertainty = u2_unc
 
 		# create the transit model, using the input structures
-		self.tm = TM(self.planet, self.star, self.instrument, depthassumedforplotting=self.depthassumedforplotting , directory=self.fittingdirectory)
+		self.tm = TM(self.planet, self.star, self.instrument, depthassumedforplotting=self.depthassumedforplotting, directory=self.fittingdirectory)
 
 		# link the model and the light curve
 		self.tlc.linkModel(self.tm)

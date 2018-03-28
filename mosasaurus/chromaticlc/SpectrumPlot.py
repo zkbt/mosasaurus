@@ -1,4 +1,4 @@
-from .imports import *
+from ..imports import *
 import craftroom.cmaps
 
 class Color(Talker):
@@ -28,7 +28,7 @@ class SpectrumPlot(Talker):
     def __init__(self, xlim=[400,1050]):
         Talker.__init__(self)
 
-        self.toplot = [ 'lightcurves', 'depth']#,'spectrum', 'rs_over_a', 'b']
+        self.toplot = ['lightcurves', 'depth']#,'spectrum', 'rs_over_a', 'b']
 
         # populate the plots
         self.panels = {}
@@ -96,7 +96,7 @@ class SpectrumPlot(Talker):
         self.alpha=alpha
         try:
             assert(self.hasbeensetup)
-        except:
+        except AttributeError:
             self.setup(spectrum)
 
         # point the plot at this particular transmission spectrum

@@ -1,31 +1,47 @@
 from .imports import *
-from .SquishableCube import SquishableCube
 
 
-class Visualizer(Talker):
-    def __init__(self, squishablefilename):
+class CubeVisualizer(Talker):
+    '''
+    A tool for visualizing a squishable cube.
+    '''
+    def __init__(self, cube=None):
+        '''
+        Initialize a visualizer, and link it to a Squishable or Binned cube.
+        '''
+
         Talker.__init__(self)
-        # load the cube of data
-        self.squishable = SquishableCube(squishablefilename)
+        self.cube = cube
 
-        #
-        self.loupe = loupe()
+    @property
+    def loupe(self):
+        try:
+            return self._loupe
+        except AttributeError:
+            self._loupe = loupe()
+            return self._loupe
 
-    def explore(self, image=None, key='raw_counts', star=None, **kw):
+    def explore(self, image=None, key='raw_counts', star=None, vmin=None, vmax=None, **kw):
         '''
-        Set the image (key and star) to show.
+        Visually explore the cube, displaying flux vs. time + wavelength.
+
+            image = (ntimepoints x nwavelengths) image to visualize,
+                    by imshowing the 2D array, and showing slices of it along
+                    both the horizontal and vertical
+
+
         '''
 
-        color = self.squishable.starcolor(self.squishable.target)
+        color = self.cube.starcolor(self.cube.target)
 
         if image is None:
             # make sure a star is defined
             if star == None:
-                star = self.squishable.target
+                star = self.cube.target
 
             # do different things for different keys
-            if key in self.squishable.cubekeys:
-                z = self.cubes[key][star]
+            if key in self.cube.cubekeys:
+                z = self.cube.cubes[key][star]
                 vmin, vmax = 0, np.nanpercentile(z, 99)
             if key == 'corrected':
                 z = self.corrected()
@@ -35,6 +51,10 @@ class Visualizer(Talker):
                 vmin, vmax = 0.72, 1.1
         else:
             z = image
+            if vmin is None:
+                vmin = np.nanpercentile(z, 1)
+            if vmax is None:
+                vmin = np.nanpercentile(z, 99)
 
         aspect_ratio = 6.0/4.0
         tiny = 0.1
@@ -45,11 +65,9 @@ class Visualizer(Talker):
         wspace = space
         figsize= np.array([aspect_ratio, 1.0])*8
 
-        if self.squishable.binned:
-            wavelength = self.squishable.binned_spectral['wavelength']
-        else:
-            wavelength = self.squishable.spectral['wavelength']
-        times = self.squishable.temporal['bjd']
+
+        wavelength = self.cube.spectral['wavelength']
+        times = self.cube.temporal['bjd']
         times -= np.min(times)
         try:
             ok = self.ok
@@ -90,11 +108,11 @@ class Visualizer(Talker):
 
     def corrected(self, key='raw_counts'):
         # normalize along the wavelength axis
-        star = self.squishable.target
+        star = self.cube.target
         self.speak('calculating [{}] for [{}], corrected by the mega-calibrator'.format(key, star))
-        target = self.cubes[key][star]
+        target = self.cube.cubes[key][star]
         # KLUDGE!!!
-        comparison = self.cubes[key][self.squishable.comparisons[0]]
+        comparison = self.cube.cubes[key][self.cube.comparisons[0]]
         z = target/comparison
         oned = np.nanmedian(z, 0)
         z = z/oned[np.newaxis,:]
@@ -102,25 +120,19 @@ class Visualizer(Talker):
 
     def wavelengthed(self, key='raw_counts', star=None):
         if star == None:
-            star = self.squishable.target
+            star = self.cube.target
 
         # normalize along the wavelength axis
         self.speak('calculating [{}] for [{}], normalized by its median spectrum'.format(key, star))
-        z = self.cubes[key][star]
+        z = self.cube.cubes[key][star]
         oned = np.nanmedian(z, 0)
         return z/oned[np.newaxis,:]
-
-
-    @property
-    def cubes(self):
-        if self.squishable.binned:
-            return self.squishable.binned_cube
-        else:
-            return self.squishable.cubes
 
     def overlayQuality(self, color='tomato'):
         '''
         Plot the cosmic rays on top of the plot.
+
+        ### KLUDGE -- test this; it's not clear it's working yet!
         '''
         cmap = craftroom.cmaps.one2another(color, color, alphabottom=1.0, alphatop=0.0)
         a = self.loupe.ax['2d']
@@ -128,9 +140,9 @@ class Visualizer(Talker):
         try:
             ok = self.ok
         except AttributeError:
-            ok = self.cubes['ok'][self.squishable.target]
+            ok = self.cube.cubes['ok'][self.cube.target]
 
-        self.overlay = a.imshow(ok,
+        self.overlay = a.imshow(ok.T,
                                     cmap=cmap,
                                     extent=self.loupe.extent,
                                     interpolation='nearest',
@@ -139,14 +151,59 @@ class Visualizer(Talker):
                                     aspect=self.loupe.ax['2d'].get_aspect()
         )
 
-    def zapCosmics(self):
+    """
+    def zapCosmics(self, remake=False):
         # the
-        z = self.corrected()
-        filtered = scipy.signal.medfilt(z, (5, 15))
-        cosmics = z - filtered
+        cosmicfilename = os.path.join(self.cube.binneddirectory, 'cosmics.npy')
+        try:
+            notcosmics = np.load(cosmicfilename)[()]
+            assert(remake == False)
+        except (IOError, AssertionError):
+            self.speak('trying to zap cosmics')
+            z = self.corrected()
+            filtered = scipy.signal.medfilt(z, (5, 15))
+            cosmics = z - filtered
 
-        wavelengthstd = 1.48*np.nanmedian(np.abs(cosmics - np.nanmedian(cosmics, 0)[np.newaxis,:]), 0)
-        #mad(cosmics, 0)
-        normalized = cosmics/wavelengthstd[np.newaxis, :]
-        notcosmics = np.abs(normalized) < 5
+            wavelengthstd = 1.48*np.nanmedian(np.abs(cosmics - np.nanmedian(cosmics, 0)[np.newaxis,:]), 0)
+            #mad(cosmics, 0)
+            normalized = cosmics/wavelengthstd[np.newaxis, :]
+            notcosmics = np.abs(normalized) < 5
+            np.save(cosmicfilename, notcosmics)
         self.ok = notcosmics
+        for star in self.cube.stars:
+            self.cube.binned_cubes['ok'][star] *= self.ok
+    """
+
+
+
+    def makeSliceMovies(self, keys=['wavelengthed', 'corrected', 'raw_counts'],
+                         remake=False,
+                         stride=1):
+        '''
+        Make movies slicing through wavelength.
+        '''
+
+        wavelength = self.cube.spectral['wavelength']
+        z = self.cube.cubes['raw_counts'][self.cube.target]
+        spectrum = np.nanmedian(z, 0)
+
+        for key in keys:
+
+            if key == 'raw_counts':
+                axislabel = 'Photons/$\AA$'
+            else:
+                axislabel = 'Relative\nFlux'
+
+            self.explore(key=key)
+            self.loupe.moveCrosshair(y=np.min(wavelength), x=None)
+            self.loupe.plotted['slicey'].set_data(spectrum, wavelength)
+            self.loupe.ax['slicey'].set_xlim(0, np.nanpercentile(spectrum, 99)*1.1)
+            plt.setp(self.loupe.ax['slicey'].get_xticklabels(), visible=False)
+            self.loupe.ax['slicex'].set_ylabel(axislabel)
+
+            plotfilename = os.path.join(self.cube.directory, '{}.pdf'.format(key))
+            plt.savefig(plotfilename, dpi=1000)
+
+            filename = os.path.join(self.cube.directory, '{}.mp4'.format(key))
+            self.speak('saving movie to {}'.format(filename))
+            self.loupe.movieSlice(direction='y', filename=filename, remake=remake, stride=stride)

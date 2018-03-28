@@ -1,6 +1,8 @@
 from .Cube import Cube
 from .imports import *
+from .CubeVisualizer import CubeVisualizer
 
+binnedsavable = ['binned_cubes', 'squares', 'temporal', 'binned_spectral', 'stellar', 'target', 'comparisons']
 
 # set a cmap for stars
 starcm = craftroom.cmaps.one2another('royalblue', 'sienna')
@@ -12,10 +14,12 @@ class SquishableCube(Talker):
         Talker.__init__(self)
 
         self.load()
-        self.directory = os.path.split(self.filename)[0]
+        self.basedirectory = os.path.split(self.filename)[0]
         self.shift = 'shifted.npy' in self.filename
         self.binned = False
+        self.binsize = None
         self.markBad()
+        self.visualizer = CubeVisualizer(self)
 
     '''
     def bin(self, binning):
@@ -29,6 +33,21 @@ class SquishableCube(Talker):
         newwavelength =
         self.unbinned
     '''
+
+    @property
+    def binlabel(self):
+        return 'binby{}'.format(self.binsize)
+    @property
+    def binneddirectory(self):
+        #if self.binned:
+        d = os.path.join(self.basedirectory, self.binlabel)
+        mkdir(d)
+        return d
+        #else:
+        #    return self.basedirectory
+
+
+
 
     # keep - load the entire cube from a single file
     def load(self):
@@ -91,6 +110,29 @@ class SquishableCube(Talker):
         oned = np.median(z, 0)
         return z/oned[np.newaxis,:]
 
+    def timed(self, key='raw_counts', star=None):
+        if star == None:
+            star = self.target
+
+        # normalize along the wavelength axis
+        self.speak('calculating [{}] for [{}], normalized by its median time series'.format(key, star))
+        z = self.cubes[key][star]
+        oned = np.median(z, 1)
+        return z/oned[:, np.newaxis]
+
+    def wavelengthedtimed(self, key='raw_counts', star=None):
+        if star == None:
+            star = self.target
+
+        # normalize along the wavelength axis
+        self.speak('calculating [{}] for [{}], normalized by its median spectrum, and then by its median time series'.format(key, star))
+        z = self.cubes[key][star]
+        medianspectrum = np.median(z, 0)
+        wnormalized = z/medianspectrum[np.newaxis,:]
+        mediantimeseries = np.median(wnormalized, 1)
+
+        return wnormalized/mediantimeseries[:, np.newaxis]
+
 
     # keep - makes tidy image plots of spectral quantities
     def imageCube(self, keys=None, stars=None, remake=False):
@@ -111,8 +153,8 @@ class SquishableCube(Talker):
                 'comparison':'Comparison-divided Quantities'
               }
 
-        dir = os.path.join(self.directory, 'imagedcubes')
-        mkdir(dir)
+        d = os.path.join(self.binneddirectory, 'imagedcubes')
+        mkdir(d)
         for option, description in options.items():
             filename = os.path.join(dir, '{}+{}+{}+{}.pdf'.format(option, {True:'shifted', False:'raw'}[self.shift], '-'.join(keys), '+'.join(stars)))
             if os.path.exists(filename) and (remake == False):
@@ -200,12 +242,11 @@ class SquishableCube(Talker):
     def markBad(self):
       '''mark bad time-wavelength-star data points as bad'''
 
-      okfilename = os.path.join(self.directory, 'okgrid.npy')
+      okfilename = os.path.join(self.basedirectory, 'okgrid.npy')
 
       try:
         self.cubes['ok'] = np.load(okfilename)[()]
         self.speak('loaded OK-ness from {}'.format(okfilename))
-        assert(False)
       except (IOError, AssertionError):
 
         self.cubes['ok'] = {}
@@ -269,45 +310,318 @@ class SquishableCube(Talker):
         self.speak('loaded OK-ness from {}'.format(okfilename))
 
 
-    def squish(self, binning=50):
+    def squish(self, binning=50, remake=False):
         '''
         Bin a cube down to a squished cube, using the ok as weights.
         '''
         self.speak('binning the cube!')
+        self.binsize = binning
+        self.binnedfilename = os.path.join(self.binneddirectory, self.binlabel + 'cube.npy')
 
-        originalwavelength = self.spectral['wavelength']
-        dw = np.median(np.diff(originalwavelength))
-        left = self.spectral['wavelength'][::binning]
-        right = left + dw*binning
-        centers = 0.5*(left + right)
-        n = np.int(len(originalwavelength)/binning)
+        #try:
+        #    assert(remake == False)
+        #    self.binned_cubes, self.binned_spectral = np.load(self.binnedfilename)[()]
+        #    self.speak('loaded binned cube from {}'.format(self.binnedfilename))
+        #except (IOError, AssertionError):
+        if True:
 
-        self.binned_cube = {}
-        self.binned_spectral = {}
-        self.binned_cube['raw_counts'] = {}
-        self.binned_cube['ok'] = {}
+            originalwavelength = self.spectral['wavelength']
+            dw = np.median(np.diff(originalwavelength))
+            left = self.spectral['wavelength'][::binning]
+            right = left + dw*binning
+            centers = 0.5*(left + right)
+            n = np.int(len(originalwavelength)/binning)
+
+            self.binned_cubes = {}
+            self.binned_spectral = {}
+            self.binned_cubes['ok'] = {}
+            for star in self.stars:
+                self.binned_cubes['ok'][star] = np.ones((self.numberoftimes, np.int(self.numberofwavelengths/binning) ))
+
+            for k in ['raw_counts', 'sky', 'centroid', 'width', 'peak']:
+                self.binned_cubes[k] = {}
+                self.speak(' (currently on {})'.format(k))
+                for star in self.stars:
+                    self.binned_cubes[k][star] = np.zeros((self.numberoftimes, np.int(self.numberofwavelengths/binning) ))
+                    for i in tqdm(range(self.numberoftimes)):
+
+                        # pull out the good elements
+                        y = self.cubes[k][star][i,:]
+                        ok = self.cubes['ok'][star][i,:].astype(np.float)
+
+                        # make a weighted resample
+                        binned_weighted = fluxconservingresample(
+                                originalwavelength, y*ok, centers)
+
+                        # what were the weights?
+                        binned_weights = fluxconservingresample(
+                                originalwavelength, ok, centers)
+
+                        # what would the weights be if everything were perfect?
+                        binned_ones= fluxconservingresample(
+                                originalwavelength, np.ones_like(ok), centers)
+
+                        # calculate the final binned
+                        final = binned_weighted/binned_weights
+
+                        # make sure that something is finite
+                        assert(np.isfinite(final).any())
+
+                        # store the final one
+                        self.binned_cubes[k][star][i,:] = final
+                        self.binned_cubes['ok'][star][i,:] = binned_weights/binned_ones#*= binned_weights > 0
+                        #self.speak(repr(self.binned_cubes['ok'][star][i,:]))
+                    assert(np.sum(self.binned_cubes['ok'][star]) > 0)
+                    #self.speak(np.sum(self.binned_cubes['ok'][star]))
+                    #self.binned_cubes['raw_counts'][star].append(final)
+                    #self.speak('{}'.format(i))
+            #self.binned_cubes['raw_counts'][star] = np.array(np.array(self.binned_cubes['raw_counts'][star]))
+            self.binned_spectral['wavelength'] = centers
+            self.binned_spectral['fractionofapixel'] = fluxconservingresample(
+                    originalwavelength, self.spectral['fractionofapixel'], centers)
+
+
+            for fraction in np.linspace(0, 1, 11):
+                self.speak('{} points are <={} okay'.format(np.sum(self.binned_cubes['ok'][self.target] <= fraction), fraction))
+
+
+            np.save(self.binnedfilename, (self.binned_cubes, self.binned_spectral))
+            self.speak('saved binned cube to {}'.format(self.binnedfilename))
+        self.binned = True
+
+
+    def export(self):
+        '''Export the data in this cube to an .npy.'''
+
+        self.speak('attempting to save the binned cube of spectra to...')
+        self.speak(' {0}'.format(self.binnedfilename))
+
+
+        # create a dictionary, that's going to be saved
+        tosave = {}
+        tosave['cubes'] = self.binned_cubes
+        tosave['spectral'] = self.binned_spectral
+        othersavable = [ 'squares', 'temporal',  'stellar', 'target', 'comparisons']
+
+        for thing in othersavable:
+            tosave[thing] = self.__dict__[thing]
+
+        for thing in tosave.keys():
+            self.speak('  including [{0}] in the binned saved cube structure'.format(thing))
+
+        # save that to a .npy file
+        np.save(self.binnedfilename, tosave)
+
+
+    def zapCosmics(self, wavelengthbin = 10, threshold = 5, plot=True, remake=False):
+        '''
+        Identify outliers in the divided cube, and call them cosmic rays.
+        '''
+
+        cosmicfilename = os.path.join(self.basedirectory, 'cosmicrays.npy')
+        try:
+            nocosmic = np.load(cosmicfilename)
+            assert(remake == False)
+        except (IOError, AssertionError):
+
+            z = self.corrected()
+            ntimes, nwavelengths = z.shape
+            binned = np.mean(self.corrected().reshape(ntimes, nwavelengths/wavelengthbin, wavelengthbin), 2)
+            mediantimeseries = np.median(binned, 1)
+            withouttimeseries = binned/mediantimeseries[:, np.newaxis] - 1
+            wavelengthstd = np.nanstd(withouttimeseries, 0)
+            normalized = withouttimeseries/wavelengthstd[np.newaxis, :]
+            bad = np.abs(normalized) > threshold
+            badoriginalshape = (bad[:,:,np.newaxis]*np.ones(wavelengthbin)).reshape((ntimes, nwavelengths))
+            # kludge (individual stars should be different!)
+            nocosmic = badoriginalshape == False
+            if plot:
+                filename = os.path.join(self.basedirectory, 'cosmicrays.pdf')
+                self.visualizer.ok = badoriginalshape == False
+                self.visualizer.explore(key='corrected', vmin=0.97, vmax=1.01, interpolation='nearest')
+                self.visualizer.overlayQuality()
+                plt.savefig(filename)
+                self.speak('saved plot of cosmic identifications to {}'.format(filename))
+
+            np.save(cosmicfilename, nocosmic)
+
 
         for star in self.stars:
-            self.binned_cube['raw_counts'][star] = np.zeros((self.numberoftimes, np.int(self.numberofwavelengths/binning) ))
-            for i in range(self.numberoftimes):
+            self.cubes['ok'][star] *= nocosmic
 
-                flux = self.cubes['raw_counts'][star][i,:]
-                ok = self.cubes['ok'][star][i,:]
 
-                binned_weighted = fluxconservingresample(
-                        originalwavelength, flux*ok, centers)
+        '''
+        self.squished = SquishedCube(   filename=self.binnedfilename,
+                                        remake=True,
+                                        cubes=self.binned_cubes,
+                                        squares=self.squares,
+                                        temporal=self.temporal,
+                                        spectral=self.binned_spectral,
+                                        stellar=self.stellar,
+                                        target=self.target,
+                                        comparisons=self.comparisons,
+                                        directory=self.binneddirectory,
+                                        binsize=self.binsize
+                                        )
+        return self.squished
+        '''
 
-                binned_weights = fluxconservingresample(
-                        originalwavelength, ok, centers)
+class BinnedCube(SquishableCube):
+    def __init__(self, filename=None,  **kwargs):
+        '''
+        This object stores a pre-written cube file.
+        '''
 
-                final = binned_weighted/binned_weights
-                assert(np.isfinite(final).any())
-                self.binned_cube['raw_counts'][star][i,:] = final
-
-                self.binned_cube['raw_counts'][star][i,:] = final
-
-                #self.binned_cube['raw_counts'][star].append(final)
-                #self.speak('{}'.format(i))
-        #self.binned_cube['raw_counts'][star] = np.array(np.array(self.binned_cube['raw_counts'][star]))
-        self.binned_spectral['wavelength'] = centers
+        Talker.__init__(self)
+        self.filename = filename
+        self.load()
         self.binned = True
+        self.binsize = np.int(filename.split('binby')[-1].split('cube')[0])
+        self.directory = os.path.dirname(filename)
+        self.visualizer = CubeVisualizer(self)
+
+
+    def load(self):
+        '''Load the data for this chromatic light curve from a .npy.'''
+
+        self.speak('attempting to load binned cube from...')
+        self.speak(' {0}'.format(self.filename))
+
+        # load the dictionary
+        loaded = np.load(self.filename)[()]
+        self.savable = loaded.keys()
+        for thing in self.savable:
+            self.__dict__[thing] = loaded[thing]
+            self.speak('  loading [{0}] from the binned cube file'.format(thing))
+
+        self.numberofstars = len(self.stellar['aperture'])
+        self.numberofwavelengths = len(self.spectral['wavelength'])
+        self.numberoftimes = len(self.temporal)
+        self.cubekeys = self.cubes.keys()
+        self.stars = self.stellar['aperture']
+
+    def makeLCs(self):
+        '''Make a set of light curves from this binned cube.'''
+        binsize = self.binsize
+        lcdirectory = os.path.join(os.path.dirname(self.filename), 'lightcurves')
+        mkdir(lcdirectory)
+        # all of these are photons/angstron, so need to multiply by the binwidth
+        # KLUDGE! this should be calculated for all stars, in the binning process!
+        # calculate the noise for each light curve point!
+        noisecountstarget = binsize*(self.cubes['raw_counts'][self.target] + self.cubes['sky'][self.target])
+        signalcountstarget = binsize*(self.cubes['raw_counts'][self.target])
+        fractionaltargetuncertainty = np.sqrt(noisecountstarget)/signalcountstarget
+
+        noisecountscomparisons = np.zeros_like(noisecountstarget)
+        signalcountscomparisons = np.zeros_like(noisecountstarget)
+        for c in self.comparisons:
+            noisecountscomparisons += binsize*(self.cubes['raw_counts'][c] + self.cubes['sky'][c])
+            signalcountscomparisons += binsize*(self.cubes['raw_counts'][c])
+        fractionalcomparisonsuncertainty = np.sqrt(noisecountscomparisons)/signalcountscomparisons
+
+        uncertainty = np.sqrt(fractionaltargetuncertainty**2 + fractionalcomparisonsuncertainty**2)
+        # this should be ntimes x nwavelengths shape
+
+
+        wavelengths = self.spectral['wavelength']
+
+        corrected = self.corrected()
+        for i, w in enumerate(wavelengths):
+            left = w - binsize/2
+            right = w + binsize/2
+
+            # create an empty LC object
+            lc = astropy.table.Table()
+            lc['bjd'] = self.temporal['bjd']
+
+            lc['flux'] = corrected[:,i]
+            lc['uncertainty'] = uncertainty[:,i]
+            print("The median uncertainty is {}".format(np.median(lc['uncertainty'])))
+
+            lc['ok'] = self.cubes['ok'][self.target][:,i]
+
+            # pull out global time-dependent values
+            for key in ['airmass', 'rotatore']:
+                lc['{0}'.format(key)] = self.temporal[key]
+
+            def starname(comparison):
+                return comparison.replace('_', '-').replace('aperture', 'comp')
+
+            # pull out the star-by-star (wavelength-independent) quantities
+            for key in ['width', 'centroid', 'shift']:
+                try:
+                    lc['{0}_target'.format(key)] = self.squares[key][self.target]
+                    for comparison in self.comparisons:
+                        lc['{0}_{1}'.format(key, starname(comparison))] = self.squares[key][comparison]
+                except KeyError:
+                    self.speak("{} couldn't be found!".format(key))
+
+            # pull out the star-by-star wavelength specific values
+            for key in ['sky', 'peak']:
+                lc['{0}_target'.format(key)] = self.cubes[key][self.target][:,i]
+                for comparison in self.comparisons:
+                    lc['{0}_{1}'.format(key, starname(comparison))] = self.cubes[key][comparison][:,i]
+
+            # pull out the star-by-star wavelength specific values that should be measured relative to the more global values
+            for key in ['width', 'centroid']:
+                lc['d{0}_target'.format(key)] = self.cubes[key][self.target][:,i] - lc['{0}_target'.format(key)]
+                for comparison in self.comparisons:
+                    lc['d{0}_{1}'.format(key, starname(comparison))] = self.cubes[key][comparison][:,i] - lc['{0}_{1}'.format(key, starname(comparison))]
+
+            #lc.populate(bjd, flux, uncertainty, **lc)
+            table = astropy.table.Table(lc)
+            table['bjd'].format = '.10f'
+
+            #table = table[table['ok'].astype(np.bool)]
+            # REMOVED TO MAKE SURE MASKING IS EASIER AT LATER STEP
+
+            lcfilename =  os.path.join(lcdirectory, '{0:05d}to{1:05d}.lightcurve'.format(np.int(left), np.int(right)))
+
+            table.write(lcfilename, format='ascii.fixed_width', bookend=False, overwrite=True)
+            self.speak('saved light curve to')
+            self.speak('{0}'.format(lcfilename))
+
+
+
+
+
+    """
+    def zapCosmics(self):
+        # the
+        z = self.corrected()
+        filtered = scipy.signal.medfilt(z, (5, 15))
+        cosmics = z - filtered
+
+        wavelengthstd = 1.48*np.nanmedian(np.abs(cosmics - np.nanmedian(cosmics, 0)[np.newaxis,:]), 0)
+        #mad(cosmics, 0)
+        normalized = cosmics/wavelengthstd[np.newaxis, :]
+        notcosmics = np.abs(normalized) < 5
+        self.ok = notcosmics
+        for star in self.squishable.stars:
+            self.cubes['ok'][star] *= self.ok
+
+    def corrected(self, key='raw_counts'):
+        # normalize along the wavelength axis
+        star = self.target
+        self.speak('calculating [{}] for [{}], corrected by the mega-calibrator'.format(key, star))
+        target = self.cubes[key][star]
+        comparison = self.cubeMegaComparison[key]
+        z = target/comparison
+        oned = np.median(z, 0)
+        z = z/oned[np.newaxis,:]
+        return z
+
+    @property
+    def cubeMegaComparison(self):
+        '''
+        Return a fake cube entry for an combined mega-comparison star.
+        '''
+        key = 'raw_counts'
+        if len(self.comparisons) == 1:
+            d = {}
+            star = self.comparisons[0]
+            d[key] = self.cubes[key][star]
+            return d
+        else:
+            raise NameError("Darn it -- the mega-comparison hasn't been implemented yet!")
+    """
