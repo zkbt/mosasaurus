@@ -1,5 +1,5 @@
-from imports import *
-from Aperture import Aperture
+from .imports import *
+from .Aperture import Aperture
 
 class Mask(Talker):
   '''Mask objects keep track of the collection of Apertures
@@ -21,36 +21,37 @@ class Mask(Talker):
     self.obs = self.calib.obs
 
     # set up a display
-    self.display =  self.reducer.display
+    self.display = self.reducer.display
     self.speak('created a mask, to store extraction regions')
     #self.setup()
 
   def pickStars(self):
     '''Open ds9 and pick the stars we want to reduce.'''
-    extractionCentersFilename = self.obs.extractionDirectory + 'extractionCenters.txt'
+    extractionCentersFilename = os.path.join(self.reducer.extractionDirectory, 'extractionCenters.txt')
     if os.path.exists(extractionCentersFilename):
       self.speak("Extraction centers were already defined; loading them from {0}".format(extractionCentersFilename))
       x, y = np.transpose(np.loadtxt(extractionCentersFilename))
     else:
-      self.speak("Please should pick the stars you're interested in.")
+      self.speak("Please should pick the stars you're interested in, then [q]uit.")
 
       # create empty list of extraction centers
       self.xcenters, self.ycenters = [], []
 
-      # set up a loupe display to show an undispersed image
+      # set up a loupe display to show an Reference image
       self.loupe = self.reducer.display
-      self.loupe.setup(self.calib.images['Undispersed'])
 
       # add in an option to pull out an extraction center
       self.loupe.options['a'] = dict(description='[a]dd an extraction center',
-                                      function=self.addExtractionCenter,
-                                      requiresposition=True)
+                                        function=self.addExtractionCenter,
+                                        requiresposition=True)
 
       # add in an option to pull out an extraction center
       self.loupe.options['r'] = dict(description='[r]estart, clearing all centers',
-                                      function=self.resetExtractionCenters,
-                                      requiresposition=True)
+                                        function=self.resetExtractionCenters,
+                                        requiresposition=True)
 
+      # set up the plots
+      self.loupe.setup(self.calib.images['reference'])
 
       # start up the loupe event handler
       self.loupe.run()
@@ -106,8 +107,8 @@ class Mask(Talker):
       assert(False)
     except:
       #load the apertures, if they exist already
-      if os.path.exists(self.obs.extractionDirectory + 'apertures.npy') and remake==False:
-        apertures = np.load(self.obs.extractionDirectory + 'apertures.npy')
+      if os.path.exists(self.reducer.extractionDirectory + 'apertures.npy') and remake==False:
+        apertures = np.load(self.reducer.extractionDirectory + 'apertures.npy')
         return apertures
 
       self.apertures = []
@@ -120,10 +121,11 @@ class Mask(Talker):
         a = Aperture(x,y,self)
         self.apertures.append(a)
 
-      if visualize:
+      filename = os.path.join(self.reducer.extractionDirectory, 'genericfinderchart.pdf')
+      if visualize and (os.path.exists(filename) == False):
         # create a finder chart of apertures
         self.loupe = self.reducer.display
-        self.loupe.one(self.calib.images['Undispersed'])
+        self.loupe.one(self.calib.images['reference'])
 
         for a in self.apertures:
           # display the target positions on the image
@@ -132,16 +134,15 @@ class Mask(Talker):
 
 
           #r.addBox(a.xbox, a.ybox, a.wbox, a.hbox, color='green')
-        filename = self.obs.extractionDirectory + 'genericfinderchart.pdf'
         plt.savefig(filename)
         self.speak('saved finder chart to {}'.format(filename))
 
 
   def createStamps(self, n):
     '''Write postage stamps around the spectra.'''
-    print "   creating (unfiltered) postage stamps for all science images"
+    self.speak("   creating (unfiltered) postage stamps for all science images")
     #for n in self.obs.nScience:
-    print "     cutting stamps out of ccd{0:04}".format(n)
+    self.speak("     cutting stamps out of ccd{0:04}".format(n))
     this = self.ccd.readData(n)
     for a in self.apertures:
       stamp = a.stamp(this)
@@ -151,8 +152,8 @@ class Mask(Talker):
 
   def load(self, n):
       '''Make sure the mask's CCD data is set to the correct frame.'''
-      self.ccd.readData(n, imageType='Science')
-      assert(self.ccd.n == n)
+      self.ccd.readData(n, imageType='science')
+      assert(self.ccd.exposureprefix == n)
       self.speak('set CCD data to {0}'.format(self.ccd.name))
 
 
@@ -185,10 +186,8 @@ class Mask(Talker):
 
     # extract spectra
     self.speak('making sure all spectra have been extracted')
-    
-    #self.extractStars(945, remake=remake)
-    for n in self.obs.nScience:
-        self.extractStars(n, remake=remake)
+    for exposureprefix in self.obs.fileprefixes['science']:
+        self.extractStars(exposureprefix, remake=remake)
 
     # make a movie of the extractions
     self.speak('making movies of the extraction apertures')
@@ -200,7 +199,7 @@ class Mask(Talker):
     self.speak('adding wavelength calibrations to all spectra (if not already done)')
     self.addWavelengthCalibration()
 
-  def addWavelengthCalibration(self, remake=False):
+  def addWavelengthCalibration(self, remake=False, shift=False):
       '''don't extract, just addWavelengthCalibration the wavelengths and resample'''
 
       self.speak('creating wavelength calibrators')
@@ -208,7 +207,7 @@ class Mask(Talker):
           aperture.createWavelengthCal(remake=remake)
 
       self.speak('adding wavelength calibrations to all stars (if needed)')
-      for n in self.obs.nScience:
+      for exposureprefix in self.obs.fileprefixes['science']:
           for a in self.apertures:
-              a.visualize = False
-              a.addWavelengthCalibration(n)
+              # a.visualize = False
+              a.addWavelengthCalibration(exposureprefix, shift=shift)

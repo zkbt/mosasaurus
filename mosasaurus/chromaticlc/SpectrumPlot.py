@@ -1,5 +1,5 @@
-from imports import *
-import zachopy.cmaps
+from ..imports import *
+import craftroom.cmaps
 
 class Color(Talker):
     def __init__(self, range=[400,1050]):
@@ -11,12 +11,12 @@ class Eye(Color):
         Color.__init__(self, **kwargs)
 
     def color(self, nm):
-        return zachopy.color.nm2rgb(nm)
+        return craftroom.color.nm2rgb(nm)
 
 class Gradient(Color):
     def __init__(self, bottom='indigo', top='orange', **kwargs):
         Color.__init__(self, **kwargs)
-        self.cmap = zachopy.cmaps.one2another(bottom, top)
+        self.cmap = craftroom.cmaps.one2another(bottom, top)
         self.normalizer = plt.Normalize(*self.range)
 
     def color(self, nm):
@@ -28,7 +28,7 @@ class SpectrumPlot(Talker):
     def __init__(self, xlim=[400,1050]):
         Talker.__init__(self)
 
-        self.toplot = [ 'lightcurves', 'depth']#,'spectrum', 'rs_over_a', 'b']
+        self.toplot = ['lightcurves', 'depth']#,'spectrum', 'rs_over_a', 'b']
 
         # populate the plots
         self.panels = {}
@@ -96,7 +96,7 @@ class SpectrumPlot(Talker):
         self.alpha=alpha
         try:
             assert(self.hasbeensetup)
-        except:
+        except AttributeError:
             self.setup(spectrum)
 
         # point the plot at this particular transmission spectrum

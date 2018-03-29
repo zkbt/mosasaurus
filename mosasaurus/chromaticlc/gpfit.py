@@ -3,7 +3,7 @@ whichbin = 0
 # how wide should the bins be?
 size = 100
 binsize = 5.0
-import zachopy.utils, transit, matplotlib.pyplot as plt, matplotlib
+import transit, matplotlib.pyplot as plt, matplotlib
 
 # the initial conditions are stored in their own script
 import initialConditions

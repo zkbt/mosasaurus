@@ -14,9 +14,9 @@ try:
     r = Reducer(sys.argv[1])
     r.reduce()
 except IndexError:
-    print '''
+    print('''
 
 Example usage:
     ./reduce.py gj1132_0227.obs
 
-'''
+''')

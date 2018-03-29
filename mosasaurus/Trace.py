@@ -1,7 +1,7 @@
 '''Trace defines the extraction and sky subtraction regions for an Aperture'''
 
-from imports import *
-from zachopy.cmaps import one2another
+from .imports import *
+from craftroom.cmaps import one2another
 
 class Trace(Talker):
     '''trace object defines the extraction trace and sky region'''
@@ -9,13 +9,14 @@ class Trace(Talker):
         Talker.__init__(self)
         self.aperture = aperture
         self.obs = self.aperture.obs
+        self.instrument = self.obs.instrument
 
         # keep track of the spatial and wavelength axis (in pixels)
         self.saxis = self.aperture.saxis
         self.waxis = self.aperture.waxis
 
         # what degree polynomial should be used?
-        self.order = self.obs.traceOrder
+        self.order = self.instrument.extractiondefaults['traceOrder']
 
         # define a grid of extraction widths, (can be changed later, if desired)
         self.setSizes(default=True)
@@ -28,8 +29,8 @@ class Trace(Talker):
             self.load()
         except IOError:
             # set up the initial sky offsets
-            inner = np.min(self.extractionwidths) + self.obs.skyGap
-            outer = inner + self.obs.skyWidth
+            inner = np.min(self.extractionwidths) + self.instrument.extractiondefaults['skyGap']
+            outer = inner + self.instrument.extractiondefaults['skyWidth']
             self.skyoffsets = [ dict(top=outer, bottom=inner, whattodo=1),
                                 dict(top=-inner, bottom=-outer, whattodo=1)]
 
@@ -62,33 +63,33 @@ class Trace(Talker):
         '''save all properties of this trace to a file'''
 
         # save the parameters of the trace
-        filename = self.aperture.directory + 'trace_{0}.npy'.format(self.aperture.name)
+        filename = os.path.join(self.aperture.directory, 'trace_{0}.npy'.format(self.aperture.name))
         np.save(filename, (self.tracefitcoef, self.tracefitwidth))
         self.speak("saved trace parameters to {0}".format(filename))
 
         # save the extraction and sky masks
-        filename = self.aperture.directory + 'extractionmasks_{0}.npy'.format(self.aperture.name)
+        filename = os.path.join(self.aperture.directory, 'extractionmasks_{0}.npy'.format(self.aperture.name))
         np.save(filename, (self.skyoffsets, self.extractionwidths))
         self.speak("saved extraction mask parameters to {0}".format(filename))
 
         # save a PDF of the trace definition
-        filename = self.aperture.directory + 'tracedefinition_{0}.pdf'.format(self.aperture.name)
+        filename = os.path.join(self.aperture.directory, 'tracedefinition_{0}.pdf'.format(self.aperture.name))
         self.figure.savefig(filename)
 
     def load(self):
 
         # load the parameters of the trace
-        filename = self.aperture.directory + 'trace_{0}.npy'.format(self.aperture.name)
+        filename = os.path.join(self.aperture.directory,  'trace_{0}.npy'.format(self.aperture.name))
         (self.tracefitcoef, self.tracefitwidth) = np.load(filename)
         self.speak("loaded trace parameters to {0}".format(filename))
         self.tracefit = np.poly1d(self.tracefitcoef)
 
         # save the extraction and sky masks
-        filename = self.aperture.directory + 'extractionmasks_{0}.npy'.format(self.aperture.name)
+        filename = os.path.join(self.aperture.directory,  'extractionmasks_{0}.npy'.format(self.aperture.name))
         (self.skyoffsets, self.extractionwidths) = np.load(filename)
         self.speak("saved extraction mask parameters to {0}".format(filename))
         self.numberofapertures = len(self.extractionwidths)
-        self.narrowest, self.widest = zachopy.oned.minmax(self.extractionwidths)
+        self.narrowest, self.widest = craftroom.oned.minmax(self.extractionwidths)
 
     def run(self):
         '''interactively fit for the position of the trace of the spectrum,
@@ -205,9 +206,9 @@ class Trace(Talker):
     def setSizes(self, pressed=None, default=False):
         '''prompt the user to select range of aperture sizes for extraction'''
         if default:
-            self.narrowest = self.obs.narrowest
-            self.widest = self.obs.widest
-            self.numberofapertures = self.obs.numberofapertures
+            self.narrowest = self.instrument.extractiondefaults['narrowest']
+            self.widest = self.instrument.extractiondefaults['widest']
+            self.numberofapertures = self.instrument.extractiondefaults['numberofapertures']
         else:
             self.speak('Please redefine the aperture sizes.')
             self.speak(' (The old aperture sizes were {}.)'.format(self.extractionwidths))
@@ -216,17 +217,17 @@ class Trace(Talker):
             try:
                 self.narrowest = np.float(self.input("What is the narrowest aperture?"))
             except ValueError:
-                self.narrowest = self.obs.narrowest
+                self.narrowest = self.instrument.extractiondefaults['narrowest']
 
             try:
                 self.widest = np.float(self.input("What is the widest aperture?"))
             except ValueError:
-                self.widest = self.obs.widest
+                self.widest = self.instrument.extractiondefaults['widest']
 
             try:
                 self.numberofapertures = np.int(self.input('How many apertures do you want?'))
             except ValueError:
-                self.numberofapertures = self.obs.numberofapertures
+                self.numberofapertures = self.instrument.extractiondefaults['numberofapertures']
 
         self.extractionwidths = np.linspace(self.narrowest, self.widest, self.numberofapertures)
         self.speak(' The current aperture sizes are {}.'.format(self.extractionwidths))
@@ -335,8 +336,8 @@ class Trace(Talker):
 
         xfine = np.linspace(self.waxis.min(), self.waxis.max(), 10)
         self.plotted['traceguess'].set_data(xfine, self.traceguess(xfine))
-        print xfine
-        print self.traceguess(xfine)
+        print(xfine)
+        print(self.traceguess(xfine))
 
         # set the trace fit to be the guess!
         self.tracefit = self.traceguess
@@ -350,7 +351,7 @@ class Trace(Talker):
             fit for trace using actual centroids'''
 
         # estimate a rough 1D spectrum
-        flattened = self.aperture.images['Science']/self.aperture.images['NormalizedFlat']
+        flattened = self.aperture.images['science']/self.aperture.images['NormalizedFlat']
         roughSky1d=np.average(flattened,
                                 axis=self.aperture.sindex,
                                 weights=self.skymask(np.median(self.extractionwidths)))
@@ -417,7 +418,7 @@ class Trace(Talker):
                                     figsize=(8,4), dpi=100)
 
         # create an interactive plot
-        self.iplot = zachopy.iplot.iplot(2,2,
+        self.iplot = craftroom.displays.iplot.iplot(2,2,
                                         hspace=0, wspace=0,
                                         left=0.05, right=0.95,
                                         bottom=0.05, top=0.95,
@@ -590,19 +591,19 @@ class Trace(Talker):
     @property
     def slices(self):
         '''return y, x of a slice along the spatial direction'''
-        i = np.interp(self.crosshair['w'], self.waxis, np.arange(len(self.waxis)))
-        return self.aperture.images['Science'][i,:], self.saxis
+        i = int(np.interp(self.crosshair['w'], self.waxis, np.arange(len(self.waxis))))
+        return self.aperture.images['science'][i,:], self.saxis
 
     @property
     def slicew(self):
         '''return x, y of a slice along the wavelength direction'''
-        i = np.interp(self.crosshair['s'], self.saxis, np.arange(len(self.saxis)))
-        return self.waxis, self.aperture.images['Science'][:,i]
+        i = int(np.interp(self.crosshair['s'], self.saxis, np.arange(len(self.saxis))))
+        return self.waxis, self.aperture.images['science'][:,i]
 
     @property
     def imagetoplot(self):
         '''for plotting, the science image'''
-        return np.transpose(np.log(self.aperture.images['Science']))
+        return np.transpose(np.log(self.aperture.images['science']))
 
     def extractionmask(self, width):
         '''to define those pixels that fall within the default extraction mask,
@@ -627,7 +628,7 @@ class Trace(Talker):
         '''to define those pixels that are considered sky'''
 
         # create a blank mask
-        mask = np.zeros_like(self.aperture.images['Science'])
+        mask = np.zeros_like(self.aperture.images['science'])
 
         # loop through the sky offsets, and use them to add and subtract
         for d in self.skyoffsets:
@@ -639,7 +640,7 @@ class Trace(Talker):
             mask[ok] = whattodo
 
         absolutedistancefromtrace = np.abs(self.aperture.s - self.traceCenter(self.aperture.w))
-        mask[absolutedistancefromtrace < (width + self.obs.skyGap)] = 0
+        mask[absolutedistancefromtrace < (width + self.instrument.extractiondefaults['skyGap'])] = 0
         #self.speak('')
         #self.speak('{}'.format(width + self.obs.skyGap))
         # return the populated map
@@ -665,7 +666,8 @@ class Trace(Talker):
 
         for i,width in enumerate(self.extractionwidths):
             mask = self.skymask(width).T
-            image[:,i*chunksize:] = mask[:,i*chunksize:]*(1.0 - 0.2*(i%2))
+
+            image[:,int(i*chunksize):] = mask[:,int(i*chunksize):]*(1.0 - 0.2*(i%2))
 
         return image/image.max()
 
@@ -677,6 +679,6 @@ class Trace(Talker):
 
         for i,width in enumerate(self.extractionwidths):
             mask = self.extractionmask(width).T
-            image[:,i*chunksize:] = mask[:,i*chunksize:]*(1.0 - 0.2*(i%2))
+            image[:,int(i*chunksize):] = mask[:,int(i*chunksize):]*(1.0 - 0.2*(i%2))
 
         return image/image.max()

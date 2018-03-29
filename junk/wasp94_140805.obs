@@ -12,7 +12,7 @@ skyWidth			4
 cosmicThreshold		10
 
 # CCD number ranges
-nUndispersed		284	286
+nReference		284	286
 nScience			287	1912
 # actually should go up to 1912 with science images
 nHe					183	187

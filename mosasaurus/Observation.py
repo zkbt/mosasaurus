@@ -1,138 +1,123 @@
-from imports import *
-from Headers import Headers
+from .imports import *
+from .Headers import Headers
 #from Display import Display
 
 #  an object that stores all the specifics related to a particular target/night of observing
 class Observation(Talker):
-    '''Observation object store basic information about an observation of one object on one night.'''
-    def __init__(self, filename, nods9=False, **kwargs):
+    '''Observation object store basic information about an observation of
+        one object with one instrument on one night.'''
+    def __init__(self, target=None, instrument=None, night=None, **kwargs):
         '''Initialize an observation object.'''
 
-        # decide whether or not this creature is chatty
-        Talker.__init__(self, **kwargs)
+        Talker.__init__(self)
+
+        # set up connections to the other necessary objects
+        self.target=target
+        self.instrument=instrument
+        self.night=night
+
+        # make a directory hold all analyses for this observation
+        self.directory = os.path.join(self.instrument.workingDirectory,
+                                        "{}_{}".format(self.night.name, self.target.name))
+        mkdir(self.directory)
+
+        # set up the observation with the prefixes it will need
+        try:
+            self.setupFilePrefixes()
+        except ValueError:
+            self.speak('Hmmmmm...something funny happened with default file prefix choices. Please specify them by hand.')
 
 
-        self.readParameters(filename)
-
-        self.fileprefixes = self.fileprefix(self.nNeeded)
-
-        zachopy.utils.mkdir(self.workingDirectory)
-        #self.display = Display(nods9=nods9)
-
+    def __repr__(self):
+        '''How should this object be represented as a string?'''
+        return '[Observation of {} with {} on {}]'.format(self.target, self.instrument, self.night)
 
     def loadHeaders(self, remake=False):
-        self.headers = Headers(self, mute=self._mute, pithy=self._pithy)
-        self.headers.load(remake=remake)
+        '''
+        Load all the headers into one easy-to-manage table.
+        '''
 
-    def readParameters(self, filename):
-        '''A function to read in a stored parameter file, with all details needed for extraction.'''
-        self.speak('trying to read {0} for observation parameters'.format(filename))
-        file = open(filename)
-        lines = file.readlines()
-        dictionary = {}
-        for i in range(len(lines)):
-          if lines[i] != '\n' and lines[i][0] != '#':
-            split = lines[i].split()
-            key = split[0]
-            entries = split[1:]
-            if len(entries) == 1:
-              entries = entries[0]
-            dictionary[key] = entries
-        self.name = dictionary['name']
-        self.night = dictionary['night']
-        self.grism = dictionary['grism'].lower()
-        self.instrument = dictionary['instrument']
-        if "LDSS" in self.instrument:
-            self.observatory = 'lco'
-        if "IMACS" in self.instrument:
-            self.observatory = 'lco'
-        self.baseDirectory = dictionary['baseDirectory']
-        if '/media/hannah/Seagate' in self.baseDirectory:
-            self.baseDirectory = ' '.join(dictionary['baseDirectory'])
+        h = Headers(self)
+        h.load(remake=remake)
+        self.headers = h.headers
 
-        # set up the wavelength calibration paths
-        self.referenceDirectory = mosasaurusdirectory + 'data/'
-        self.wavelength2pixelsFile = self.referenceDirectory  + '{0}_wavelength_identifications.txt'.format(self.grism)
-        self.wavelengthsFile = self.referenceDirectory + 'HeNeAr.txt'
+    def setupFilePrefixes(self, **strategy):
+        '''
+        Define the image number arrays based on guesses from information
+        in the file headers. These can be overwritten by custom setting the
+        strategy attributes.
 
-        zachopy.utils.mkdir(self.baseDirectory + dictionary['workingDirectory'])
-        self.workingDirectory = self.baseDirectory + dictionary['workingDirectory'] + self.name + '_' + self.night +'/'
-        zachopy.utils.mkdir(self.workingDirectory)
-        self.dataDirectory = self.baseDirectory + dictionary['dataDirectory'] + self.night +'/'
-        zachopy.utils.mkdir(self.dataDirectory)
-        self.extractionDirectory = self.workingDirectory + dictionary['extractionDirectory']
-        zachopy.utils.mkdir(self.extractionDirectory)
-        #self.extractionWidth = int(dictionary['extractionWidth'])
-        self.narrowest = float(dictionary['narrowest'])
-        self.widest = float(dictionary['widest'])
-        self.numberofapertures = int(dictionary['numberofapertures'])
+        For each file type (dark, bias, flat, science, reference, various arc lamps),
+        you can specify one of ? ways in which to search for that kind of file
 
-        self.skyGap = int(dictionary['skyGap']    )
-        self.skyWidth = int(dictionary['skyWidth'])
-        self.cosmicThreshold = float(dictionary['cosmicThreshold'])
-        self.nUndispersed = np.arange(int(dictionary['nUndispersed'][0]), int(dictionary['nUndispersed'][1])+1)
-        self.nScience = np.arange( int(dictionary['nScience'][0]),  int(dictionary['nScience'][1])+1)
-        self.nHe = np.arange( int(dictionary['nHe'][0]),  int(dictionary['nHe'][1])+1)
-        self.nNe = np.arange( int(dictionary['nNe'][0]),  int(dictionary['nNe'][1])+1)
-        self.nAr = np.arange( int(dictionary['nAr'][0]),  int(dictionary['nAr'][1])+1)
-        if self.instrument == 'LDSS3C': self.nDark = np.arange( int(dictionary['nDark'][0]),  int(dictionary['nDark'][1])+1)
-        elif self.instrument == 'IMACS': self.nDark = np.array([])
-        self.nWideFlat = np.arange(int(dictionary['nWideFlat'][0]),  int(dictionary['nWideFlat'][1])+1)
-        self.nWideMask = np.arange(int(dictionary['nWideMask'][0]),  int(dictionary['nWideMask'][1])+1)
-        self.nThinMask = np.arange(int(dictionary['nThinMask'][0]),  int(dictionary['nThinMask'][1])+1)
-        if len(dictionary['nFinder']) == 1:
-          self.nFinder = np.array([int(dictionary['nFinder'])])
-        else:
-          self.nFinder = np.arange(int(dictionary['nFinder'][0]),  int(dictionary['nFinder'][1])+1)
-        self.nBias = np.arange(int(dictionary['nBias'][0]),  int(dictionary['nBias'][1])+1)
-        self.nNeeded = np.concatenate((self.nUndispersed, self.nScience, self.nHe, self.nNe, self.nAr, self.nWideFlat, self.nWideMask, self.nThinMask, self.nFinder))
-        if self.instrument == 'LDSS3C': self.cal_dictionary = {'He':self.nHe, 'Ne':self.nNe, 'Ar':self.nAr, 'Undispersed':self.nUndispersed, 'WideFlat':self.nWideFlat, 'WideMask':self.nWideMask, 'ThinMask':self.nThinMask, 'Bias':self.nBias, 'Dark':self.nDark, 'Science':self.nScience, 'Finder':self.nFinder}
-        elif self.instrument == 'IMACS': self.cal_dictionary = {'He':self.nHe, 'Ne':self.nNe, 'Ar':self.nAr, 'Undispersed':self.nUndispersed, 'WideFlat':self.nWideFlat, 'WideMask':self.nWideMask, 'ThinMask':self.nThinMask, 'Bias':self.nBias, 'Science':self.nScience, 'Finder':self.nFinder}
-        self.traceOrder    =  int(dictionary['traceOrder'])
-        self.nFWHM    = float(dictionary['nFWHM'])
-        self.blueward = int(dictionary['blueward'])
-        self.redward = int(dictionary['redward'])
-        self.target = [int(x) for x in dictionary['target']]
-        self.goodComps = [int(x) for x in dictionary['comp']]
-        self.dataleft    = int(dictionary['dataleft'])
-        self.dataright    = int(dictionary['dataright'])
-        self.databottom    = int(dictionary['databottom'])
-        self.datatop    = int(dictionary['datatop'])
-        self.namps =int(dictionary['namps'])
-        self.xsize = self.namps*(self.dataright - self.dataleft)
-        self.ysize = (self.datatop - self.databottom)
-        self.ra =np.float(dictionary['ra'])
-        self.dec =np.float(dictionary['dec'])
-        self.binning = np.float(dictionary['binning'])
-        self.subarray = np.float(dictionary['subarray'])
-        try:
-            if type(dictionary['gains']) == str:
-                self.gains = [float(dictionary['gains'])]
-            else: self.gains = [float(x) for x in dictionary['gains']]
-        except (ValueError,KeyError):
-            self.gains = None
+            None = fall back to the default, searching this instrument's
+                    default header keyword for the default search string
+        '''
 
-        try:
-            self.slow = bool(dictionary['slow'])
-        except KeyError:
-            self.slow = False
+        somethingisnew = False
+        everything = (  self.instrument.detectorcalibrations +
+                        self.instrument.arclamps +
+                        self.instrument.extractables)
 
-        self.correlationAnchors = [float(x) for x in dictionary['correlationAnchors']]
-        self.correlationRange = [float(x) for x in dictionary['correlationRange']]
-        self.correlationSmooth = float(dictionary['correlationSmooth'])
-        self.cosmicAbandon = float(dictionary['cosmicAbandon'])
-        self.speak('observation parameters have been read and stored'.format(filename))
-
-        self.displayscale=0.25
-    def fileprefix(self, n):
-        '''Feed in a ccd number, spit out the file prefix for that CCD amplifier pair.'''
-        if self.instrument == 'LDSS3C':
+        self.exposures = {}
+        choicesDirectory =  os.path.join(self.directory, 'files')
+        # try
+        for k in everything:
+            fileofiles = os.path.join(choicesDirectory, 'filesfor{}.txt'.format(k))
             try:
-              return [self.dataDirectory + 'ccd{0:04}'.format(x) for x in n]
-            except:
-              return self.dataDirectory + 'ccd{0:04}'.format(n)
-        if self.instrument == 'IMACS':
-            try:
-              return [self.dataDirectory + 'ift{0:04}'.format(x) for x in n]
-            except:
-              return self.dataDirectory + 'ift{0:04}'.format(n)
+                self.exposures[k] = astropy.io.ascii.read(fileofiles, delimiter='|')
+                self.speak('loaded a list of [{}] files from {}'.format(k, fileofiles))
+            except IOError:
+                somethingisnew = True
+                self.speak("couldn't find a list of files for [{}], making a guess".format(k))
+                mkdir(choicesDirectory)
+
+                # create a list of filenames
+                if k in strategy.keys():
+
+                    # if the strategy is a string, then just look for that
+                    if type(strategy[k]) == list:
+                        wordstosearchfor = strategy[k]
+
+                    # add other options?
+
+                else:
+                    # find exposures where
+                    if k == 'science':
+                        wordstosearchfor = [self.target.starname]
+                    elif k == 'reference':
+                        wordstosearchfor = [self.target.starname]
+                    else:
+                        wordstosearchfor = self.instrument.wordstosearchfor[k]
+
+                match = self.night.find(wordstosearchfor, self.instrument.keytosearch)
+                self.exposures[k] = self.night.log[match]
+                self.exposures[k].meta['comments'] = ['mosasaurus will treat these as [{}] exposures for {}'.format(k, self), '']
+                self.exposures[k].write(fileofiles, **tablekw)
+                self.speak('saved list of [{}] files to {}'.format(k, fileofiles))
+
+        # give the user a chance to modify the initial (probably bad) guesses for which filenames to use
+        if somethingisnew:
+            answer = self.input("mosasaurus just created some guesses for filenames for {}".format(self) +
+                                "\nPlease check the tables in {}".format(choicesDirectory) +
+                                "\nand edit them as necessary, before proceeding." +
+                                "\nThis sets what exposures will be used for what."  +
+                                "\n[Press enter to continue.]")
+
+            self.speak('reloading from text files in {}, in case you made any changes'.format(choicesDirectory))
+            for k in everything:
+                fileofiles = os.path.join(choicesDirectory, 'filesfor{}.txt'.format(k))
+                self.exposures[k] = astropy.io.ascii.read(fileofiles, delimiter='|')
+                self.speak('loaded a list of [{}] files from {}'.format(k, fileofiles))
+
+        self.fileprefixes = {}
+        for k in everything:
+            # pull out a simple array of filenames
+            self.fileprefixes[k] = self.exposures[k]['fileprefix'].data
+
+            # make the array indexable by the fileprefix
+            self.exposures[k].add_index('fileprefix')
+
+
+        # load a table of all the headers
+        self.loadHeaders()

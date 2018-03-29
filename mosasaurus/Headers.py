@@ -1,9 +1,10 @@
-from imports import *
+from .imports import *
 import astropy.units as u, astropy.coordinates as coord
 import astropy.table, astropy.time
-import BJD
+from . import BJD
 
 class Headers(Talker):
+
     '''An object to store the timeseries of image headers for this project -- good for keeping track of various external variables.'''
     def __init__(self, obs, **kwargs):
         '''Initialize a Headers object.'''
@@ -11,31 +12,43 @@ class Headers(Talker):
         # decide whether or not this creature is chatty
         Talker.__init__(self, **kwargs)
 
-        # add the observation object
+        # connect the observation object
         self.obs = obs
-        self.filename = self.obs.workingDirectory + 'headers.npy'
+
+        # define a filename in which the header timeseries will be stored
+        self.filename = os.path.join(self.obs.directory, 'headers.txt')
 
     def load(self, remake=True):
-        '''make sure the header table is loaded'''
+        '''Make sure the header table is loaded.'''
 
-        self.speak('loading cube of image headers')
+        self.speak('loading cube of image headers.')
         try:
+            # does the headers attribute already exist?
             self.headers
             assert(remake == False)
             self.speak('header cube was already loaded')
-        except:
+        except (AssertionError, AttributeError):
             self.loadFromFile(remake=remake)
 
 
     def loadFromFile(self, remake=False):
-        '''load a table of header information from a pre-saved file'''
+        '''Load a table of header information from a pre-saved file.'''
 
         try:
+            # try to load it from a pre-made file
             assert(remake==False)
-            self.headers = astropy.table.Table(np.load(self.filename)[()])
-            assert(len(self.headers['airmass']) == len(self.obs.nScience))
-            self.speak('header cube loaded from {0}'.format(self.filename))
-        except:
+            #self.headers = astropy.table.Table(np.load(self.filename)[()])
+            self.headers = astropy.io.ascii.read(self.filename, delimiter='|')
+
+            # make sure this table is the same length as the desired science exposures
+            for k in self.headers.colnames:
+                assert(len(self.headers[k]) == len(self.obs.fileprefixes['science']))
+
+            # say what happened
+            self.speak('header timeseries loaded from {0}'.format(self.filename))
+
+        except (AssertionError, IOError):
+            # populate a header cube from the individual FITS headers
             self.loadFromScratch()
 
     def loadFromScratch(self):
@@ -43,72 +56,71 @@ class Headers(Talker):
 
        self.speak('looping through all science images to load their headers')
 
-       # what keys do we want to store?
-       if self.obs.instrument == 'LDSS3C': keys = ['date-obs', 'ut-date', 'ut-time', 'ut-end', 'scale', 'gain', 'epoch', 'airmass', 'ha', 'exptime', 'tempccd', 'templdss', 'focus', 'rotangle', 'rotatore']
-       elif self.obs.instrument == 'IMACS': keys = ['date-obs', 'ut-date', 'ut-time', 'ut-end', 'scale', 'ccdgain', 'epoch', 'airmass', 'ha', 'exptime', 'tempccd8', 'tempstr', 'detfocus', 'rotangle', 'rotatore']
+       # what keys do we need to populate?
+       keys = self.obs.instrument.keysfortimeseries
 
-       # create a dictionary of lists, to contain those for all headers
+       # create a dictionary of lists, to contain each key for all headers
        d = {}
-       d['n'] = []
+       d['n'], d['fileprefix'] = [], []
        for k in keys:
            d[k] = []
 
        # loop through the science images
-       ccdn = self.obs.nScience
-       for n in self.obs.nScience:
+       fileprefixes = self.obs.fileprefixes['science']
+       for prefix in fileprefixes:
+           # get a number associated with this file
+           n = self.obs.instrument.prefix2number(prefix)
            d['n'].append(n)
-           if self.obs.instrument == 'LDSS3C': filename = self.obs.dataDirectory+'ccd%04dc1.fits' % n
-           elif self.obs.instrument == 'IMACS': filename = self.obs.dataDirectory+'ift%04dc1.fits' % n
+           d['fileprefix'].append(prefix)
+
+           # what is one file associated with this
+           filename = os.path.join(self.obs.night.dataDirectory, self.obs.instrument.prefix2files(prefix)[0])
+
+           # load its header
            hdu = astropy.io.fits.open(filename)
            header = hdu[0].header
            for k in keys:
                d[k].append(header[k])
-           self.speak('   {0:10} {1:10} {2:10} {3:10}'.format(n, header['ut-date'],  header['ut-time'],  header['airmass']))
 
        # convert the dictionary of lists into a table
-       self.headers = astropy.table.Table(d)
+       self.headers = astropy.table.Table(d)[ ['n', 'fileprefix'] + keys]
+       print(self.headers)
 
        # convert times into more useful ones (including BJD)
-       self.convertTimes()
+       self.determineBJD()
 
        # save the table of headers
-       np.save(self.filename, self.headers)
+       self.headers.write(self.filename, **tablekw)
        self.speak('header cube saved to {0}'.format(self.filename))
 
-    def convertTimes(self):
+    def determineBJD(self):
         '''Convert the header keys into more useful times; store them in the cube.'''
-        self.speak('converting times into BJD')
+        # (NOTE! This should eventually be moved to an instrument, because it'll vary from one to another)
 
+        self.speak('converting times from header into BJD')
 
-        # load one header, to get one-time information
-        if self.obs.instrument == 'LDSS3C': filename = self.obs.dataDirectory+'ccd%04dc1.fits' % self.obs.nScience[0]
-        if self.obs.instrument == 'IMACS': filename = self.obs.dataDirectory+'ift%04dc1.fits' % self.obs.nScience[0]
-        header = astropy.io.fits.open(filename)[0].header
+        # do the instrument-specific thing required to get a mid-transit time in JD_UTC
+        times_earth = self.obs.instrument.extractMidExposureTimes(self.headers)
 
-        self.speak('loaded one header ({}) for site information'.format(filename))
-        # stitch together date+time strings
-        timestrings = ['{0} {1}'.format(row['ut-date'], row['ut-time']) for row in self.headers]
-
-        # pull out the sitename
-        sitename = header['SITENAME'].lower()
-        observatory = coord.EarthLocation.of_site(sitename)
-
-        # calculate a JD from these times (and adding half the exposure time, assuming ut-time is the start of the exposure)
-        starttimes = astropy.time.Time(timestrings, format='iso', scale='utc', location=observatory)
-
-        # mid-exposure
-        times_earth = starttimes + 0.5*self.headers['exptime']*u.second
-
-        # quote the JD_UTC
+        # quote the JD_UTC in the header table
         self.headers['jd_utc']  = times_earth.jd
 
         # pull out RA and Dec (in degrees)
-        ra, dec = header['RA-D'], header['DEC-D']
+        icrs = self.obs.target.star.icrs
 
-        # calculate BJD_TDB
-        times_bary = BJD.toBJD(times_earth, ra=ra, dec=dec)
+        # calculate BJD_TDB for one exposure, and print the results
+        temp = BJD.toBJD(times_earth[0], icrs, verbose=True)
+
+        # calculate BJD_TDB for all exposures
+        times_bary = BJD.toBJD(times_earth, icrs, verbose=False)
+
+        # and add them to the table (all in units of days)
         self.headers['bjd'] = times_bary.jd
         self.headers['tdb-utc'] = times_earth.tdb.jd - times_earth.utc.jd
         self.headers['barycor'] = times_bary.tdb.jd - times_earth.tdb.jd
-        
-        a = self.input('Type enter if okay with BJD?!')
+
+        a = self.input("You just saw the calculation of the BJD times from information"
+                        "\nin the FITS headers. It probably wouldn't be a bad idea to"
+                        "\nspot-check this calculation against Jason Eastman's code at"
+                        "\nhttp://astroutils.astronomy.ohio-state.edu/time/utc2bjd.html"
+                        "\n[Press return if you're satisfied with the BJDs.]")

@@ -1,316 +1,224 @@
-from imports import *
-from CCD import CCD
+from .imports import *
+from .CCD import CCD
 
 class Calibration(Talker):
-  '''Calibrations are objects that store calibration data,
-        including both afternoon exposures (biases, darks, flats)
-        and some on-sky exposures (direct images, master spectral images).
+	'''
+	Calibrations are objects that store calibration data,
+	including both afternoon exposures (biases, darks, flats)
+	and some on-sky exposures (direct images, master science images).
 
-            This can be thought of as bookmarked pages of
-            the reducing mosasaurus' reference books,
-            keeping track of calibrations that might be useful'''
-  def __init__(self, reducer, visualize=True, **kwargs):
-    '''Initialize calibration object.'''
+	This can be thought of as bookmarked pages of
+	the reducing mosasaurus' reference books,
+	keeping track of calibrations that might be useful.
+	'''
 
-    # decide whether or not this Reducer is chatty
-    Talker.__init__(self, **kwargs)
+	def __init__(self, reducer, **kwargs):
+		'''Initialize calibration object.'''
 
+		# decide whether or not this Reducer is chatty
+		Talker.__init__(self, **kwargs)
 
-    self.speak('setting up calibrator')
-    self.reducer = reducer
-    self.obs = self.reducer.obs
-    self.display = self.reducer.display
-    self.ccd = CCD(self.obs, calib=self)
-    self.visualize = visualize
-    self.images = {}
+		self.speak('setting up calibrator')
 
-  def setup(self):
-    self.createBadPixelMask()
-    self.createMasterImages()
-    self.speak('calibration data are processed and ready for use')
+		# connect to useful componenets
+		self.reducer = reducer
+		self.obs = self.reducer.obs
+		self.display = self.reducer.display
 
-  def estimateGain(self):
-    self.gains = self.obs.gains
-    if self.gains is None:
-        try:
-          self.gains = np.loadtxt(self.obs.workingDirectory + 'gains.txt')
-          self.speak("loaded gains from {0}".format(self.obs.workingDirectory + 'gains.txt'))
-          self.speak("   they are:")
-          for g in self.gains:
-            self.speak("       {0}".format(g))
-        except:
-          self.speak("estimating gain from noise in multiple flat-field exposures.")
-          c = self.ccd#CCD(self.obs, calib=self)
+		# create a directory to store calibrations
+		self.calibrationDirectory = os.path.join(self.obs.directory, 'calibrations')
+		mkdir(self.calibrationDirectory)
 
-          fi = plt.figure('gain estimation', figsize=(10,4))
-          gs =plt.matplotlib.gridspec.GridSpec(1,2, hspace=0, wspace=0, top=0.85)
-          ax = []
-          ax.append(plt.subplot(gs[0]))
-          ax.append(plt.subplot(gs[1], sharey=ax[0], sharex=ax[0]))
-          plt.setp(ax[1].get_yticklabels(), visible=False)
-          s1, s2 = [], []
-          for n in self.obs.nWideFlat:
-            c.set(n, 'FlatInADU')
-            c.readData()
-            c1, c2 = c.amplifiers()
-            s1.append(c1)
-            s2.append(c2)
-          s1 = np.array(s1)
-          s2 = np.array(s2)
-          readnoises = [10.0, 10.0]
-          gains = [1.0, 1.0]
-          for i in [0,1]:
-            s = [s1, s2][i]
-            name = ['c1', 'c2'][i]
-            self.speak("")
-            self.speak(name)
-            self.speak("")
-            medianinadu = np.median(s, 0).flatten()
-            #noiseinadu = 1.48*np.median(np.abs(s - medianinadu.reshape(1,s.shape[1],s.shape[2])), 0).flatten()
-            noiseinadu = np.std(s[1:,:,:]-s[0:-1,:,:], 0).flatten()/np.sqrt(2)
-            ok = (medianinadu > 20000)*(medianinadu < 30000)
+		# create a CCD object associated with this calibration
+		self.ccd = CCD(self.obs, calib=self)
 
-            def noisemodel(n, gain, readnoise, lamp):
-              return np.sqrt(n/gain + readnoise**2 +lamp**2*n**2)
+		# should we be visualizing the steps?
+		self.visualize = self.reducer.visualize
 
-            def deviates(parameters, n=None, noise=None, fjac=None):
-              gain = parameters[0]
-              readnoise = parameters[1]
-              lamp = parameters[2]
-              status = 0
-              dev = np.log(noise/noisemodel(n,gain,readnoise, lamp))
-              #dev = (noise/noisemodel(n, gain,readnoise) - 1)
-              noiseondev = zachopy.utils.mad(dev)
-              normalized = dev/noiseondev
-              return [status, normalized]
+		# create a dictionary of full-frame calibration-relevant images
+		self.images = {}
+
+		# make all the data we need
+		self.setup()
+
+	def setup(self):
+		'''Create ingredients we'll need for calibrating all images.'''
+
+		# create master images
+		self.createMasterImages()
+
+		# figure out which are the bad pixels
+		self.createBadPixelMask()
+
+		self.speak('calibration data are processed and ready for use')
+
+	def createMasterImages(self, remake=False):
+		'''
+		Combine individual exposures into master frames
+		for the various calibrations and references.
+		'''
+
+		# pull out the list of image types for which we want masters
+		keys = self.obs.fileprefixes.keys()
+		self.speak('creating master images for {}'.format(keys))
+
+		# loop over all possible image types
+		for k in keys:
+			# create a stacked master image for everything except the science images
+			#if 'science' not in k:
+			self.createMasterImage(k, remake=remake)
 
 
+	def createMasterImage(self, imageType=None, remake=False):
+		'''
+		Create a master image from a stack of them,
+		using several different methods, depending on the
+		type of image being processed.
+		'''
 
-            converged = False
-            oldok = ok + 0
-            while(converged == False):
-              p0 = [1.5, 10.0, 0.000]
-              parinfo = [{'value':0., 'fixed':0, 'limited':[0,0], 'limits':[0.,0.]} for n in range(len(p0))]
-              parinfo[0]['limits']=[0.1, 10.0]
-              parinfo[0]['limited']=[1,1]
+		self.speak('creating a stacked master image for {}'.format(imageType))
 
-              parinfo[1]['limits']=[5.0, 20.0]
-              parinfo[1]['limited']=[1,1]
-              parinfo[1]['fixed']=1
+		# if no name included, do nothing
+		if imageType is None:
+			self.speak('  (no image type defined; doing nothing)')
+			return
 
-              parinfo[2]['limits']=[0.0, 0.2]
-              parinfo[2]['limited']=[1,1]
-              parinfo[2]['fixed']=1
+		# set the CCD to a particular image type
+		self.ccd.set(exposureprefix=None, imageType=imageType)
 
-              n = medianinadu
-              noise = noiseinadu
-              fit = mpfit(deviates, p0, parinfo=parinfo, functkw={'n':n[ok], 'noise':noise[ok]})
-
-              gain = fit.params[0]
-              readnoise = fit.params[1]
-              lamp = fit.params[2]
+		# make sure this is a master image that is possible to make
+		assert(imageType in self.obs.fileprefixes.keys())
 
 
-              plt.draw()
-              ok *= (np.abs(deviates(fit.params, n=n, noise=noise)[-1]) < 5)
-              converged = (ok == oldok).all()
-              oldok = ok + 0
-              self.speak("{0} bad points! converged? {1}".format(np.sum(ok == False), converged))
-              self.speak( "   {0}".format(gain))
-            gains[i] = gain
-            readnoises[i] = readnoise
-            ax[i].cla()
-            ax[i].plot(n[ok].flatten(),noise[ok].flatten(), marker='o', linewidth=0, alpha=0.1, markeredgewidth=0, color='black', markersize=3)
-            ax[i].plot(n[ok == False].flatten(),noise[ok == False].flatten(), marker='o', linewidth=0, alpha=0.02, color='red', markersize=3, markeredgewidth=0)
-            bx, by, be= zachopy.oned.binto(x=n, y=noise, binwidth=1000, yuncertainty=None, robust=True, sem=True)
-            ax[i].errorbar(bx, by, be, color='orange', linewidth=5, elinewidth=5, capthick=5, alpha=0.5)
+		# we're going to save a master stacked image, and its standard deviation
+		self.speak("populating the master {0} image".format(imageType))
+		masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
+		noisestring = 'StdDev'
+		try:
+			# has the master image already been created?
+			self.images[imageType] = readFitsData(masterFilePrefix + '.fits')
+			# has the master standard deviation image already been created?
+			self.images[imageType+noisestring] = readFitsData(masterFilePrefix + noisestring + '.fits')
+			# if both are true, then we're all set
+			self.speak( "loaded {0} from {1}.fits".format(imageType, masterFilePrefix))
+		except IOError:
+			# create a stacked image from the appropriate file prefixes
+			self.speak("creating from images " + truncate(str(self.obs.fileprefixes[imageType]), n=30))
+			self.images[imageType], self.images[imageType+noisestring] = self.createStackedImage(self.obs.fileprefixes[imageType], imageType=imageType)
 
-            x = np.linspace(0, n[ok].max(), 100)
-            ax[i].plot(x, noisemodel(x,gain,readnoise,lamp), color='green', linewidth=5, alpha=1.0)
-            ax[i].plot(x, noisemodel(x,1e20,readnoise,0.0), color='green', linestyle='--',linewidth=5, alpha=0.2)
-            ax[i].plot(x, noisemodel(x,gain,0.0, 0.0), color='green', linestyle='--',linewidth=5, alpha=0.2)
-            ax[i].plot(x, noisemodel(x,1e20, 0.0, lamp), color='green', linestyle='--',linewidth=5, alpha=0.2)
+			# write these out to FITS files, so we can look at them in ds9
+			writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
+			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
 
-            ax[i].set_title('c{0} \n gain = {1:.2f} \n readnoise = {2:.2f} \n lamp variability = {3:.3f}'.format(i+1, gain, readnoise, lamp))
-            ax[i].set_xlim(np.min(n[ok]), np.max(n[ok]))
-            ax[i].set_ylim(np.maximum(np.min(noise[ok]), 1.0), np.max(noise[ok]))
-            ax[i].set_yscale('log')
-            ax[i].set_xscale('log')
-            plt.draw()
-            #ax[i].plot(n[ok].flatten(), deviates(fit.params, n=n[ok], noise=noise[ok])[-1].flatten(), marker='o', linewidth=0, alpha=0.005, color='black', markersize=3)
-            #ax[i].plot(n[ok==False].flatten(), deviates(fit.params, n=n[ok == False], noise=noise[ok == False])[-1].flatten(), marker='o', linewidth=0, alpha=0.1, color='red', markersize=3)
-            assert('n' not in self.input('Does this gain estimate seem reasonable? [Y,n]').lower())
+			### FIX ME ### -- make sure the displays work nicely, for making images and movies
+			#self.display.one(self.images[imageType+noisestring], clobber=True)
+			#self.display.one(self.images[imageType], clobber=False)
+			#self.display.single()
+			#self.display.zoom()
+			#self.display.scale('log', limits=[0,np.percentile(self.images[imageType],99)])
+			#assert('n' not in self.input("Do you like master image {0}? [Y,n]".format(imageType)).lower())
 
-          np.savetxt(self.obs.workingDirectory + 'gains.txt', gains)
-          self.gains = gains
+	def createStackedImage(self, n, imageType=None, threshold=5.0, truncation=100):
+		'''
+		Take an outlier-rejected stack of a series of images
+		(requires enough memory to hold them all).
 
-  def createStackedImage(self, n, visualize=True, imageType=None, threshold=5.0, truncation=100):
-    '''Take an outlier-rejected stack of a series of images (requires enough memory to hold them all.)'''
+		n is an array of fileprefixes
+		imageType is a string describing the image type
+		threshold is how many sigma for clipping in the stacked image
+		truncation limits the number of images to be included (for large cubes)
+		'''
 
-    stride = np.maximum(len(n)/truncation, 1)
+		# if there are more than "truncation" images, take only some fraction of them
+		stride = np.int(np.maximum(len(n)/truncation, 1))
+		if stride > 1:
+			self.speak('stacking {0}/{2} {1} images'.format(len(n),imageType,truncation))
+		else:
+			self.speak('stacking {0} {1} images'.format(len(n), imageType))
 
-    if stride > 1:
-        self.speak('stacking {0}/{2} {1} images'.format(len(n),imageType,truncation))
-    else:
-        self.speak('stacking {0} {1} images'.format(len(n), imageType))
+		# create a 3D array of images
+		array = self.ccd.loadImages(n[::stride], imageType=imageType)
 
-    array = self.ccd.loadImages(n[::stride], imageType=imageType)
-    if len(array.shape) <=2:
-      return array, array*0
+		# if there's only one image, simply return that image (with no noise)
+		if len(array.shape) <=2:
+			return array, array*0
 
+		# calculate the outlier-rejected mean, and the 1.48*MAD for the cube
+		mean, noise = craftroom.twod.stack(array, axis=0, threshold=threshold)
 
-    median, noise = zachopy.twod.stack(array,axis=0,threshold=threshold)
+		#self.ccd.display.many(array, depth=0, clobber=True)
+		return mean, noise
 
-    #self.ccd.display.many(array, depth=0, clobber=True)
-    return median, noise
-
-  def createMeanImage(self, n, cosmic=True, visualize=False, imageType=None):
-    '''Take the mean of a series of images, less memory intensive than median.'''
-    stride = np.maximum(len(n)/100, 1)
-    for i in np.arange(0, len(n), stride):
-      data = self.ccd.readData(n[i], imageType=imageType)
-      if cosmic and i == 0:
-        outlier = np.zeros_like(data)
-      if i == 0:
-        count = 1
-        summedImage = data
-        if cosmic:
-          summedSquaredImage = data**2
-          stddev = np.sqrt(np.maximum(summedSquaredImage/count - (summedImage/count)**2,1))
-      else:
-        count += 1
-        summedImage += data
-        if cosmic:
-          summedSquaredImage += data**2
-          stddev = np.sqrt(np.maximum(summedSquaredImage/count - (summedImage/count)**2,1))
-          bad = (data - last)/stddev > self.obs.cosmicThreshold
-          outlier[bad] += (data[bad] - summedImage[bad]/count)
-      last = data
-      self.speak('        ' + self.ccd.name)
-      #self.display.one(summedImage, clobber=(i == 0))
-      if cosmic:
-        #self.display.one((data - summedImage/count)/stddev)
-        if visualize:
-          if i == 0:
-            self.display.one(outlier, clobber=True)
-          else:
-            self.display.ds9update(outlier)
-    if visualize:
-      self.display.one(summedImage)
-      self.display.one(summedImage - outlier)
-
-    if cosmic:
-      cosmicFilename = self.obs.workingDirectory + 'cosmics{0}to{1}.fits'.format(np.min(n), np.max(n))
-      writeFitsData(outlier, cosmicFilename)
-    return (summedImage-outlier)/count, stddev
+	def createBadPixelMask(self, visualize=True):
+		'''Try to estimate bad pixels from a flat image. KLUDGE'''
 
 
+		self.speak("populating bad pixel mask")
 
-  def createBadPixelMask(self, visualize=True):
-    '''Try to estimate bad pixels from a flat image. KLUDGE'''
-    self.speak("populating bad pixel mask")
-    badPixelFilename = self.obs.workingDirectory + 'master_BadPixels.fits'
-    try:
-      self.images['BadPixels'] = readFitsData(badPixelFilename)
-      self.speak( "loaded bad pixel mask from {0}".format(badPixelFilename))
-    except:
-      self.speak( "creating bad pixel mask from the master flat frames")
-      c = self.ccd#CCD(self.obs, calib=self)
+		# try to load it, otherwise make it
+		badPixelFilename = os.path.join(self.calibrationDirectory, 'master_badpixels.fits')
+		try:
+			self.images['badpixels'] = readFitsData(badPixelFilename)
+			self.speak( "loaded bad pixel mask from {0}".format(badPixelFilename))
+		except:
+			self.speak( "creating bad pixel mask from the master flat frames")
+			c = self.ccd#CCD(self.obs, calib=self)
 
-      cube = []
-      for n in self.obs.nWideFlat:
-        c.set(n, 'WideFlat')
-        cube.append(c.readData())
+			# make a cube of flat images
+			cube = []
+			for exposureprefix in self.obs.fileprefixes['flat']:
+				c.set(exposureprefix, 'flat')
+				cube.append(c.readData())
+			cube = np.array(cube)
 
-      cube = np.array(cube)
+			#
+			median = np.median(cube,0)
+			noise = np.median(np.abs(cube - median.reshape(1,cube.shape[1], cube.shape[2])), 0)
+			plt.figure('bad pixel mask')
+			ax = plt.subplot()
+			ax.plot(median.flatten(), noise.flatten(), color='black', alpha=0.5, marker='o', markersize=4, markeredgewidth=0, linewidth=0)
+			ax.set_yscale('log')
+			bad = (noise < 0.05*np.sqrt(median)) | (noise == 0) | (median == 0) | (median < 0) | (self.bias() > 10000) | (self.dark() > 100)
+			ax.plot(median[bad].flatten(), noise[bad].flatten(), color='red', alpha=0.5, marker='o', markersize=10, markeredgecolor='red', linewidth=0)
+			ax.set_xlabel('Fluence')
+			ax.set_ylabel('RMS')
+			self.images['badpixels'] = bad.astype(np.int)
+			if visualize:
+				self.display.one(self.images['badpixels'])
+				answer = self.input("Does the bad pixel mask seem reasonable? [Y,n]").lower()
+			assert('n' not in answer)
+			writeFitsData(self.images['badpixels'], badPixelFilename)
 
-      median = np.median(cube,0)
-      writeFitsData(median, 'median.fits')
-      noise = np.median(np.abs(cube - median.reshape(1,cube.shape[1], cube.shape[2])), 0)
-      plt.figure('bad pixel mask')
-      ax = plt.subplot()
-      ax.plot(median.flatten(), noise.flatten(), color='black', alpha=0.5, marker='o', markersize=4, markeredgewidth=0, linewidth=0)
-      ax.set_yscale('log')
-      if self.obs.instrument == 'LDSS3C': bad = (noise < 0.05*np.sqrt(median)) | (noise == 0) | (median == 0) | (median < 0) | (self.bias() > 10000) | (self.dark() > 100)
-      elif self.obs.instrument == 'IMACS': bad = (noise < 0.05*np.sqrt(median)) | (noise == 0) | (median == 0) | (median < 0)
-      ax.plot(median[bad].flatten(), noise[bad].flatten(), color='red', alpha=0.5, marker='o', markersize=10, markeredgecolor='red', linewidth=0)
-      ax.set_xlabel('Fluence')
-      ax.set_ylabel('RMS')
-      self.images['BadPixels'] = bad.astype(np.int)
-      if visualize:
-        self.display.one(self.images['BadPixels'])
-        answer = self.input("Does the bad pixel mask seem reasonable? [Y,n]").lower()
-        assert('n' not in answer)
-      writeFitsData(self.images['BadPixels'], badPixelFilename)
+	def bias(self):
+		try:
+			return self.images['bias']
+		except KeyError:
+			self.createMasterImage('bias')
+			return self.images['bias']
 
+	def dark(self):
+		try:
+			return self.images['dark']
+		except KeyError:
+			self.createMasterImage('dark')
+			return self.images['dark']
 
+	def science(self):
+		'''
+		Return the stacked science image (remaking it if necessary).
+		'''
+		try:
+		  return self.images['science']
+		except KeyError:
+		  self.createMasterImage('science')
+		  return self.images['science']
 
-
-  def createMasterImage(self, imageType=None, remake=False):
-
-    print imageType
-
-    # if no name included, do nothing
-    if imageType is None:
-      return
-
-    # set the CCD to a particular image type
-    self.ccd.set(n=None, imageType=imageType)
-
-    # make sure this is a master image that is possible to make
-    assert(imageType in self.obs.cal_dictionary.keys())
-
-    noisestring = 'StdDev'
-    self.speak( "populating the master {0} image".format(imageType))
-    masterFilePrefix = self.obs.workingDirectory + "master_{0}".format(imageType)
-    try:
-        self.images[imageType] = readFitsData(masterFilePrefix + '.fits')
-        self.images[imageType+noisestring] = readFitsData(masterFilePrefix + noisestring + '.fits')
-        self.speak( "loaded {0} from {1}.fits".format(imageType, masterFilePrefix))
-    except IOError:
-        self.speak("creating from images " + zachopy.utils.truncate( str( self.obs.cal_dictionary[imageType]), n=30))
-        self.images[imageType], self.images[imageType+noisestring] = self.createStackedImage(self.obs.cal_dictionary[imageType], imageType=imageType)
-        writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
-        writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
-        #self.display.one(self.images[imageType+noisestring], clobber=True)
-        #self.display.one(self.images[imageType], clobber=False)
-        #self.display.single()
-        #self.display.zoom()
-        #self.display.scale('log', limits=[0,np.percentile(self.images[imageType],99)])
-        #assert('n' not in self.input("Do you like master image {0}? [Y,n]".format(imageType)).lower())
-
-  def bias(self):
-    try:
-      return self.images['Bias']
-    except:
-      self.createMasterImage('Bias')
-      return self.images['Bias']
-
-  def dark(self):
-    try:
-      return self.images['Dark']
-    except:
-      self.createMasterImage('Dark')
-      return self.images['Dark']
-
-  def science(self):
-    try:
-      return self.images['Science']
-    except:
-      self.createMasterImage('Science')
-      return self.images['Science']
-
-  def wideflat(self):
-    try:
-      return self.images['WideFlat']
-    except:
-      self.createMasterImage('WideFlat')
-      return self.images['WideFlat']
-
-
-  def createMasterImages(self, remake=False):
-    '''Combine individual exposures into master frames for the various calibrations.'''
-
-    for k in self.obs.cal_dictionary.keys():
-        if 'Science' not in k:
-            self.createMasterImage(k, remake=remake)
+	def wideflat(self):
+		'''
+		Return the spectroscopic flat (remaking it if necessary).
+		'''
+		try:
+			return self.images['flat']
+		except KeyError:
+			self.createMasterImage('flat')
+			return self.images['flat']

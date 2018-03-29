@@ -1,4 +1,4 @@
-from imports import *
+from .imports import *
 import CombinedTransmissionSpectrum
 c = CombinedTransmissionSpectrum.CombinedTransmissionSpectrum(binsize=50)
 c.load()

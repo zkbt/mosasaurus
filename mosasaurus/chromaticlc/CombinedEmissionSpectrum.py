@@ -47,7 +47,7 @@ class CombinedEmissionSpectrum(CombinedTransmissionSpectrum):
                                         self.fitdirectory,
                                         self.bins[self.w2bin(w)][0].identifier
                                         )
-            zachopy.utils.mkdir(synthesizerdirectory)
+            mkdir(synthesizerdirectory)
 
             # assign an epoch to the TLC
             tlc = orig.splitIntoEpochs(planet, newdirectory=synthesizerdirectory, phaseofinterest=self.phaseofinterest)[0]

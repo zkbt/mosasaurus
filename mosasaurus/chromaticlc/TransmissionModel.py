@@ -1,5 +1,5 @@
 import glob, os, string, copy
-from  zachopy.borrowed.mpfit.mpfit import mpfit
+from  craftroom.borrowed.mpfit.mpfit import mpfit
 
 
 import astropy.io.fits, astropy.io.ascii, astropy.time
@@ -7,9 +7,9 @@ import astropy.io.fits, astropy.io.ascii, astropy.time
 #from astropy.time import Time
 
 import matplotlib.pyplot as plt, numpy as np, matplotlib.animation
-import zachopy.units as u
-from zachopy.Talker import Talker
-import zachopy.oned
+import craftroom.units as u
+from craftroom.Talker import Talker
+import craftroom.oned
 tablefile = '/Users/zkbt/Dropbox/poptrans/data/exoplanets.org.txt'
 
 
@@ -35,7 +35,7 @@ class TransmissionModel(Talker):
         self.surfacegravity = u.G*self.mass*u.Mearth/(self.radius*u.Rearth)**2
         self.scaleheight = u.k_B*self.teq/u.mp/self.mu/self.surfacegravity
 
-        print self.__dict__
+        self.summarize()
 
 
     def propagate(self):
@@ -64,7 +64,7 @@ class TransmissionModel(Talker):
         return self.smoothed_nscaleheights
 
     def binned(self, binwidth=100):
-        return zachopy.oned.binto(self.wavelength, self.nscaleheights, binwidth)
+        return craftroom.oned.binto(self.wavelength, self.nscaleheights, binwidth)
 
     def deviates(self, p, fjac=None, spectrum=None):
         self.nudge = p[0]
@@ -77,7 +77,8 @@ class TransmissionModel(Talker):
     def chisq(self, spectrum):
         p0 = [0.0]
         parinfo = [{'value':0., 'fixed':0, 'limited':[1,1], 'limits':[-10,10], 'step':0.1}]
-        self.fitted = mpfit(self.deviates, p0, parinfo=parinfo, functkw=dict(spectrum=spectrum))
+        raise NameError("You need to replace mpfit with lmfit!")
+        # KLUDGE!!!!! self.fitted = mpfit(self.deviates, p0, parinfo=parinfo, functkw=dict(spectrum=spectrum))
         dev = self.deviates(self.fitted.params, spectrum=spectrum)[-1]
         chisq = np.sum(dev**2)
         dof = self.fitted.dof

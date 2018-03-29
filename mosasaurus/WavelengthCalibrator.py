@@ -1,6 +1,6 @@
 '''Wavelength Calibrator defines the wavelength calibration, and '''
 
-from imports import *
+from .imports import *
 from numpy.polynomial import Legendre
 colors = dict(He='darkorange', Ne='red', Ar='deepskyblue')
 shortcuts = {'h':'He', 'n':'Ne', 'a':'Ar'}
@@ -25,14 +25,17 @@ class WavelengthCalibrator(Talker):
 
     @property
     def wavelengthprefix(self):
-        return self.aperture.directory + '{0}_'.format(self.aperture.name)
+        '''Create the start of a filename to store wavelength calibration information.'''
+        return os.path.join(self.aperture.directory, '{0}_'.format(self.aperture.name))
 
     @property
     def calibrationfilename(self):
+        '''Filename to store the wavelength calibration.'''
         return self.wavelengthprefix + 'wavelengthcalibration.npy'
 
     @property
     def waveidfilename(self):
+        '''Filename to store the identified wavelength matches for this solution.'''
         return self.wavelengthprefix + 'waveids.txt'
 
     def loadWavelengthIdentifications(self, restart=False):
@@ -55,9 +58,9 @@ class WavelengthCalibrator(Talker):
             self.speak('no custom wavelength-to-pixel files found')
 
             # load the default for this grism, as set in obs. file
-            d = astropy.io.ascii.read(self.aperture.obs.wavelength2pixelsFile)
+            d = astropy.io.ascii.read(self.aperture.instrument.wavelength2pixelsFile)
             self.rawwaveids = d[['pixel', 'wavelength', 'name']]
-            self.rawwaveids['pixel'] /= self.aperture.obs.binning
+            self.rawwaveids['pixel'] /= self.aperture.instrument.binning
 
             # use a cross-corrlation to find the rough offset
             #  (the function call will define waveids)
@@ -70,7 +73,7 @@ class WavelengthCalibrator(Talker):
 
             # keep track of whcih waveid file is used
             self.whichwaveid = 'Default ({0})'.format(
-                self.aperture.obs.wavelength2pixelsFile.split('/')[-1])
+                self.aperture.instrument.wavelength2pixelsFile.split('/')[-1])
 
 
         self.speak('loaded {0}:'.format(self.whichwaveid))
@@ -162,7 +165,7 @@ class WavelengthCalibrator(Talker):
             yPeak = [p['intensity'] for p in self.peaks[element]]
 
             # create fake spectra using the line positions (reference + new)
-            x = np.arange(-self.aperture.obs.ysize,self.aperture.obs.ysize)
+            x = np.arange(-self.aperture.instrument.ysize,self.aperture.instrument.ysize)
 
             myPeaks, theirPeaks = np.zeros(len(x)), np.zeros(len(x))
             # create fake spectrum of their peaks
@@ -230,15 +233,15 @@ class WavelengthCalibrator(Talker):
             plt.setp(ax.get_xticklabels(), visible=True)
             ax.set_xlabel('Pixel Position')
             fontsize = 8
-            self.ax_wavecor[self.elements[0]].set_title('cross correlation peaks at \n{0} pixels ({1}x{1} binned pixels)'.format(self.peakoffset, self.aperture.obs.binning), fontsize=fontsize)
+            self.ax_wavecor[self.elements[0]].set_title('cross correlation peaks at \n{0} pixels ({1}x{1} binned pixels)'.format(self.peakoffset, self.aperture.instrument.binning), fontsize=fontsize)
             self.ax_waverough[self.elements[0]].set_title(
             'Coarse Wavelength Alignment\nfor ({0:0.1f},{1:0.1f})'.format(
                  self.aperture.x, self.aperture.y),fontsize=fontsize)
 
             # save the figure
             figure_waverough.savefig(
-            self.aperture.directory + 'roughWavelengthAlignment_{0}.pdf'.format(
-            self.aperture.name))
+                os.path.join(self.aperture.directory, 'roughWavelengthAlignment_{0}.pdf'.format(
+                                self.aperture.name)))
 
     @property
     def peaks(self):
@@ -271,7 +274,7 @@ class WavelengthCalibrator(Talker):
             flux = self.aperture.arcs[element][width]['raw_counts']
 
              # identify my peaks
-            xPeak, yPeak, xfiltered, yfiltered = zachopy.oned.peaks(
+            xPeak, yPeak, xfiltered, yfiltered = craftroom.oned.peaks(
                                                 self.aperture.waxis,
                                                 flux,
                                                 plot=False,
@@ -374,14 +377,14 @@ class WavelengthCalibrator(Talker):
                             m['theirs']['pixelguess'] == theirs]
 
                 if len(relevant) > 0:
-                    print "{0} of my peaks match to their {1}".format(len(relevant), theirs)
+                    print("{0} of my peaks match to their {1}".format(len(relevant), theirs))
 
                     distances = np.abs([m['theirs']['pixelguess'] - m['mine']['w'] for m in relevant])
 
 
                     best = distances.argmin()
 
-                    print "the closests one is {0}".format(relevant[best]['mine']['w'])
+                    print("the closests one is {0}".format(relevant[best]['mine']['w']))
                     self.matches.append(relevant[best])
             '''
 
@@ -416,7 +419,7 @@ class WavelengthCalibrator(Talker):
                                                     w=self.weights
                                                     )
             # identify outliers
-            limit = 1.48*zachopy.oned.mad(self.residuals[self.good])*4
+            limit = 1.48*craftroom.oned.mad(self.residuals[self.good])*4
             limit = np.maximum(limit, 1.0)
             # outliers get reset each time (so don't lose at edges)
             outlier = np.abs(self.residuals) > limit
@@ -476,7 +479,7 @@ class WavelengthCalibrator(Talker):
         self.speak('{}, {}'.format(self.pixelstowavelengths, self.pixelstowavelengths.domain, self.pixelstowavelengths.window))
         self.figcal = plt.figure('wavelength calibration',
                                         figsize=(15,6), dpi=72)
-        self.interactivewave = zachopy.iplot.iplot(4,1,
+        self.interactivewave = craftroom.displays.iplot.iplot(4,1,
                 height_ratios=[0.1, 0.4, 0.2, .2], hspace=0.1,
                 bottom=0.15)
 
@@ -557,7 +560,7 @@ class WavelengthCalibrator(Talker):
 
 
         # plot the calibration
-        x = np.linspace(*zachopy.oned.minmax(self.aperture.waxis),num=200)
+        x = np.linspace(*craftroom.oned.minmax(self.aperture.waxis),num=200)
         self.ax_wcal.plot(x, self.pixelstowavelengths(x), alpha=0.5, color='black')
         self.ax_wcal.set_ylabel('Wavelength (angstroms)')
 
@@ -576,7 +579,7 @@ class WavelengthCalibrator(Talker):
         self.ax_wres.scatter(self.pixel[bad], self.residuals[bad], **scatterkw)
         self.ax_wres.set_xlabel('Pixel # (by python rules)')
 
-        self.ax_wres.set_xlim(*zachopy.oned.minmax(self.aperture.waxis))
+        self.ax_wres.set_xlim(*craftroom.oned.minmax(self.aperture.waxis))
 
         self.ax_walign.scatter(   self.pixel[self.handpicked],
                                 self.intensity[self.handpicked],
@@ -598,13 +601,13 @@ class WavelengthCalibrator(Talker):
                             self.pixelstowavelengths.__class__.__name__)
         performance += ' the calibration has an RMS of {0:.2f}A'.format(rms)
         performance += ' with {0:.0f} good points'.format(np.sum(self.good))
-        performance += ' from {:.0f} to {:.0f}'.format(*zachopy.oned.minmax(self.pixel[self.good]))
+        performance += ' from {:.0f} to {:.0f}'.format(*craftroom.oned.minmax(self.pixel[self.good]))
         self.ax_wres.text(0.98, 0.05, performance,
                             fontsize=10,
                             ha='right', va='bottom',
                             transform=self.ax_wres.transAxes)
 
-        self.ax_wres.set_ylim(*np.array([-1,1])*np.maximum(zachopy.oned.mad(self.residuals[self.good])*10, 1))
+        self.ax_wres.set_ylim(*np.array([-1,1])*np.maximum(craftroom.oned.mad(self.residuals[self.good])*10, 1))
         plt.draw()
         self.speak('check out the wavelength calibration')
 
@@ -716,7 +719,7 @@ class WavelengthCalibrator(Talker):
 
 
     def selectwavelength(self, pressed):
-        #print pressed.xdata, pressed.ydata
+        #print(pressed.xdata, pressed.ydata)
         element = shortcuts[pressed.key.lower()]
         pixguess = [w['pixelguess'] for w in self.knownwavelengths[element]]
         closest = ((pixguess - pressed.xdata)**2).argmin()

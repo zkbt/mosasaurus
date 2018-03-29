@@ -7,7 +7,7 @@ b.fit( plot=False, slow=True, nburnin=500, ninference=1000)
 
 import multiprocessing
 n = multiprocessing.cpu_count()
-print "{n} cpus!".format(**locals())
+print("{n} cpus!".format(**locals()))
 pool = multiprocessing.Pool(n)
 results = pool.map(dofit, range(4))'''
 

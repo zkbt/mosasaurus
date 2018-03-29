@@ -2,7 +2,7 @@ from Observation import Observation
 import Cube
 from  transit import *
 import limbdarkening.phoenix as LD
-from imports import *
+from .imports import *
 
 
 class TS(Talker):
@@ -36,19 +36,19 @@ class TS(Talker):
 	@property
 	def binningdirectory(self):
 		bd =  self.obs.extractionDirectory + "binby{binsize:05.0f}/".format(binsize=self.binsize)
-		zachopy.utils.mkdir(bd)
+		mkdir(bd)
 		return bd
 
 	@property
 	def fitdirectory(self):
 		fd = self.binningdirectory + '{label}/'.format(label=self.label)
-		zachopy.utils.mkdir(fd)
+		mkdir(fd)
 		return fd
 
 	@property
 	def maskdirectory(self):
 		md = self.fitdirectory + "{maskname}/".format(maskname=self.maskname)
-		zachopy.utils.mkdir(md)
+		mkdir(md)
 		return md
 
 	def loadLCs(self):
@@ -105,7 +105,7 @@ class TS(Talker):
 		nColumns = 3
 		nRows = len(keys)
 		plt.figure('masking')
-		ip = zachopy.iplot.iplot(nRows, nColumns)
+		ip = craftroom.displays.iplot.iplot(nRows, nColumns)
 
 		kw = dict(cmap='gray', interpolation='nearest', aspect='auto', vmin=None, vmax=None)
 
@@ -120,7 +120,7 @@ class TS(Talker):
 				residuals = self.bins[i].tlc.residuals()
 				noise = np.std(residuals)
 				bad = np.abs(residuals) > threshold*noise
-				print " in bin {0}, {1} points exceeded {2} x {3}".format(i, np.sum(bad), threshold, noise)
+				self.speak(" in bin {0}, {1} points exceeded {2} x {3}".format(i, np.sum(bad), threshold, noise))
 				mask[i,:] = mask[i,:] | bad*self.bins[0].tlc.flags['outlier']
 		except:
 			pass
@@ -220,7 +220,7 @@ class TS(Talker):
 				answer = raw_input("What would you like to do? [a]dd masking, [s]ubtract masking, [r]efit using this mask, [f]inish?\n   (I'd like to) ")
 				unreasonableanswer = False
 				if 'a' in answer:
-					print "  Click at the two corners of a box you'd like to mask.\n"
+					self.speak("  Click at the two corners of a box you'd like to mask.\n")
 					clicks = ip.getMouseClicks(2)
 
 					rows = (clicks[0].ydata, clicks[1].ydata)
@@ -235,7 +235,7 @@ class TS(Talker):
 					mask[bottom:top, left:right] = mask[bottom:top, left:right] | self.bins[0].tlc.flags['custom']
 
 				elif 's' in answer:
-					print "  Click at the two corners of a box you'd like to unmask.\n"
+					self.speak("  Click at the two corners of a box you'd like to unmask.\n")
 					clicks = ip.getMouseClicks(2)
 
 					rows = np.round((clicks[0].ydata, clicks[1].ydata))
@@ -249,7 +249,7 @@ class TS(Talker):
 					mask[bottom:top, left:right] -= mask[bottom:top, left:right] & self.bins[0].tlc.flags['custom']
 
 				elif 'r' in answer:
-					print "Okay, refitting. It may take a while!"
+					self.speak("Okay, refitting. It may take a while!")
 					self.mask = mask
 					self.applyMask(maskname=maskname)
 					self.fitRigid()
@@ -257,7 +257,7 @@ class TS(Talker):
 					keepgoing = False
 				else:
 					unreasonableanswer = True
-					print "  I'm sorry, I didn't quite understand that."
+					self.speak("  I'm sorry, I didn't quite understand that.")
 
 		self.mask = mask
 		self.applyMask(maskname=maskname)
@@ -286,7 +286,7 @@ class TS(Talker):
 
 
 			plt.savefig(b.fittingdirectory + 'lightcurve.pdf')
-			print b.fittingdirectory + 'lightcurve.pdf'
+			self.speak(b.fittingdirectory + 'lightcurve.pdf')
 
 
 	def load(self):
@@ -346,19 +346,19 @@ class TS(Talker):
 
 			# plot the model for this bin
 			#time, planetmodel, instrumentmodel = bin.tlc.TM.smooth_model()
-			#kw = {'color':zachopy.color.nm2rgb([bin.left/self.unit, bin.right/self.unit], intensity=0.25), 'linewidth':3, 'alpha':0.5}
+			#kw = {'color':craftroom.color.nm2rgb([bin.left/self.unit, bin.right/self.unit], intensity=0.25), 'linewidth':3, 'alpha':0.5}
 			#self.ax_lc.plot(normalize(planetmodel) + bin.wavelength/self.unit, bin.tlc.TM.planet.timefrommidtransit(time), **kw)
 
 			# plot the (instrument corrected) datapoints
-			kw = {'marker':'.', 'color':zachopy.color.nm2rgb([bin.left/self.unit, bin.right/self.unit]), 'alpha':0.25, 'linewidth':0, 'marker':'o'}
+			kw = {'marker':'.', 'color':craftroom.color.nm2rgb([bin.left/self.unit, bin.right/self.unit]), 'alpha':0.25, 'linewidth':0, 'marker':'o'}
 			self.ax_lc.plot(normalize(bin.tlc.corrected()[bin.tlc.bad == False]) + bin.wavelength/self.unit, bin.tlc.timefrommidtransit()[bin.tlc.bad == False], **kw)
 			colors.append(kw['color'])
 
-			print bin
-			print bin.tlc.TM.planet
+			self.speak(bin)
+			self.speak(bin.tlc.TM.planet)
 
 			width = 3
-			self.ax_ts.errorbar(self.wavelengths[i]/self.unit, self.rp_over_rs[i], self.uncertainty[i], marker='o', color=zachopy.color.nm2rgb([bin.left/self.unit, bin.right/self.unit]), markersize=10, linewidth=width, elinewidth=width, capsize=5, capthick=width)
+			self.ax_ts.errorbar(self.wavelengths[i]/self.unit, self.rp_over_rs[i], self.uncertainty[i], marker='o', color=craftroom.color.nm2rgb([bin.left/self.unit, bin.right/self.unit]), markersize=10, linewidth=width, elinewidth=width, capsize=5, capthick=width)
 
 	def fitRigid(self, plot=False):
 		plt.ion()
@@ -412,7 +412,6 @@ class TS(Talker):
 		s.u2.float(value=s.u2.value, limits=[0.0, 1.0])
 
 
-		#print p
 		self.fit(p, s, i, plot=plot)
 
 	def fitFlexible(self, filename='wasp94_140805.obs',binsize=100, remake=False, plot=False):
@@ -489,8 +488,8 @@ def determineParameters(filename='wasp94_140805.obs',binsize=500):
 		dict[k+"_value"] = [bin.tm.planet.__dict__[k].value for bin in ts.bins]
 		dict[k+"_uncertainty"] = [bin.tm.planet.__dict__[k].uncertainty for bin in ts.bins]
 
-	print
-	print "The median values of the {binsize} angstrom fits for {filename} are:".format(binsize=binsize, filename=filename)
+	self.speak("")
+	self.speak("The median values of the {binsize} angstrom fits for {filename} are:".format(binsize=binsize, filename=filename))
 
 
 	plt.figure('geometric parameters')
@@ -513,4 +512,4 @@ def determineParameters(filename='wasp94_140805.obs',binsize=500):
 			ax.set_ylabel(keys[j])
 			ax.set_xlim(xmed - nsigma*xstd, xmed + nsigma*xstd)
 			ax.set_ylim(ymed - nsigma*ystd, ymed + nsigma*ystd)
-		print "{0:>20} = {1}".format(keys[i], xmed)
+		self.speak("{0:>20} = {1}".format(keys[i], xmed))

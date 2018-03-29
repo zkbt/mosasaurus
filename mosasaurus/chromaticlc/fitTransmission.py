@@ -10,7 +10,7 @@ t = TransmissionSpectrum.TransmissionSpectrum(**kw)
 t.loadLCs()
 n = len(t.bins)
 inputs = [(i,kw) for i in range(n)]
-print inputs[0]
+print(inputs[0])
 # do a fast fit, to figure out where the outliers are
 map(TransmissionSpectrum.fastfit, inputs)
 
