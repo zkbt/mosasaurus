@@ -2,15 +2,15 @@ name                 GJ1132b
 instrument           LDSS3C
 grism                VPH-red
 night                ut160416_17
-baseDirectory        /Users/zkbt/Cosmos/Data/Magellan/LDSS3/
-dataDirectory        data/
+baseDirectory        /h/mulan0/data/
+dataDirectory        GJ1132/
 workingDirectory     working/
 extractionDirectory  multipleapertures/
 
 # extraction widths, from narrowest to widest
-narrowest            2
-widest              12
-numberofapertures    6
+narrowest            4
+widest               10
+numberofapertures    4
 
 # initial guess for the sky regions
 skyWidth              10

@@ -2,15 +2,15 @@ name                 GJ1132b
 instrument           LDSS3C
 grism                VPH-red
 night                ut160308_09
-baseDirectory        /Users/zkbt/Cosmos/Data/Magellan/LDSS3/
-dataDirectory        data/
+baseDirectory        /h/mulan0/data/
+dataDirectory        GJ1132/
 workingDirectory     working/
 extractionDirectory  multipleapertures/
 
 # extraction widths, from narrowest to widest
-narrowest            2
-widest              12
-numberofapertures    6
+narrowest            4
+widest               10
+numberofapertures    4
 
 # initial guess for the sky regions
 skyWidth              10
@@ -30,10 +30,10 @@ nHe                   22  32
 nNe                   33  43
 nAr                   44  54
 nWideFlat             60  80
-nBias                  1  11
+nBias                  2  11
 nWideMask             12  16
 nThinMask             17  21
-nDark                0    0
+nDark                 0    0
 nFinder              143  143
 
 # extraction parameters
