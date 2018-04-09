@@ -109,7 +109,7 @@ class LDSS3C(Spectrograph):
 
         #try:
         #self.observatory = coord.EarthLocation.of_site(self.sitename)
-        self.observatory = EarthLocation.from_geodetic(-4.71333*u.hourangle, -29.00833*u.deg, 2282.0*u.m)
+        self.observatory = coord.EarthLocation.from_geodetic(-4.71333*u.hourangle, -29.00833*u.deg, 2282.0*u.m)
         #EarthLocation(1845655.49905341*m, -5270856.2947176*m, -3075330.77760682*m)
 
         '''
