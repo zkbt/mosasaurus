@@ -54,16 +54,27 @@ class Observation(Talker):
                     default header keyword for the default search string
         '''
 
+        # keep track of whether we need to re-load the fileprefixes
         somethingisnew = False
+
+        # make a list of all the types of files we need to be aware of
         everything = (  self.instrument.detectorcalibrations +
                         self.instrument.arclamps +
                         self.instrument.extractables)
 
+        # create a dictionary, whose keys will file types to keep track of
         self.exposures = {}
+
+        # the directory where file choices should be saved
         choicesDirectory =  os.path.join(self.directory, 'files')
-        # try
+
+
+        # try loading existing files
         for k in everything:
+
+            # the filename for fileprefixes for this type
             fileofiles = os.path.join(choicesDirectory, 'filesfor{}.txt'.format(k))
+
             try:
                 self.exposures[k] = astropy.io.ascii.read(fileofiles, delimiter='|')
                 self.speak('loaded a list of [{}] files from {}'.format(k, fileofiles))
@@ -90,8 +101,15 @@ class Observation(Talker):
                     else:
                         wordstosearchfor = self.instrument.wordstosearchfor[k]
 
+                # this will find the indices that match the wordstosearchfor
                 match = self.night.find(wordstosearchfor, self.instrument.keytosearch)
-                self.exposures[k] = self.night.log[match]
+
+                # make sure this table is sorted by the fileprefix
+                tableforthissubset = self.night.log[match]
+                tableforthissubset.sort('fileprefix')
+
+                
+                self.exposures[k] = tableforthissubset
                 self.exposures[k].meta['comments'] = ['mosasaurus will treat these as [{}] exposures for {}'.format(k, self), '']
                 self.exposures[k].write(fileofiles, **tablekw)
                 self.speak('saved list of [{}] files to {}'.format(k, fileofiles))
