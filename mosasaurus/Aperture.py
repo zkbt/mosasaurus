@@ -220,6 +220,7 @@ class Aperture(Talker):
 
       #testing using no flat
       #self.images['NormalizedFlat'] = np.ones(self.images['flat'].shape)
+     
 
       np.save(filename, self.images)
       self.speak("saved calibration stamps to {0}".format( filename))
