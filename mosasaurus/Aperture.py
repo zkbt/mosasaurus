@@ -221,6 +221,21 @@ class Aperture(Talker):
       #testing using no flat
       #self.images['NormalizedFlat'] = np.ones(self.images['flat'].shape)
 
+      # hzdl - visualization changes
+      # visualize and save NormalizedFlat
+      plt.figure('normalized flat')
+      ax = plt.subplot()
+      ax.imshow(self.images['NormalizedFlat'].T, cmap='gray', aspect='auto')
+      ax.set_xlabel('pixels')
+      ax.set_ylabel('pixels')
+      if visualize:
+          self.display.one(self.images['NormalizedFlat'], aspect='auto')
+          self.display.run()
+          answer = self.input("Did you like the NormalizedFlat for this stamp? [Y,n]").lower()
+      assert('n' not in answer)
+      filenameNormFlat = os.path.join(self.directory, 'NormalizedFlat_{0}.pdf'.format(self.name))
+      plt.savefig(filenameNormFlat)
+
       np.save(filename, self.images)
       self.speak("saved calibration stamps to {0}".format( filename))
 
