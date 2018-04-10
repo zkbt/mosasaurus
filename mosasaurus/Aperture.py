@@ -226,6 +226,7 @@ class Aperture(Talker):
 
       #testing using no flat
       #self.images['NormalizedFlat'] = np.ones(self.images['flat'].shape)
+     
 
       # hzdl - visualization changes
       # visualize and save NormalizedFlat

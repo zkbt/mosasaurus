@@ -203,10 +203,10 @@ class Trace(Talker):
         except AttributeError:
             return self.traceguess
 
-    def setSizes(self, pressed=None, default=False):  #hzdl - this default is set to true in __init__
+    def setSizes(self, pressed=None, default=False):
         '''prompt the user to select range of aperture sizes for extraction'''
         if default:
-            self.narrowest = self.instrument.extractiondefaults['narrowest']    #hzdl - these are set in the _base file
+            self.narrowest = self.instrument.extractiondefaults['narrowest']
             self.widest = self.instrument.extractiondefaults['widest']
             self.numberofapertures = self.instrument.extractiondefaults['numberofapertures']
         else:
