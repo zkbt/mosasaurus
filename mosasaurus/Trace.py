@@ -376,20 +376,7 @@ class Trace(Talker):
             self.speak('weights were wonky')
             assert(False)
 
-        print('fine', fine)
-        print('considerstar', considerstar)
-        print('subtracted', self.aperture.images['Subtracted'])
-        print('not zero?', np.where(considerstar))
-        print('weights', fine*considerstar*self.aperture.images['Subtracted'])
-        print('weighs not zero?', np.where(fine*considerstar*self.aperture.images['Subtracted']))
-
-        #import pickle
-        #pickle.dump(fine, open('/home/hdiamond/LHS1140/fine.p', 'wb'))
-        #pickle.dump(considerstar, open('/home/hdiamond/LHS1140/considerstar.p', 'wb'))
-        #pickle.dump(self.aperture.images['Subtracted'], open('/home/hdiamond/LHS1140/subtracted.p', 'wb'))
-        
         try:
-            # hzdl - ZeroDivisionError: When all weights along axis are zero. See numpy.ma.average for a version robust to this type of error.
             fluxWeightedCentroids = np.ma.average(self.aperture.s,
                         axis=self.aperture.sindex,
                         weights=fine*considerstar*self.aperture.images['Subtracted'])

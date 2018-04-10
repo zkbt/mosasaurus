@@ -190,33 +190,39 @@ class Aperture(Talker):
 
       # old way of making normalized flat:
       # create a normalized flat field stamp, dividing out the blaze + spectrum of quartz lamp
-      #raw_flatfield = self.images['flat']
-      #overbig_flatfield = np.ones_like(raw_flatfield)
-      #envelope = np.median(raw_flatfield, self.sindex)
-      #n_envp = 30
-      #points = np.linspace(np.min(self.waxis), np.max(self.waxis),n_envp+2)
-      #spline = scipy.interpolate.LSQUnivariateSpline(self.waxis,envelope,points[1:-2],k=2)
-      #self.images['NormalizedFlat'] = self.images['flat']/spline(self.waxis).reshape((self.waxis.shape[0],1))
-      #elf.images['NormalizedFlat'] /= np.median(self.images['NormalizedFlat'], self.sindex).reshape(self.waxis.shape[0], 1)
+      raw_flatfield = self.images['flat']
+      overbig_flatfield = np.ones_like(raw_flatfield)
+      envelope = np.median(raw_flatfield, self.sindex)
+      n_envp = 30
+      points = np.linspace(np.min(self.waxis), np.max(self.waxis),n_envp+2)
+      spline = scipy.interpolate.LSQUnivariateSpline(self.waxis,envelope,points[1:-2],k=2)
+      self.images['NormalizedFlat'] = self.images['flat']/spline(self.waxis).reshape((self.waxis.shape[0],1))
+      self.images['NormalizedFlat'] /= np.median(self.images['NormalizedFlat'], self.sindex).reshape(self.waxis.shape[0], 1)
+
+      # hzdl - save images and print values - need more robust method for creating normalized flat
+      import pickle
+      pickle.dump(self.images, open('/home/hdiamond/LHS1140/iamges.p', 'wb'))
+      pickle.dump(self.waxis, open('/home/hdiamond/LHS1140/waxis.p', 'wb'))
+      print('sindex, waxis.shape', self.sindex, self.waxis.shape)
 
       # create a normalized flat by dividing each element in the wide flat by the median of its surrounding neighbors;
       # some testing shows that just a 1-index box around each element is sufficient, but further experimentation is always good
-      self.images['NormalizedFlat'] = np.zeros(self.images['flat'].shape)
-      nx, ny = self.images['flat'].shape
-      xnumpx = 100
-      ynumpx = 20
-      for i in range(nx):
-          for j in range(ny):
+      #self.images['NormalizedFlat'] = np.zeros(self.images['flat'].shape)
+      #nx, ny = self.images['flat'].shape
+      #xnumpx = 100
+      #ynumpx = 100
+      #for i in range(nx):
+      #    for j in range(ny):
 
-              if i < xnumpx: minusx, plusx = i, xnumpx+(xnumpx-i)
-              elif i > nx-xnumpx: minusx, plusx = xnumpx+(xnumpx-(nx-i)), nx-i
-              else: minusx, plusx = xnumpx, xnumpx
+      #        if i < xnumpx: minusx, plusx = i, xnumpx+(xnumpx-i)
+      #        elif i > nx-xnumpx: minusx, plusx = xnumpx+(xnumpx-(nx-i)), nx-i
+      #        else: minusx, plusx = xnumpx, xnumpx
 
-              if j < ynumpx: minusy, plusy = j, ynumpx+(ynumpx-j)
-              elif j > ny-ynumpx: minusy, plusy = ynumpx+(ynumpx-(ny-j)), ny-j
-              else: minusy, plusy = ynumpx, ynumpx
-              #print i, j, i-minusx, i+plusx, j-minusy, j+plusy
-              self.images['NormalizedFlat'][i][j] = self.images['flat'][i][j]/np.median(self.images['flat'][i-minusx:i+plusx,j-minusy:j+plusy])
+      #        if j < ynumpx: minusy, plusy = j, ynumpx+(ynumpx-j)
+      #        elif j > ny-ynumpx: minusy, plusy = ynumpx+(ynumpx-(ny-j)), ny-j
+      #        else: minusy, plusy = ynumpx, ynumpx
+      #        #print i, j, i-minusx, i+plusx, j-minusy, j+plusy
+      #        self.images['NormalizedFlat'][i][j] = self.images['flat'][i][j]/np.median(self.images['flat'][i-minusx:i+plusx,j-minusy:j+plusy])
 
       #testing using no flat
       #self.images['NormalizedFlat'] = np.ones(self.images['flat'].shape)
@@ -233,11 +239,11 @@ class Aperture(Talker):
           self.display.run()
           answer = self.input("Did you like the NormalizedFlat for this stamp? [Y,n]").lower()
       assert('n' not in answer)
-      filenameNormFlat = os.path.join(self.directory, 'NormalizedFlat_{0}.pdf'.format(self.name))
+      filenameNormFlat = os.path.join(self.directory, 'normFlat_{0}.pdf'.format(self.name))
       plt.savefig(filenameNormFlat)
 
       np.save(filename, self.images)
-      self.speak("saved calibration stamps to {0}".format( filename))
+      self.speak("saved calibration stamps to {0}".format(filename))
 
   def displayStamps(self, images, keys=None):
     '''Display stamps relevant to this aperture in ds9.'''
