@@ -17,7 +17,7 @@ path = '/h/mulan0/data/GJ1132/LDSS3C/' # directory that contains /data/
 if os.path.exists(path):
     i.setupDirectories(path)
 
-i.extractiondefaults['spatialsubarray'] = 200
+i.extractiondefaults['spatialsubarray'] = 50
 i.extractiondefaults['narrowest'] = 4
 i.extractiondefaults['widest'] = 12
 i.extractiondefaults['numberofapertures'] = 5

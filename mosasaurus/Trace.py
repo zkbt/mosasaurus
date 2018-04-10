@@ -203,10 +203,10 @@ class Trace(Talker):
         except AttributeError:
             return self.traceguess
 
-    def setSizes(self, pressed=None, default=False):
+    def setSizes(self, pressed=None, default=False):  #hzdl - this default is set to true in __init__
         '''prompt the user to select range of aperture sizes for extraction'''
         if default:
-            self.narrowest = self.instrument.extractiondefaults['narrowest']
+            self.narrowest = self.instrument.extractiondefaults['narrowest']    #hzdl - these are set in the _base file
             self.widest = self.instrument.extractiondefaults['widest']
             self.numberofapertures = self.instrument.extractiondefaults['numberofapertures']
         else:
@@ -360,10 +360,12 @@ class Trace(Talker):
         self.aperture.images['Subtracted'] = flattened - self.aperture.images['Sky']
         fine = np.isfinite(self.aperture.images['Subtracted'])
 
+
         considerstar = self.extractionmask(np.max(self.extractionwidths))
 
         weights = np.maximum(fine*considerstar*self.aperture.images['Subtracted'], 0)
         weights += 1.0/np.sum(weights)
+
 
         # use the roughly subtracted image to fit centroids
         flux = np.average(self.aperture.images['Subtracted'],
@@ -374,12 +376,25 @@ class Trace(Talker):
             self.speak('weights were wonky')
             assert(False)
 
+        print('fine', fine)
+        print('considerstar', considerstar)
+        print('subtracted', self.aperture.images['Subtracted'])
+        print('not zero?', np.where(considerstar))
+        print('weights', fine*considerstar*self.aperture.images['Subtracted'])
+        print('weighs not zero?', np.where(fine*considerstar*self.aperture.images['Subtracted']))
+
+        #import pickle
+        #pickle.dump(fine, open('/home/hdiamond/LHS1140/fine.p', 'wb'))
+        #pickle.dump(considerstar, open('/home/hdiamond/LHS1140/considerstar.p', 'wb'))
+        #pickle.dump(self.aperture.images['Subtracted'], open('/home/hdiamond/LHS1140/subtracted.p', 'wb'))
+        
         try:
-            fluxWeightedCentroids = np.average(self.aperture.s,
+            # hzdl - ZeroDivisionError: When all weights along axis are zero. See numpy.ma.average for a version robust to this type of error.
+            fluxWeightedCentroids = np.ma.average(self.aperture.s,
                         axis=self.aperture.sindex,
                         weights=fine*considerstar*self.aperture.images['Subtracted'])
         except ZeroDivisionError:
-            self.speak('UH-OH, got zero-division error')
+            self.speak('UH-OH, got zero-division error') 
             return
         if np.isfinite(fluxWeightedCentroids).all() == False:
             self.speak('centroids were wacky')
