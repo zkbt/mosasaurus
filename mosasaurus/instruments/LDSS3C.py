@@ -206,6 +206,13 @@ class LDSS3C(Spectrograph):
         self.wavelengthsFile = os.path.join(self.disperserDirectory,
                 'HeNeAr.txt')
 
+        self.peakoffset = -1024
+        # find the peak of the combined correlation function
+        #if self.aperture.obs.instrument == 'LDSS3C':
+        #    self.peakoffset = -1024 # KLUDGE KLUDGE KLUDGE! np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)
+        #    # (old?) to convert: len(x) - xPeak = x + peakoffset
+        #elif self.aperture.obs.instrument == 'IMACS': self.peakoffset = -75  # also a kludge
+
     def setupExtraction(self):
         '''
         Setup the default extraction parameters associated with this instrument.

@@ -26,8 +26,11 @@ class Trace(Talker):
         self.crosshair = dict(s=0.0, w=0.0)
 
         try:
+            self.speak('trying to load trace parameters from {}'.format(self.filename))
             self.load()
         except IOError:
+            self.speak('interactively creating a new trace')
+
             # set up the initial sky offsets
             inner = np.min(self.extractionwidths) + self.instrument.extractiondefaults['skyGap']
             outer = inner + self.instrument.extractiondefaults['skyWidth']
@@ -59,13 +62,16 @@ class Trace(Talker):
         self.notconverged = False
         plt.close(self.figure)
 
+    @property
+    def filename(self):
+        return os.path.join(self.aperture.directory,  'trace_{0}.npy'.format(self.aperture.name))
+
     def save(self):
         '''save all properties of this trace to a file'''
 
         # save the parameters of the trace
-        filename = os.path.join(self.aperture.directory, 'trace_{0}.npy'.format(self.aperture.name))
-        np.save(filename, (self.tracefitcoef, self.tracefitwidth))
-        self.speak("saved trace parameters to {0}".format(filename))
+        np.save(self.filename, (self.tracefitcoef, self.tracefitwidth))
+        self.speak("saved trace parameters to {0}".format(self.filename))
 
         # save the extraction and sky masks
         filename = os.path.join(self.aperture.directory, 'extractionmasks_{0}.npy'.format(self.aperture.name))
@@ -79,9 +85,8 @@ class Trace(Talker):
     def load(self):
 
         # load the parameters of the trace
-        filename = os.path.join(self.aperture.directory,  'trace_{0}.npy'.format(self.aperture.name))
-        (self.tracefitcoef, self.tracefitwidth) = np.load(filename)
-        self.speak("loaded trace parameters to {0}".format(filename))
+        (self.tracefitcoef, self.tracefitwidth) = np.load(self.filename)
+        self.speak("loaded trace parameters to {0}".format(self.filename))
         self.tracefit = np.poly1d(self.tracefitcoef)
 
         # save the extraction and sky masks
@@ -375,13 +380,13 @@ class Trace(Talker):
         if (np.sum(weights, self.aperture.sindex) <= 0).any():
             self.speak('weights were wonky')
             assert(False)
-        
+
         try:
             fluxWeightedCentroids = np.ma.average(self.aperture.s,
                         axis=self.aperture.sindex,
                         weights=fine*considerstar*self.aperture.images['Subtracted'])
         except ZeroDivisionError:
-            self.speak('UH-OH, got zero-division error') 
+            self.speak('UH-OH, got zero-division error')
             return
         if np.isfinite(fluxWeightedCentroids).all() == False:
             self.speak('centroids were wacky')

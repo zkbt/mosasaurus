@@ -196,31 +196,14 @@ class Aperture(Talker):
       #n_envp = 30
       #points = np.linspace(np.min(self.waxis), np.max(self.waxis),n_envp+2)
       #spline = scipy.interpolate.LSQUnivariateSpline(self.waxis,envelope,points[1:-2],k=2)
-      #self.images['NormalizedFlat'] = self.images['flat']/spline(self.waxis).reshape((self.waxis.shape[0],1))
-      #elf.images['NormalizedFlat'] /= np.median(self.images['NormalizedFlat'], self.sindex).reshape(self.waxis.shape[0], 1)
 
-      # create a normalized flat by dividing each element in the wide flat by the median of its surrounding neighbors;
-      # some testing shows that just a 1-index box around each element is sufficient, but further experimentation is always good
-      self.images['NormalizedFlat'] = np.zeros(self.images['flat'].shape)
-      nx, ny = self.images['flat'].shape
-      xnumpx = 100
-      ynumpx = 20
-      for i in range(nx):
-          for j in range(ny):
+      # this is a rough 1D median normalization,
+      # just to make things run quickly
+      # Hannah is doing this more carefully
+      self.images['NormalizedFlat'] = self.images['flat']/np.median(self.images['flat'], self.sindex).reshape(self.waxis.shape[0], 1)
 
-              if i < xnumpx: minusx, plusx = i, xnumpx+(xnumpx-i)
-              elif i > nx-xnumpx: minusx, plusx = xnumpx+(xnumpx-(nx-i)), nx-i
-              else: minusx, plusx = xnumpx, xnumpx
 
-              if j < ynumpx: minusy, plusy = j, ynumpx+(ynumpx-j)
-              elif j > ny-ynumpx: minusy, plusy = ynumpx+(ynumpx-(ny-j)), ny-j
-              else: minusy, plusy = ynumpx, ynumpx
-              #print i, j, i-minusx, i+plusx, j-minusy, j+plusy
-              self.images['NormalizedFlat'][i][j] = self.images['flat'][i][j]/np.median(self.images['flat'][i-minusx:i+plusx,j-minusy:j+plusy])
 
-      #testing using no flat
-      #self.images['NormalizedFlat'] = np.ones(self.images['flat'].shape)
-     
 
       np.save(filename, self.images)
       self.speak("saved calibration stamps to {0}".format( filename))
