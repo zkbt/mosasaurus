@@ -232,6 +232,8 @@ class Aperture(Talker):
       # create a normalized flat field stamp, dividing out the blaze + spectrum of quartz lamp
       # make sure the normalization only happens over regions of interest - don't want to include parts with no exposure
 
+      filename = os.path.join(self.directory, 'normFlat_{0}.pdf'.format(self.name))
+
       #testing using no flat
       #self.images['NormalizedFlat'] = np.ones(self.images['flat'].shape)
 
@@ -266,8 +268,9 @@ class Aperture(Talker):
           self.display.run()
           answer = self.input("Did you like the NormalizedFlat for this stamp? [Y,n]").lower()
       assert('n' not in answer)
-      filenameNormFlat = os.path.join(self.directory, 'normFlat_{0}.pdf'.format(self.name))
-      plt.savefig(filenameNormFlat)
+
+      plt.savefig(filename)
+      self.speak("saved normalized flat to {0}".format(filename))        
 
   def createWavelengthCal(self, remake=False):
     '''Populate the wavelength calibration for this aperture.'''
