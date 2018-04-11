@@ -10,7 +10,7 @@ class Target(Talker):
         Talker.__init__(self)
 
         # what's the name of this target ("GJ1132b", planet, EB, etc...)
-        self.name = name   
+        self.name = clean(name)
 
         # the starname might be different from the target (e.g. GJ1132)
         self.starname = starname

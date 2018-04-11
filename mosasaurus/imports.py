@@ -39,3 +39,10 @@ from tqdm import tqdm
 from .Tools import *
 
 mosasaurusdirectory = os.path.split(os.path.split(__file__)[0])[0] + '/'
+
+def clean(s):
+    cleaned = s + ''
+    nasty = ' !@#$%^&*()'
+    for character in nasty:
+        cleaned = cleaned.replace(character, '')
+    return s
