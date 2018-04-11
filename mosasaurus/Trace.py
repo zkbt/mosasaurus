@@ -356,7 +356,7 @@ class Trace(Talker):
             fit for trace using actual centroids'''
 
         # estimate a rough 1D spectrum
-        flattened = self.aperture.images['science']/self.aperture.images['NormalizedFlat']
+        flattened = self.aperture.images['science']/self.aperture.images['RoughFlat']
         roughSky1d=np.average(flattened,
                                 axis=self.aperture.sindex,
                                 weights=self.skymask(np.median(self.extractionwidths)))

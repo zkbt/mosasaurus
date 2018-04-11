@@ -188,25 +188,11 @@ class Aperture(Talker):
       #	if k is not 'dark':
       #		self.images[k] -= self.images['dark']
 
-      # old way of making normalized flat:
-      # create a normalized flat field stamp, dividing out the blaze + spectrum of quartz lamp
-      #raw_flatfield = self.images['flat']
-      #overbig_flatfield = np.ones_like(raw_flatfield)
-      #envelope = np.median(raw_flatfield, self.sindex)
-      #n_envp = 30
-      #points = np.linspace(np.min(self.waxis), np.max(self.waxis),n_envp+2)
-      #spline = scipy.interpolate.LSQUnivariateSpline(self.waxis,envelope,points[1:-2],k=2)
-
-      # this is a rough 1D median normalization,
-      # just to make things run quickly
-      # Hannah is doing this more carefully
-      self.images['NormalizedFlat'] = self.images['flat']/np.median(self.images['flat'], self.sindex).reshape(self.waxis.shape[0], 1)
-
-
-
+      # this is a rough flat - will be refined later in create NormalizedFlat
+      self.images['RoughFlat'] = self.images['flat']/np.median(self.images['flat'], self.sindex).reshape(self.waxis.shape[0], 1)
 
       np.save(filename, self.images)
-      self.speak("saved calibration stamps to {0}".format( filename))
+      self.speak("saved calibration stamps to {0}".format(filename))
 
   def displayStamps(self, images, keys=None):
     '''Display stamps relevant to this aperture in ds9.'''
@@ -231,12 +217,57 @@ class Aperture(Talker):
     self.images['RoughLSF'] = np.exp(-0.5*((self.s - self.trace.traceCenter(self.w))/self.trace.tracefitwidth)**2)
     #self.displayTrace()
 
+    # create a normalized image to use throughout night
+    self.createNormalizedFlat()
+
   def displayTrace(self):
       for i, width in enumerate(self.trace.extractionwidths):
           self.display.new(frame=i)
           self.display.rgb( self.images['science'],
                             self.trace.extractionmask(width),
                             self.trace.skymask(width))
+
+  def createNormalizedFlat(self, visualize=True):
+
+      # create a normalized flat field stamp, dividing out the blaze + spectrum of quartz lamp
+      # make sure the normalization only happens over regions of interest - don't want to include parts with no exposure
+
+      #testing using no flat
+      #self.images['NormalizedFlat'] = np.ones(self.images['flat'].shape)
+
+      # use the skymask function to get a sky mask, not aperture-width based
+      infmask = self.trace.skymask(-np.inf)
+      normmask = np.zeros_like(self.images['science'])
+
+      # figure out the sky boundaries so everything inbetween can be set to True and a median can be taken across the right indies in each row
+      minarray, maxarray = np.zeros(self.waxis.shape[0]), np.zeros(self.waxis.shape[0])
+      medfilt_1d = np.zeros(self.waxis.shape[0])
+      for i in range(self.waxis.shape[0]):
+          whereone = np.where(infmask[i])
+          minindex, maxindex = np.min(whereone), np.max(whereone)
+          minarray[i], maxarray[i] = minindex, maxindex
+          normmask[i][minindex:maxindex+1] = 1
+          medfilt_1d[i] = np.median(self.images['flat'][i][minindex:maxindex+1])
+
+      # divide masked flat by the 1d_median filter, reshaped for division purposes
+      self.images['NormalizedFlat'] = (self.images['flat']*normmask)/medfilt_1d.reshape(self.waxis.shape[0], 1) 
+      # need values outside of extraction to be 1, not 0, for future division purposes
+      self.images['NormalizedFlat'] += np.abs(normmask - 1)
+
+      # visualize and save NormalizedFlat
+      plt.figure('normalized flat')
+      ax = plt.subplot()
+      ax.imshow(self.images['NormalizedFlat'].T, cmap='gray', aspect='auto', vmin=0.95, vmax=1.05)
+      ax.set_xlabel('pixels')
+      ax.set_ylabel('pixels')
+      if visualize:
+          # flat field has been medianed so most values should center on 1; want to be able to see finer-scale structure
+          self.display.one(self.images['NormalizedFlat'], aspect='auto', vmin=0.95, vmax=1.05) 
+          self.display.run()
+          answer = self.input("Did you like the NormalizedFlat for this stamp? [Y,n]").lower()
+      assert('n' not in answer)
+      filenameNormFlat = os.path.join(self.directory, 'normFlat_{0}.pdf'.format(self.name))
+      plt.savefig(filenameNormFlat)
 
   def createWavelengthCal(self, remake=False):
     '''Populate the wavelength calibration for this aperture.'''
@@ -344,127 +375,65 @@ class Aperture(Talker):
                 #mask = np.ones(self.images['BadPixels'].shape)
 
                 '''
-                # hzdl - making extraction and sky windows based on FWHM of each row in the cross-dispersion direction
+                #####################################################
+                # hzdl modification: making extraction and sky windows based on FWHM of each row in the cross-dispersion direction
                 mask = (self.images['BadPixels']-1)*-1
                 subimage = (image/self.images['NormalizedFlat']*mask)#[:,boxcuts[0]:boxcuts[-1]]
                 disp, crossdisp = subimage.shape
-                #x = range(crossdisp)
                 FWHM = np.zeros(disp)
-                r1list, r2list = np.zeros(disp), np.zeros(disp)
-                mininds, maxinds = np.zeros(disp), np.zeros(disp)
+                edge1, edge2 = np.zeros(disp), np.zeros(disp)
 
                 for i in range(disp):
-                    inds = np.where(self.intermediates[width]['skyMask'][i] == 1)[0]
-
-                    psf = subimage[i][inds[0]:inds[-1]+1]
-                    peak = np.argmax(psf)
-                    x = range(len(psf))
-                    spline = spi.UnivariateSpline(x, psf-np.max(psf)/2., s=0)
-                    if (psf[peak]-np.median(psf))/np.std(psf) < 4 or len(spline.roots()) != 2:
-                        mask[i] = 0
-                        placeholders = np.where(self.intermediates[width]['extractMask'][i] == 1)[0]
-                        r1list[i] = placeholders[0]
-                        r2list[i] = placeholders[-1]
-                        FWHM[i] = placeholders[-1]-placeholders[0]
-                        mininds[i] = inds[0]
-                        maxinds[i] = inds[-1]
-                        continue
+                    
+                    # make a psf by cross-dispersion column; multiply by extraction mask so neighboring spectra are not included
+                    psf = subimage[i]*self.intermediates[width]['extractMask'][i]
+                    # create a spline to fit to the psf; this will give the FWHM roots
+                    spline = spi.UnivariateSpline(range(len(psf)), psf-np.max(psf)/2.)
                     r1, r2 = spline.roots() # find the roots
+
                     FWHM[i] = r2-r1
-                    r1list[i] = inds[0]+r1
-                    r2list[i] = inds[0]+r2
+                    edge1[i] = r1
+                    edge2[i] = r2
 
-                    mininds[i] = int(inds[0])
-                    maxinds[i] = int(inds[-1])
+                # up to here edges will be the same for every extraction width;
+                # extend edges out by width/2 times FWHM/2 on each side
+                edge1 -= (FWHM/2.)*(width/2.)
+                edge2 += (FWHM/2.)*(width/2.)
 
-                FWHMmask = np.array(np.sum(mask, 1), dtype=bool)
-                FWHMspline = spi.UnivariateSpline(range(len(FWHM)), FWHM, w=FWHMmask.astype(int))
-                estFWHM = FWHMspline(range(len(FWHM)))
+                # smooth edges
+                edge1spline = spi.UnivariateSpline(range(len(edge1)), edge1)
+                edge1smooth = edge1spline(range(len(edge1)))
+                edge2spline = spi.UnivariateSpline(range(len(edge2)), edge2)
+                edge2smooth = edge2spline(range(len(edge2)))
 
-
-                # make new sky mask
-                FWHMmult = width/2
-
-                r1spline = spi.UnivariateSpline(range(len(r1list)), r1list, w=FWHMmask.astype(int))
-                r1smooth = r1spline(range(len(r1list)))
-                r2spline = spi.UnivariateSpline(range(len(r2list)), r2list, w=FWHMmask.astype(int))
-                r2smooth = r2spline(range(len(r2list)))
-
-                #extracted = np.zeros(disp)
-                skymed = np.zeros(disp)
-                skymask = np.zeros(image.shape)
-                intermediate_sky_med = np.zeros(image.shape)
-                extractmask = np.zeros(image.shape)
-                normimage = image/self.images['NormalizedFlat']
+                # this will become the new extraction mask; make sure to include partial pixels 
+                newextractmask = np.zeros(subimage.shape)
                 for i in range(disp):
+                    # hard edges will have values of 1; soft edges have partial pixel values; be careful of indexing
+                    hardedge1, hardedge2 = int(np.ceil(edge1smooth[i])), int(np.floor(edge2smooth[i]))
+                    softedge1, softedge2 = int(np.floor(edge1smooth[i])), int(np.floor(edge2smooth[i]))
+                    newextractmask[i][hardedge1:hardedge2] = 1
+                    newextractmask[i][softedge1] = hardedge1 - edge1smooth[i]
+                    newextractmask[i][softedge2] = edge2smooth[i] - hardedge2
 
-                    edge1, edge2 = r1smooth[i]-estFWHM[i]*FWHMmult, r2smooth[i]+estFWHM[i]*FWHMmult
-                    edge1_round, edge2_round = int(np.ceil(edge1)), int(np.floor(edge2))
-                    if edge2_round >= len(normimage[i]): edge2_round = len(normimage[i])-1
-                    edge1_frac, edge2_frac = edge1_round-edge1, edge2-edge2_round
+                # change sky mask so that there are no overlaps with new extract mask
+                newskymask = self.intermediates[width]['skyMask']
+                # find where the new extraction mask is overlapping with the sky mask
+                removesky = newextractmask + newskymask > 1
+                # remove the overlapped values from the sky mask
+                newskymask -= removesky
 
-                    if edge1_round - mininds[i] < 12: edge1_round = int(mininds[i]+12)
-                    if maxinds[i] - edge2_round < 12: edge2_round = int(maxinds[i]-12)
+                # replace sky mask and extraction mask with new versions
+                self.intermediates[width]['extractMask'] = newextractmask
+                self.intermediates[width]['skyMask'] = newskymask
 
-                    extractmask[i][edge1_round:edge2_round] = 1
-                    extractmask[i][edge1_round-1] = edge1_frac
-                    extractmask[i][edge2_round] = edge2_frac
-
-                    skyedge1 = edge1_round-2
-                    skyedge2 = edge2_round+2
-                    skymask[i][int(mininds[i]):skyedge1-1] = 1
-                    skymask[i][skyedge2+1:int(maxinds[i])] = 1
-
-
-                    #flux = np.sum(normimage[i][edge1_round:edge2_round])
-                    #partial_flux = edge1_frac*normimage[i][edge1_round-1] + edge2_frac*normimage[i][edge2_round]
-                    #extracted[i] = flux+partial_flux
-
-                    #skyedge1, skyedge2 = int(max(np.floor(edge1), mininds[i])), int(min(np.ceil(edge2), maxinds[i]))
-                    #sky1 = normimage[i][mininds[i]:skyedge1-2]
-                    #sky2 = normimage[i][skyedge2+2:maxinds[i]]
-                    #if skyedge1 - mininds[i] < 10: skyedge1 = int(mininds[i]+10)# skyedge1 = int(mininds[i] + (skyedge1list[i-1] - mininds[i-1]))
-                    #if maxinds[i] - skyedge2 < 10: skyedge2 = int(maxinds[i]-10)
-                    #skymask[i][int(mininds[i]):skyedge1-1] = 1
-                    #skymask[i][skyedge2+1:int(maxinds[i])] = 1
-                    #sky = np.median(np.concatenate((sky1, sky2)))
-                    #skymed[i] = sky*(edge2 - edge1)
-
-                    # make sky extraction regions 10 pixels on either side of the extraction window
-                    #skymask[i][skyedge1-10:skyedge1] = 1
-                    #skymask[i][skyedge2:skyedge2+10] = 1
-                    # make sky extraction regions 10 pixels from the edges of the psf, regardless of extraction window size
-                    #skyedge1, skyedge2 = int(mininds[i]), int(maxinds[i])
-                    #skymask[i][skyedge1:skyedge1+10] = 1
-                    #skymask[i][skyedge2-10:skyedge2] = 1
-                    #intermediate_sky_med[i] = sky*(edge2 - edge1)
-
-
-
-                intermediate_sky = zachopy.twod.polyInterpolate(image/self.images['NormalizedFlat'], skymask == 0, order=2, visualize=False)
-                #extract_sky = (intermediate_sky*extractmask).sum(self.sindex)
-                #raw_counts = (extractmask*image/self.images['NormalizedFlat']).sum(self.sindex) - extract_sky
-                #newsubdata = image/self.images['NormalizedFlat'] - intermediate_sky
-                #newspectrum = (extractmask*image/self.images['NormalizedFlat']).sum(self.sindex) - extract_sky
-
-                self.intermediates[width]['sky'] = intermediate_sky
-                self.intermediates[width]['skyMask'] = skymask
-                self.intermediates[width]['extractMask'] = extractmask
-                #self.extracted[width]['sky'] = extract_sky
-                #self.extracted[width]['raw_counts'] = newspectrum
-                #self.extracted[width]['no_flat'] = (extractmask*(image - intermediate_sky*self.images['NormalizedFlat'])).sum(self.sindex)
-                #self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat'] - intermediate_sky
-
-
-                #self.intermediates[width]['sky'] = intermediate_sky_med
-                #self.extracted[width]['sky'] = skymed
-                #self.extracted[width]['raw_counts'] = extracted - skymed
-                #self.extracted[width]['no_flat'] = extracted
-                #self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat'] - intermediate_sky_med
+                # end hzdl modification
+                ###############################
                 '''
 
                 # do polynomial interpolation along each column to estimate sky
                 self.intermediates[width]['sky'] = craftroom.twod.polyInterpolate(image/self.images['NormalizedFlat'], self.intermediates[width]['skyMask'] == 0, order=2, visualize=False)
+
                 self.extracted[width]['sky'] = (self.intermediates[width]['sky']*self.intermediates[width]['extractMask']).sum(self.sindex)
 
                 # for raw counts, weight by extraction mask, divide by flat, subtract the sky
