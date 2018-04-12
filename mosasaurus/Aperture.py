@@ -148,10 +148,10 @@ class Aperture(Talker):
   def createCalibStamps(self, visualize=True, interactive=True):
     '''Populate the necessary postage stamps for the calibrations.'''
     self.speak("populating calibration stamps")
-    filename = os.path.join(self.directory, 'calibStamps_{0}.npy'.format(self.name))
+    calibfilename = os.path.join(self.directory, 'calibStamps_{0}.npy'.format(self.name))
     try:
-      self.images = np.load(filename)[()] # i don't understand why i need the "empty tuple" but the internet says so
-      self.speak("loaded calibration stamps from {0}".format(filename))
+      self.images = np.load(calibfilename)[()] # i don't understand why i need the "empty tuple" but the internet says so
+      self.speak("loaded calibration stamps from {0}".format(calibfilename))
     except:
       self.speak("cutting them for the first time out of the stitched master images")
 
@@ -191,8 +191,8 @@ class Aperture(Talker):
       # this is a rough flat - will be refined later in create NormalizedFlat
       self.images['RoughFlat'] = self.images['flat']/np.median(self.images['flat'], self.sindex).reshape(self.waxis.shape[0], 1)
 
-      np.save(filename, self.images)
-      self.speak("saved calibration stamps to {0}".format(filename))
+      np.save(calibfilename, self.images)
+      self.speak("saved calibration stamps to {0}".format(calibfilename))
 
   def displayStamps(self, images, keys=None):
     '''Display stamps relevant to this aperture in ds9.'''
@@ -217,8 +217,12 @@ class Aperture(Talker):
     self.images['RoughLSF'] = np.exp(-0.5*((self.s - self.trace.traceCenter(self.w))/self.trace.tracefitwidth)**2)
     #self.displayTrace()
 
-    # create a normalized image to use throughout night
-    self.createNormalizedFlat()
+    # se if normalized flat exists in self.images, if not make one!
+    try:
+      self.images['NormalizedFlat']
+    except(KeyError):
+      self.speak("creating normalized flat for {0}".format(self.name))
+      self.createNormalizedFlat()
 
   def displayTrace(self):
       for i, width in enumerate(self.trace.extractionwidths):
@@ -232,7 +236,8 @@ class Aperture(Talker):
       # create a normalized flat field stamp, dividing out the blaze + spectrum of quartz lamp
       # make sure the normalization only happens over regions of interest - don't want to include parts with no exposure
 
-      filename = os.path.join(self.directory, 'normFlat_{0}.pdf'.format(self.name))
+      normfilename = os.path.join(self.directory, 'normFlat_{0}.pdf'.format(self.name))
+      calibfilename = os.path.join(self.directory, 'calibStamps_{0}.npy'.format(self.name))
 
       #testing using no flat
       #self.images['NormalizedFlat'] = np.ones(self.images['flat'].shape)
@@ -269,8 +274,11 @@ class Aperture(Talker):
           answer = self.input("Did you like the NormalizedFlat for this stamp? [Y,n]").lower()
       assert('n' not in answer)
 
-      plt.savefig(filename)
-      self.speak("saved normalized flat to {0}".format(filename))        
+      plt.savefig(normfilename)
+      self.speak("saved normalized flat to {0}".format(normfilename))
+
+      np.save(calibfilename, self.images)
+      self.speak("saved normalized flat to calibration stamp {0}".format(calibfilename))
 
   def createWavelengthCal(self, remake=False):
     '''Populate the wavelength calibration for this aperture.'''
