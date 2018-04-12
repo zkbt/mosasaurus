@@ -937,7 +937,7 @@ class Aperture(Talker):
                                         self.supersampled['wavelength'],
                                         treatnanas=0.0)
 
-                    assert(np.isfinite(ysupersampled).all())
+                    assert(np.isfinite(ysupersampled).any())
 
                     # turn the bad elements back to nans
                     #ysupersampled[yclosetonan] = np.nan
