@@ -189,8 +189,6 @@ class LDSS3C(Spectrograph):
                                             H2O=(9300, 9700)
                                             )
 
-        # the parameters for median filter, for normalizing the flats
-        self.normFlatFilterSize = (3, 50)
 
         # the available arc lamps for wavelength calibration
         self.arclamps = ['He', 'Ne', 'Ar']

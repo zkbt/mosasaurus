@@ -190,9 +190,10 @@ class Mask(Talker):
         self.extractStars(exposureprefix, remake=remake)
 
     # make a movie of the extractions
-    self.speak('making movies of the extraction apertures')
-    for a in self.apertures:
-        a.movieExtraction()
+    if False:
+        self.speak('making movies of the extraction apertures')
+        for a in self.apertures:
+            a.movieExtraction()
 
 
     # add wavelength calibration
