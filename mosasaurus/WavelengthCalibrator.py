@@ -142,6 +142,7 @@ class WavelengthCalibrator(Talker):
         self.speak("cross correlating arcs with known wavelengths")
 
         # create a plot showing how well the lines match
+        '''
         figure_waverough = plt.figure(  'wavelength rough offset',
                                         figsize=(6,4), dpi=100)
         gs = plt.matplotlib.gridspec.GridSpec(  3,2,
@@ -157,7 +158,6 @@ class WavelengthCalibrator(Talker):
             self.ax_wavecor[e] = plt.subplot(gs[i,1], sharex=sharec)
             sharer, sharec = self.ax_waverough[e], self.ax_wavecor[e]
 
-        '''
         # calculate correlation functions
         self.corre = {}
         for count, element in enumerate(self.elements):
@@ -207,7 +207,6 @@ class WavelengthCalibrator(Talker):
             if count == 0:
                 self.corre['combined'] = np.ones_like(self.corre[element])
             self.corre['combined'] *= self.corre[element]
-
         estimatedpeakoffset = np.argmax(self.corre['combined']) - len(x)
         '''
 
@@ -215,6 +214,7 @@ class WavelengthCalibrator(Talker):
         self.waveids = copy.deepcopy(self.rawwaveids)
         self.waveids['pixel'] += self.aperture.obs.instrument.peakoffset
 
+        '''
         # plot the shifted wavelength ids, and combined corfuncs
         for element in self.elements:
             for i in range(len(self.rawwaveids)):
@@ -240,7 +240,7 @@ class WavelengthCalibrator(Talker):
             figure_waverough.savefig(
                 os.path.join(self.aperture.directory, 'roughWavelengthAlignment_{0}.pdf'.format(
                                 self.aperture.name)))
-
+        '''
     @property
     def peaks(self):
         try:
