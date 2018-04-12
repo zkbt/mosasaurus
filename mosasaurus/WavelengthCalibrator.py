@@ -157,6 +157,7 @@ class WavelengthCalibrator(Talker):
             self.ax_wavecor[e] = plt.subplot(gs[i,1], sharex=sharec)
             sharer, sharec = self.ax_waverough[e], self.ax_wavecor[e]
 
+        '''
         # calculate correlation functions
         self.corre = {}
         for count, element in enumerate(self.elements):
@@ -208,6 +209,7 @@ class WavelengthCalibrator(Talker):
             self.corre['combined'] *= self.corre[element]
 
         estimatedpeakoffset = np.argmax(self.corre['combined']) - len(x)
+        '''
 
         # define the new, shifted, waveids array
         self.waveids = copy.deepcopy(self.rawwaveids)

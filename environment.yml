@@ -89,7 +89,6 @@ dependencies:
   - chardet==3.0.4
   - colormath==2.1.1
   - corner==2.0.1
-  - craftroom==0.1
   - emcee==2.2.1
   - exopop==0.1
   - idna==2.6
@@ -109,12 +108,8 @@ dependencies:
   - prompt-toolkit==1.0.15
   - requests==2.18.4
   - seaborn==0.8.1
-  - thistothat==0.1
   - tqdm==4.19.5
   - triangle-plot==0.3.0
   - untangle==1.1.1
   - urllib3==1.22
-  - whatsup==0.1.0
-  - zachopy==0.1.0
 prefix: /Users/zkbt/anaconda3/envs/mosasaurus
-
