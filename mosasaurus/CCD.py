@@ -208,13 +208,6 @@ class CCD(Talker):
             self.speak('saved cosmic ray rejection checks to {0}'.format(cosmics_directory))
             #self.input('thoughts on CR?')
 
-
-
-    def amplifiers(self):
-        return (self.data[:,0:self.obs.dataright - self.obs.dataleft],
-                self.data[:,self.obs.dataright - self.obs.dataleft:])
-
-
     def loadImages(self, exposureprefixes, imageType=None):
         '''Load a series of CCD images, returning them as a cube.'''
 
