@@ -504,6 +504,11 @@ class Aperture(Talker):
                 # extract optimal spectrum
                 f = np.sum(P_xl*(D-S), 1) / np.sum(P_xl**2, 1)
                 self.extracted[width]['raw_counts_optext'] = f
+                varf = np.sum(P_xl, 1) / np.sum(P_xl**2, 1)
+                self.extracted[width]['raw_counts_optext_unc'] = np.sqrt(varf)
+
+                # STEP 9 
+                # don't need to iterate because we're not masking out cosmic rays
 
                 ##################################################################################################
                 

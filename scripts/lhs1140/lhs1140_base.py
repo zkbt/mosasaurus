@@ -22,6 +22,7 @@ i.extractiondefaults['narrowest'] = 4
 i.extractiondefaults['widest'] = 12
 i.extractiondefaults['numberofapertures'] = 5
 i.extractiondefaults['zapcosmics'] = False
+#del i.alignmentranges['Ca1'] # to remove this key
 i.summarize()
 
 # create a target, pulling values from simbad
