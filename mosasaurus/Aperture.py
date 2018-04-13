@@ -456,28 +456,57 @@ class Aperture(Talker):
                 # store the 2D sky subtracted image
                 self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat'] - self.intermediates[width]['sky']
 
-                '''
-                # optimal extraction
-                # define the parameters that will act as inputs to the optimal extraction code optspex.py
-                subdata = image/self.images['NormalizedFlat'] - self.intermediates[width]['sky']
-                # draw a box around the spectral trace; box must be big enough to include the whole trace, but not so big as to include areas that were not sky-subtracted
-                boxcuts = []
-                for i in range(subdata.shape[1]):
-                    if 1. in self.intermediates[width]['extractMask'][:,i]: boxcuts.append(i)
-                subdata = subdata[:, boxcuts[0]:boxcuts[-1]]
-                submask = (((self.images['BadPixels']-1)*-1)*mask)[:, boxcuts[0]:boxcuts[-1]]
-                bg = intermediate_sky[:, boxcuts[0]:boxcuts[-1]]
-                spectrum = self.extracted[width]['raw_counts']
+                
+                # hzdl - optimal extraction test
+                ##########################################################################################
+                D = self.intermediates['original']/self.images['NormalizedFlat']
 
-                #startrace = trace.calc_trace(subdata, submask)#, nknots=750, deg=4)
-                #variance = abs(subdata)
-                #spec_width = 4
-                #trdata, trmask, trvar, trbg = trace.realign(subdata, submask, variance, bg, spec_width, startrace)
-                #trspec, trspecunc, trnewmask = OptimalExtraction.optimize(trdata.T, trmask.T, trbg.T, spectrum, 1, 0, p5thresh=5, p7thresh=5, fittype='smooth', window_len=11)
+                # STEP 2: initial variance estimates
+                # not needed; we're not reaching the read noise anyway
+    
+                # STEP 3
+                # fit sky background S (this has already happened in mosasaurus)
+                S = self.intermediates[width]['sky']
 
-                spec, specunc, newmask = OptimalExtraction.optimize(subdata.T, submask.T, bg.T, spectrum, 1, 0, p5thresh=10, p7thresh=10, fittype='smooth', window_len=11)
-                self.extracted[width]['raw_counts_optext'] = spec
-                '''
+                # STEP 4
+                # extracted standard spectrum
+                sky_subtracted_image = D - S
+                f_standard = np.sum(sky_subtracted_image, 1)
+
+                # STEP 5:
+                # make a fit to the trace
+                max_pix = []
+                for x in range(D.shape[0]):
+                    max_pix.append(np.where(sky_subtracted_image[x] == np.max(sky_subtracted_image[x]))[0][0])
+                max_pix_fit = np.polyfit(range(D.shape[0]), max_pix, deg=2)
+                max_pix_1d = np.poly1d(max_pix_fit)
+                max_pix_smooth = max_pix_1d(range(D.shape[0]))
+
+                # construct spacial profile
+                P_xl = np.zeros(D.shape)
+                for l in range(D.shape[1]):
+                    P_xl[:,l] = max_pix_smooth * sky_subtracted_image[:,l]/f_standard
+                P_xl = np.maximum(P_xl, 0)
+                for x in range(D.shape[0]):
+                    P_xl[x] = P_xl[x]/np.sum(P_xl[x])
+
+                # STEP 6
+                # revise variance estimates
+                fP = np.zeros(D.shape)
+                for l in range(D.shape[1]):
+                    fP[:,l] = f_standard*P_xl[:,l]
+
+                # STEP 7
+                # mask cosmic ray hits
+                # M is just an array of 1s; not masking those cosmic rays for now
+
+                # STEP 8
+                # extract optimal spectrum
+                f = np.sum(P_xl*(D-S), 1) / np.sum(P_xl**2, 1)
+                self.extracted[width]['raw_counts_optext'] = f
+
+                ##################################################################################################
+                
                 self.extracted[width]['raw_counts_optext'] = self.extracted[width]['raw_counts']
 
 
@@ -789,6 +818,8 @@ class Aperture(Talker):
       # point at this CCD number
       self.exposureprefix = exposureprefix
 
+
+
       if shift:
           dir = os.path.join(self.directory, 'stretchedsupersampled')
           mkdir(dir)
@@ -817,7 +848,7 @@ class Aperture(Talker):
       else:
           self.speak('{0} already exists'.format(self.supersampledFilename))
 
-  def interpolate(self, remake=False, shift=False):
+  def interpolate(self, remake=True, shift=False):
         '''Interpolate the spectra onto a common (uniform) wavelength scale.'''
 
 

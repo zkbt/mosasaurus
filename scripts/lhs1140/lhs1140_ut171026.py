@@ -29,7 +29,17 @@ c.imageCube(keys=['raw_counts'], stars=[c.target])
 #c.imageCube()
 #c.exportShiftStretch()
 
+from mosasaurus.WavelengthRecalibrator import WavelengthRecalibrator
+wr = WavelengthRecalibrator(c)
 
+# fix up the wavelength calibration for each exposure
+r.mask.setup()
+r.mask.addWavelengthCalibration(shift=True)
+
+# repopulate the cube
+c.populate(shift=True, remake=True)
+c.imageCube(keys=['raw_counts'], stars=[c.target])
+c.save()
 
 
 #c.exportShiftStretch()
