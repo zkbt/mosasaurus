@@ -14,6 +14,7 @@ class Observation(Talker):
         # set up connections to the other necessary objects
         self.target=target
         self.instrument=instrument
+        self.instrument.obs = self # link this observation back to the instrument
         self.night=night
 
         # make a directory hold all analyses for this observation
@@ -108,7 +109,7 @@ class Observation(Talker):
                 tableforthissubset = self.night.log[match]
                 tableforthissubset.sort('fileprefix')
 
-                
+
                 self.exposures[k] = tableforthissubset
                 self.exposures[k].meta['comments'] = ['mosasaurus will treat these as [{}] exposures for {}'.format(k, self), '']
                 self.exposures[k].write(fileofiles, **tablekw)

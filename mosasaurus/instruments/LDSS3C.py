@@ -1,15 +1,26 @@
 from .Spectrograph import *
 
 class LDSS3C(Spectrograph):
+    '''
+    This is an LDSS3C instrument. It contains all instrument specific
+    parameters and processes. Some procedures are inherited generally
+    from Spectrograph, so functions that you expect to be common to
+    many instruments should likely be coded there.
+    '''
 
+    # a string for the instrument name
     name = 'LDSS3C'
 
+    # file search patten to get a *single* fileprefix for each exposure
+    # LDSS3C has two amplifier readouts ('c1.fits' and 'c2.fits');
+    #  this pulls the fileprefix just from c1
     basicpattern = 'ccd*c1.fits'
 
     # which header of the fits file contains the header with useful information
     fitsextensionforheader = 0
 
     # what keys should be included in the nightly logs for this instrument?
+    # this is everything you might want to have access to at some point
     keysforlogheader = [    'ut-date',
                             'ut-time',
                             'object',
@@ -27,6 +38,7 @@ class LDSS3C(Spectrograph):
                             'comment']
 
     # what keys should make it into condensed summary logs?
+    # these are things you'll want for deciding what type each file is
     keysforsummary = [      'fileprefix',
                             'object',
                             'exptime',
@@ -36,6 +48,7 @@ class LDSS3C(Spectrograph):
                             'airmass']
 
     # what keys do we want to store associated with a science timeseries?
+    # these will show up, ultimately, in the 'temporal' key of a cube
     keysfortimeseries = [   'date-obs',
                             'ut-date',
                             'ut-time',
@@ -54,49 +67,23 @@ class LDSS3C(Spectrograph):
 
 
     # these keys are useful to search for guessing the filetype
+    # for LDSS3C, the usful information is in the "object" key of the header
+    # for other instruments, I could imagine "comments" being useful sometimes
     keytosearch = 'object'
 
-    # within those keys, what words do we search for?
-    wordstosearchfor = {'dark':['dark'],
+    # within that header key, what words do we search for?
+    wordstosearchfor = { 'dark':['dark'],
                          'bias':['bias'],
                          'flat':['quartz', 'flat'],
-                         'He':['He', 'helium'],
-                         'Ne':['Ne', 'neon'],
-                         'Ar':['Ar', 'argon']}
+                           'He':['He', 'helium'],
+                           'Ne':['Ne', 'neon'],
+                           'Ar':['Ar', 'argon']}
 
     def __repr__(self):
-        '''How should this object be represented as a string?'''
+        '''
+        How should this object be represented as a string?
+        '''
         return '<Spectrograph {}>'.format(self.name)
-
-    def findDarks(self, night):
-        '''Identify the dark exposures.'''
-        match = night.find( wordstolookfor = self.wordstosearchfor['dark'],
-                            placetolook = self.keytosearch)
-        return match
-
-    def findBiases(self, night):
-        '''Identify the bias exposures.'''
-        match = night.find( wordstolookfor = self.wordstosearchfor['bias'],
-                            placetolook = self.keytosearch)
-        return match
-
-    def findHe(self, night):
-        '''Identify the He exposures.'''
-        match = night.find( wordstolookfor = self.wordstosearchfor['He'],
-                            placetolook = self.keytosearch)
-        return match
-
-    def findNe(self, night):
-        '''Identify the Ne exposures.'''
-        match = night.find( wordstolookfor = self.wordstosearchfor['Ne'],
-                            placetolook = self.keytosearch)
-        return match
-
-    def findAr(self, night):
-        '''Identify the Ar exposures.'''
-        match = night.find( wordstolookfor = self.wordstosearchfor['Ar'],
-                            placetolook = self.keytosearch)
-        return match
 
     def __init__(self, grism='vph-red'):
 
@@ -112,19 +99,6 @@ class LDSS3C(Spectrograph):
         self.observatory = coord.EarthLocation.from_geodetic(-4.71333*u.hourangle, -29.00833*u.deg, 2282.0*u.m)
         #EarthLocation(1845655.49905341*m, -5270856.2947176*m, -3075330.77760682*m)
 
-        '''
-        # removed this once I realized astropy knew about LCO
-        self.observatory = dict(
-            name="Las Campanas Observatory",
-            timezone="Chilean",
-            standardzone = 4.0*astropy.units.hour,
-            usedaylightsaving = -1,
-            longitude = 4.71333*astropy.units.hourangle,
-            latitude = -29.00833*astropy.units.deg,
-            elevsea = 2282.0*astropy.units.m,
-            elev = 2282.0*astropy.units.m, # /* for ocean horizon, not Andes! */
-            )
-        '''
 
         # what grism is being used ['vph-red', 'vph-all', 'vph-blue']
         self.grism = grism.lower()
@@ -181,8 +155,7 @@ class LDSS3C(Spectrograph):
                                             }
         elif self.grism == 'vph-red':
             self.uniformwavelengths = np.arange(6000, 10500)
-            self.alignmentranges = dict(#UV=(6870, 6900),
-                                            O2=(7580, 7650),
+            self.alignmentranges = dict(    O2=(7580, 7650),
                                             Ca1=(8490, 8525),
                                             Ca2=(8535, 8580),
                                             Ca3=(8650, 8700),
@@ -204,12 +177,14 @@ class LDSS3C(Spectrograph):
         self.wavelengthsFile = os.path.join(self.disperserDirectory,
                 'HeNeAr.txt')
 
-        self.peakoffset = -1024
+        if self.binning == 2:
+            self.offsetBetweenReferenceAndWavelengthIDs = -1024
+
         # find the peak of the combined correlation function
         #if self.aperture.obs.instrument == 'LDSS3C':
-        #    self.peakoffset = -1024 # KLUDGE KLUDGE KLUDGE! np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)
-        #    # (old?) to convert: len(x) - xPeak = x + peakoffset
-        #elif self.aperture.obs.instrument == 'IMACS': self.peakoffset = -75  # also a kludge
+        #    self.offsetBetweenReferenceAndWavelengthIDs = -1024 # KLUDGE KLUDGE KLUDGE! np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)
+        #    # (old?) to convert: len(x) - xPeak = x + offsetBetweenReferenceAndWavelengthIDs
+        #elif self.aperture.obs.instrument == 'IMACS': self.offsetBetweenReferenceAndWavelengthIDs = -75  # also a kludge
 
     def setupExtraction(self):
         '''
@@ -221,8 +196,8 @@ class LDSS3C(Spectrograph):
         # how many pixels in the spatial direction should analysis extend?
         self.extractiondefaults['spatialsubarray'] = 50
         # how far (in pixels) does spectrum extend away from direct image position
-        self.extractiondefaults['wavelengthredward'] = np.inf
-        self.extractiondefaults['wavelengthblueward'] = np.inf
+        self.extractiondefaults['stampwavelengthredward'] = np.inf
+        self.extractiondefaults['stampwavelengthblueward'] = np.inf
 
 
         # setup the default initial extraction geometry
@@ -242,11 +217,6 @@ class LDSS3C(Spectrograph):
 
         # what are the kinds of images extractions can work with
         self.extractables = ['science', 'reference']
-
-        # we're going to cross-correlate the spectra within this wavelength range
-        self.extractiondefaults['correlationAnchors'] = [8498.0, 8542.0, 8662.0]
-        self.extractiondefaults['correlationRange'] = [8350, 8800]
-        self.extractiondefaults['correlationSmooth'] = 2
 
 
     def setupDirectories(self,
@@ -299,25 +269,6 @@ class LDSS3C(Spectrograph):
         # return as astropy times, in the UTC system, at the location of the telescope
         return times_earth
 
-    def fileprefix(self, n):
-        '''
-        Feed in a CCD number,
-        spit out the file prefix for
-        that CCD amplifier pair.
-        '''
-        try:
-          return [self.dataDirectory + 'ccd{0:04}'.format(x) for x in n]
-        except TypeError:
-          return self.dataDirectory + 'ccd{0:04}'.format(n)
-
-    def file2prefix(self, filename):
-        '''
-        This function returns a shortened fileprefix from a given filename.
-        '''
-        tail = os.path.split(filename)[-1]
-
-        # LDSS3C is split into two amplifiers, let's pull out the prefix
-        return tail.replace('c2.fits', '').replace('c1.fits', '')
 
     def file2prefix(self, filename):
         '''
@@ -341,5 +292,133 @@ class LDSS3C(Spectrograph):
         that are associated with this given prefix.
         '''
         return [prefix + 'c1.fits', prefix + 'c2.fits']
+
+
+    def loadOverscanTrimHalfCCD(self, filename):
+        '''
+        Open one half of an LDSS3 CCD, subtract the overscan, and trim.
+        '''
+
+        # open the FITS file, split into header and data
+        hdu = astropy.io.fits.open(filename)
+        header = hdu[0].header
+        data = readFitsData(filename)
+
+        # take the parts of CCD exposed to light
+        goodData = data[self.databottom:self.datatop,self.dataleft:self.dataright]
+        goodBias = data[self.databottom:self.datatop,self.dataright:]
+
+        # estimate the 1D bias (and drawdown, etc...) from the overscan
+        biasEstimate = np.median(goodBias, axis=1)
+        biasImage = np.ones(goodData.shape)*biasEstimate[:,np.newaxis]
+
+        return (goodData - biasImage), header
+
+    def createStitched(self, ccd):
+        '''Create and load a stitched CCD image, given a file prefix.'''
+
+        # print status
+        self.speak("creating a stitched image for {0}".format(ccd.stitched_filename))
+
+        # provide different options for different kinds of images
+        if ccd.imageType == 'bias':
+            ccd.flags['subtractbias'] = False
+            ccd.flags['subtractdark'] = False
+            ccd.flags['multiplygain'] = False
+            ccd.flags['subtractcrosstalk'] = False
+        elif ccd.imageType == 'dark':
+            ccd.flags['subtractbias'] = True
+            ccd.flags['subtractdark'] = False
+            ccd.flags['multiplygain'] = False
+            ccd.flags['subtractcrosstalk'] = False
+        elif ccd.imageType == 'FlatInADU':
+            ccd.flags['subtractbias'] = True
+            ccd.flags['subtractdark'] = True
+            ccd.flags['multiplygain'] = False
+            ccd.flags['subtractcrosstalk'] = False
+        else:
+            ccd.flags['subtractbias'] = True
+            ccd.flags['subtractdark'] = True
+            ccd.flags['multiplygain'] = True
+            ccd.flags['subtractcrosstalk'] = True
+
+        # don't restitch if unnecessary
+        if os.path.exists(ccd.stitched_filename):
+            self.speak("{0} has already been stitched".format(self.name))
+        else:
+            # process the two halves separately, and then smush them together
+            filenames = [os.path.join(self.obs.night.dataDirectory, f) for f in self.prefix2files(ccd.exposureprefix)]
+
+
+            # load the two halves
+            c1data, c1header = self.loadOverscanTrimHalfCCD(filenames[0])
+            c2data, c2header = self.loadOverscanTrimHalfCCD(filenames[1])
+
+            if ccd.visualize:
+                tempstitched = np.hstack([c1data, np.fliplr(c2data)])
+
+            if ccd.flags['subtractcrosstalk']:
+                    # is this possible?
+                    pass
+
+            # stitch the CCD's together
+            stitched = np.hstack([c1data, np.fliplr(c2data)])
+
+            if ccd.visualize:
+                ccd.display.one(stitched, clobber=True)
+                self.input('This is the raw stitched image; press enter to continue.')
+
+            # subtract bias
+            if ccd.flags['subtractbias']:
+                self.speak("subtracting bias image")
+                stitched -= ccd.calib.bias()
+
+            if ccd.visualize:
+                ccd.display.one(stitched, clobber=True)
+                self.input('after subtracting bias')
+
+            # normalize darks by exposure time
+            if ccd.imageType == 'dark':
+                stitched /= c1header['EXPTIME']
+
+            # subtract dark
+            if ccd.flags['subtractdark']:
+                self.speak("subtracting dark image")
+                stitched -= ccd.calib.dark()*c1header['EXPTIME']
+
+            if ccd.visualize:
+                ccd.display.one(stitched, clobber=True)
+                ccd.visualize = self.input('after subtracting dark; type [s] to stop showing these').lower() != 's'
+
+            # divide by the gain (KLUDGE! make sure these are the best estimates!)
+            if ccd.flags['multiplygain']:
+
+                try:
+                    self.gains
+                except AttributeError:
+                        self.ccd.estimateGain()
+
+                self.speak("multiplying by gains of {0} e-/ADU".format(self.gains))
+                gain1 = np.zeros_like(c1data) + self.gains[0]
+                gain2 = np.zeros_like(c2data)+ self.gains[1]
+                gainimage = np.hstack([gain1, np.fliplr(gain2)])
+                stitched *= gainimage
+
+            if ccd.visualize:
+                ccd.display.one(stitched, clobber=True)
+                ccd.visualize = self.input('after multiplying by gain; type [s] to stop showing these').lower() != 's'
+
+            # put the stitched image into the CCD's memory
+            ccd.data = stitched
+
+            # find and reject cosmics based on nearby images in time
+            if self.zapcosmics:
+                if ccd.imageType == 'science':
+                    ccd.rejectCosmicRays() # KLUDGE -- I'm pretty sure this shouldn't be used
+
+            # write out the image to a stitched image
+            writeFitsData(ccd.data, ccd.stitched_filename)
+            self.speak("stitched and saved {0}".format(ccd.name))
+
 
 #def identifyImageNumbers(self, lookingfor)

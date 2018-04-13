@@ -66,8 +66,8 @@ class Aperture(Talker):
       self.y = y
       self.maskWidth = self.instrument.extractiondefaults['spatialsubarray']
       #(self.obs.skyWidth + self.obs.skyGap)*2 #+20 +
-      blueward = self.instrument.extractiondefaults['wavelengthblueward']
-      redward = self.instrument.extractiondefaults['wavelengthredward']
+      blueward = self.instrument.extractiondefaults['stampwavelengthblueward']
+      redward = self.instrument.extractiondefaults['stampwavelengthredward']
       self.ystart = np.maximum(y - blueward, 0).astype(np.int)
       self.yend = np.minimum(y + redward, self.instrument.ysize).astype(np.int)
       self.xstart = np.maximum(x - self.maskWidth, 0).astype(np.int)
