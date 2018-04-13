@@ -507,7 +507,7 @@ class Aperture(Talker):
 
                 ##################################################################################################
                 
-                self.extracted[width]['raw_counts_optext'] = self.extracted[width]['raw_counts']
+                #self.extracted[width]['raw_counts_optext'] = self.extracted[width]['raw_counts']
 
 
                 #if self.obs.slow:
