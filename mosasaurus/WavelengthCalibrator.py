@@ -207,12 +207,12 @@ class WavelengthCalibrator(Talker):
             if count == 0:
                 self.corre['combined'] = np.ones_like(self.corre[element])
             self.corre['combined'] *= self.corre[element]
-        estimatedpeakoffset = np.argmax(self.corre['combined']) - len(x)
+        estimatedoffsetBetweenReferenceAndWavelengthIDs = np.argmax(self.corre['combined']) - len(x)
         '''
 
         # define the new, shifted, waveids array
         self.waveids = copy.deepcopy(self.rawwaveids)
-        self.waveids['pixel'] += self.aperture.obs.instrument.peakoffset
+        self.waveids['pixel'] += self.aperture.obs.instrument.offsetBetweenReferenceAndWavelengthIDs
 
         '''
         # plot the shifted wavelength ids, and combined corfuncs
@@ -231,7 +231,7 @@ class WavelengthCalibrator(Talker):
             plt.setp(ax.get_xticklabels(), visible=True)
             ax.set_xlabel('Pixel Position')
             fontsize = 8
-            self.ax_wavecor[self.elements[0]].set_title('cross correlation peaks at \n{0} pixels ({1}x{1} binned pixels)'.format(estimatedpeakoffset, self.aperture.instrument.binning), fontsize=fontsize)
+            self.ax_wavecor[self.elements[0]].set_title('cross correlation peaks at \n{0} pixels ({1}x{1} binned pixels)'.format(estimatedoffsetBetweenReferenceAndWavelengthIDs, self.aperture.instrument.binning), fontsize=fontsize)
             self.ax_waverough[self.elements[0]].set_title(
             'Coarse Wavelength Alignment\nfor ({0:0.1f},{1:0.1f})'.format(
                  self.aperture.x, self.aperture.y),fontsize=fontsize)

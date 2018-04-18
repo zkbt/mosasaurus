@@ -10,7 +10,6 @@ class Spectrograph(Talker):
         self.setupExtraction()
 
 
-
     def extractInterestingHeaderKeys(self, file):
         '''
         This will work for files with only one interesting extension.

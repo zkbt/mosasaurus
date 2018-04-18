@@ -18,9 +18,9 @@ if os.path.exists(path):
     i.setupDirectories(path)
 
 i.extractiondefaults['spatialsubarray'] = 50
-i.extractiondefaults['narrowest'] = 4
-i.extractiondefaults['widest'] = 12
-i.extractiondefaults['numberofapertures'] = 5
+i.extractiondefaults['narrowest'] = 2
+i.extractiondefaults['widest'] = 20
+i.extractiondefaults['numberofapertures'] = 10
 i.extractiondefaults['zapcosmics'] = False
 i.summarize()
 
