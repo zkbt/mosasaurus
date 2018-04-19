@@ -496,17 +496,15 @@ class Aperture(Talker):
                 for l in range(D.shape[1]):
                     fP[:,l] = f_standard*P_xl[:,l]
 
-                V = fP + S
-                
                 # STEP 7
                 # mask cosmic ray hits
                 # M is just an array of 1s; not masking those cosmic rays for now
 
                 # STEP 8
                 # extract optimal spectrum
-                f = np.sum(P_xl*(D-S)/V, 1) / np.sum((P_xl**2)/V, 1)
+                f = np.sum(P_xl*(D-S), 1) / np.sum(P_xl**2, 1)
                 self.extracted[width]['raw_counts_optext'] = f
-                varf = np.sum(P_xl, 1) / np.sum((P_xl**2)/V, 1)
+                varf = np.sum(P_xl, 1) / np.sum(P_xl**2, 1)
                 self.extracted[width]['raw_counts_optext_unc'] = np.sqrt(varf)
 
                 # STEP 9 
