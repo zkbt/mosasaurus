@@ -475,36 +475,42 @@ class Aperture(Talker):
 
                 # STEP 5:
                 # make a fit to the trace
-                max_pix = []
-                for x in range(D.shape[0]):
-                    max_pix.append(np.where(sky_subtracted_image[x] == np.max(sky_subtracted_image[x]))[0][0])
-                max_pix_fit = np.polyfit(range(D.shape[0]), max_pix, deg=2)
-                max_pix_1d = np.poly1d(max_pix_fit)
-                max_pix_smooth = max_pix_1d(range(D.shape[0]))
+                #max_pix = []
+                #for x in range(D.shape[0]):
+                #    max_pix.append(np.where(sky_subtracted_image[x] == np.max(sky_subtracted_image[x]))[0][0])
+                #max_pix_fit = np.polyfit(range(D.shape[0]), max_pix, deg=2)
+                #max_pix_1d = np.poly1d(max_pix_fit)
+                #max_pix_smooth = max_pix_1d(range(D.shape[0]))
+
 
                 # construct spacial profile
-                P_xl = np.zeros(D.shape)
-                for l in range(D.shape[1]):
-                    P_xl[:,l] = max_pix_smooth * sky_subtracted_image[:,l]/f_standard
+                #P_xl = np.zeros(D.shape)
+                #for l in range(D.shape[1]):
+                #    P_xl[:,l] = max_pix_smooth * sky_subtracted_image[:,l]/f_standard
+                #P_xl = np.maximum(P_xl, 0)
+                #for x in range(D.shape[0]):
+                #    P_xl[x] = P_xl[x]/np.sum(P_xl[x])
+                P_xl = self.trace.traceCenter(self.w) * sky_subtracted_image / f_standard.reshape(self.waxis.shape[0], 1)
                 P_xl = np.maximum(P_xl, 0)
-                for x in range(D.shape[0]):
-                    P_xl[x] = P_xl[x]/np.sum(P_xl[x])
+                P_xl /= np.sum(P_xl, 1).reshape(self.waxis.shape[0], 1)
 
                 # STEP 6
                 # revise variance estimates
-                fP = np.zeros(D.shape)
-                for l in range(D.shape[1]):
-                    fP[:,l] = f_standard*P_xl[:,l]
-
+                #fP = np.zeros(D.shape)
+                #for l in range(D.shape[1]):
+                #    fP[:,l] = f_standard*P_xl[:,l]
+                fP = P_xl*f_standard.reshape(self.waxis.shape[0], 1)
+                V = fP + S
+                
                 # STEP 7
                 # mask cosmic ray hits
                 # M is just an array of 1s; not masking those cosmic rays for now
 
                 # STEP 8
                 # extract optimal spectrum
-                f = np.sum(P_xl*(D-S), 1) / np.sum(P_xl**2, 1)
+                f = np.sum(P_xl*(D-S)/V, 1) / np.sum((P_xl**2)/V, 1)
                 self.extracted[width]['raw_counts_optext'] = f
-                varf = np.sum(P_xl, 1) / np.sum(P_xl**2, 1)
+                varf = np.sum(P_xl, 1) / np.sum((P_xl**2)/V, 1)
                 self.extracted[width]['raw_counts_optext_unc'] = np.sqrt(varf)
 
                 # STEP 9 
