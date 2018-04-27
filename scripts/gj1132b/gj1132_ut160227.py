@@ -21,7 +21,7 @@ c.setStars(target='aperture_99_809', comparisons=['aperture_181_1018', 'aperture
 c.populate(shift=False, max=None)
 c.savable=c.savable + ['target', 'comparisons']
 c.save()
-c.imageCube(keys=['raw_counts'], stars=[c.target])
+#c.imageCube(keys=['raw_counts'], stars=[c.target])
 #c.imageCube()
 #c.populate(shift=True, max=None)
 #c.imageCube(keys=['raw_counts'], stars=[c.target])
@@ -38,8 +38,9 @@ r.mask.addWavelengthCalibration(shift=True)
 
 # repopulate the cube
 c.populate(shift=True, remake=True)
-c.imageCube(keys=['raw_counts'], stars=[c.target])
 c.save()
+c.imageCube(keys=['raw_counts'], stars=[c.target])
+
 
 
 #c.exportShiftStretch()

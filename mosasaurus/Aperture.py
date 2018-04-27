@@ -449,7 +449,18 @@ class Aperture(Talker):
 
                 # for raw counts, weight by extraction mask, divide by flat, subtract the sky
                 self.extracted[width]['raw_counts'] = (self.intermediates[width]['extractMask']*image/self.images['NormalizedFlat']).sum(self.sindex) - self.extracted[width]['sky']
+                '''
+                ###########################################################################################
+                # hzdl - a median filter idea for getting rid of some of the worst cosmic ray situations
 
+                spec = np.copy(self.extracted[width]['raw_counts'])
+                specmed = median_filter(spec, 5)
+                diff = spec - specmed
+                bad = np.where(diff > 10*(np.std(diff)))
+                spec[bad] = specmed[bad]
+                self.extracted[width]['raw_counts'] = spec
+                ############################################################################################
+                '''
                 # for testing, save a non-flatfielded version extraction, just to make sure
                 self.extracted[width]['no_flat'] =  (self.intermediates[width]['extractMask']*(image - self.intermediates[width]['sky']*self.images['NormalizedFlat'])).sum(self.sindex)
 
@@ -497,6 +508,11 @@ class Aperture(Talker):
 
                 # STEP 9 
                 # don't need to iterate because we're not masking out cosmic rays
+                import pickle
+                pickle.dump(self.intermediates, open('/home/hdiamond/GJ1132/OptExt/intermediates_'+self.name+'_'+self.exposureprefix+'.p', 'wb'))
+                pickle.dump(self.images, open('/home/hdiamond/GJ1132/OptExt/images_'+self.name+'_'+self.exposureprefix+'.p', 'wb'))
+                pickle.dump(self.trace.traceCenter(self.w), open('/home/hdiamond/GJ1132/OptExt/trace_'+self.name+'_'+self.exposureprefix+'.p', 'wb'))
+                pickle.dump(self.extracted, open('/home/hdiamond/GJ1132/OptExt/extracted_'+self.name+'_'+self.exposureprefix+'.p', 'wb'))
 
                 ##################################################################################################
                 
