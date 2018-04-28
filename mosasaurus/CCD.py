@@ -175,11 +175,14 @@ class CCD(Talker):
             # process the two halves separately, and then smush them together
             filenames = [os.path.join(self.obs.night.dataDirectory, f) for f in self.instrument.prefix2files(self.exposureprefix)]
 
-
             # load the two halves
             # FINDME - these need to be de-LDSS3C'd
-            c1data, c1header = self.loadOverscanTrimHalfCCD(filenames[0])
-            c2data, c2header = self.loadOverscanTrimHalfCCD(filenames[1])
+            # array of [c_data, c_header]
+            c_ = np.array([self.loadOverscanTrimHalfCCD(f) for f in filenames])
+            c_data = c_[:,0]    # list of chip data
+            c_header = c_[:,1]  # list of chip header
+            #c1data, c1header = self.loadOverscanTrimHalfCCD(filenames[0])
+            #c2data, c2header = self.loadOverscanTrimHalfCCD(filenames[1])
 
             if self.visualize:
                 tempstitched = np.hstack([c1data, np.fliplr(c2data)])
@@ -189,7 +192,10 @@ class CCD(Talker):
                     pass
 
             # stitch the CCD's together
-            stitched = np.hstack([c1data, np.fliplr(c2data)])
+            # need to instead call a funtion in instrument class; not all data can be stitched the same way!
+            #stitched = np.hstack([c1data, np.fliplr(c2data)])
+            # the first element in the array of [c_data, c_header]; just the c_datas
+            stitched = self.instrument.stitchChips(c_data)
             #self.speak("stitching images of size {0} and {1} into one {2} image".format(c1data.shape, c2data.shape, stitched.shape))
 
             if self.visualize:
@@ -207,12 +213,12 @@ class CCD(Talker):
 
             # normalize darks by exposure time
             if self.imageType == 'dark':
-                stitched /= c1header['EXPTIME']
+                stitched /= c_header[0]['EXPTIME']
 
             # subtract dark
             if self.flags['subtractdark']:
                 self.speak("subtracting dark image")
-                stitched -= self.calib.dark()*c1header['EXPTIME']
+                stitched -= self.calib.dark()*c_header[0]['EXPTIME']
 
             if self.visualize:
                 self.display.one(stitched, clobber=True)
@@ -227,9 +233,12 @@ class CCD(Talker):
                         self.calib.estimateGain()
 
                 self.speak("multiplying by gains of {0} e-/ADU".format(self.instrument.gains))
-                gain1 = np.zeros_like(c1data) + self.instrument.gains[0]
-                gain2 = np.zeros_like(c2data)+ self.instrument.gains[1]
-                gainimage = np.hstack([gain1, np.fliplr(gain2)])
+                # need to know how many amplifiers there are - don't assume 2!
+                gains = [np.zeros_like(c_data[i]) + self.instrument.gains[i] for i in range(len(c_data))]
+                #gain1 = np.zeros_like(c1data) + self.instrument.gains[0]
+                #gain2 = np.zeros_like(c2data)+ self.instrument.gains[1]
+                gainimage = self.instrument.stitchChips(gains)
+                #gainimage = np.hstack([gain1, np.fliplr(gain2)])
                 stitched *= gainimage
 
             if self.visualize:

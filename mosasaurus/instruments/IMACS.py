@@ -298,6 +298,7 @@ class IMACS(Spectrograph):
         '''
         tail = os.path.split(filename)[-1]
 
+        #return tail.replace('c1.fits', '').replace('c2.fits', '').replace('c3.fits', '').replace('c4.fits', '').replace('c5.fits', '').replace('c6.fits', '').replace('c7.fits', '').replace('c8.fits', '')
         # for now we are only doing chip 8 of the IMACS chip array
         return tail.replace('c8.fits', '')
 
@@ -313,6 +314,12 @@ class IMACS(Spectrograph):
         This function returns a list of filenames (without complete path)
         that are associated with this given prefix.
         '''
-        return [prefix + 'c1.fits', prefix + 'c2.fits']
+        #return [prefix + 'c1.fits', prefix + 'c2.fits', prefix + 'c3.fits', prefix + 'c4.fits', prefix + 'c5.fits', prefix + 'c6.fits', prefix + 'c7.fits', prefix + 'c8.fits']
+        # for now just chip 8
+        return [prefix + 'c8.fits']
+
+    def stitchChips(self, listOfChips):
+        # for now just working with chip8
+        return listOfChips[0]
 
 #def identifyImageNumbers(self, lookingfor)
