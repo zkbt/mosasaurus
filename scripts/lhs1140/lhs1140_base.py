@@ -7,12 +7,14 @@ sys.path.append('/h/mulan0/code/mosasaurus')
 
 
 # create an instrument with the appropriate settings
-from mosasaurus.instruments import LDSS3C
-i = LDSS3C(grism='VPH-red')
+#from mosasaurus.instruments import LDSS3C
+#i = LDSS3C(grism='VPH-red')
+from mosasaurus.instruments import IMACS
+i = IMACS(grism='Gri-300-26.7')
 
 # for working on a remote hardisk
 import os
-path = '/h/mulan0/data/LHS1140/LDSS3C/' # directory that contains /data/
+path = '/h/mulan0/data/LHS1140/IMACS/' # directory that contains /data/
 
 if os.path.exists(path):
     i.setupDirectories(path)

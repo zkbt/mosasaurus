@@ -8,7 +8,7 @@ n.createNightlyLog(remake=False)
 # create an observation
 from mosasaurus.Observation import Observation
 o = Observation(t, i, n)
-o.setupFilePrefixes(science=['LHS1140 exposure'], reference=['LHS1140 Field'], flat=['lamp'])
+o.setupFilePrefixes(science=['LHS1140'], reference=['LHS1140'], flat=['lamp'])
 
 # create a reducer to analyze this observation
 from mosasaurus.Reducer import Reducer

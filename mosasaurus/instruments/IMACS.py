@@ -1,10 +1,10 @@
 from .Spectrograph import *
 
-class LDSS3C(Spectrograph):
+class IMACS(Spectrograph):
 
     name = 'IMACS'
 
-    basicpattern = 'ift*c1.fits'
+    basicpattern = 'ift*c8.fits' # for now we will just extract chip 8; stitching is hard
 
     # which header of the fits file contains the header with useful information
     fitsextensionforheader = 0
@@ -14,25 +14,25 @@ class LDSS3C(Spectrograph):
                             'ut-time',
                             'object',
                             'exptime',
-                            'aperture',
+                            'slitmask',
                             'filter',
-                            'grism',
+                            'dispersr',
                             'airmass',
                             'filename',
                             'ra-d', 'dec-d',
                             'exptype',
                             'binning',
                             'speed',
-                            'gain',
+                            'ccdgain',
                             'comment']
 
     # what keys should make it into condensed summary logs?
     keysforsummary = [      'fileprefix',
                             'object',
                             'exptime',
-                            'aperture',
+                            'slitmask',
                             'filter',
-                            'grism',
+                            'dispersr',
                             'airmass']
 
     # what keys do we want to store associated with a science timeseries?
@@ -41,14 +41,14 @@ class LDSS3C(Spectrograph):
                             'ut-time',
                             'ut-end',
                             'scale',
-                            'gain',
+                            'ccdgain',
                             'epoch',
                             'airmass',
-                            'ha',
+                            'ha-str',
                             'exptime',
-                            'tempccd',
-                            'templdss',
-                            'focus',
+                            'tempccd8',
+                            'tempstr',
+                            'detfocus',
                             'rotangle',
                             'rotatore']
 
@@ -57,8 +57,7 @@ class LDSS3C(Spectrograph):
     keytosearch = 'object'
 
     # within those keys, what words do we search for?
-    wordstosearchfor = {'dark':['dark'],
-                         'bias':['bias'],
+    wordstosearchfor = { 'bias':['bias'],
                          'flat':['quartz', 'flat'],
                          'He':['He', 'helium'],
                          'Ne':['Ne', 'neon'],
@@ -67,12 +66,6 @@ class LDSS3C(Spectrograph):
     def __repr__(self):
         '''How should this object be represented as a string?'''
         return '<Spectrograph {}>'.format(self.name)
-
-    def findDarks(self, night):
-        '''Identify the dark exposures.'''
-        match = night.find( wordstolookfor = self.wordstosearchfor['dark'],
-                            placetolook = self.keytosearch)
-        return match
 
     def findBiases(self, night):
         '''Identify the bias exposures.'''
@@ -101,7 +94,7 @@ class LDSS3C(Spectrograph):
     def __init__(self, grism='vph-red'):
 
         # what's the name of this instrument?
-        self.name = 'LDSS3C'
+        self.name = 'IMACS'
 
         # where is it located? (needed for BJD calculation)
         self.telescope = 'Magellan'
@@ -126,7 +119,7 @@ class LDSS3C(Spectrograph):
             )
         '''
 
-        # what grism is being used ['vph-red', 'vph-all', 'vph-blue']
+        # what grism is being used ['gri-300-26.7']
         self.grism = grism.lower()
 
         # run the setup scripts, once these basics are defined
@@ -143,13 +136,13 @@ class LDSS3C(Spectrograph):
         '''
 
         # basic information about the amplifiers
-        self.namps = 2
-        self.gains = np.array([1.72, 1.49])
+        self.namps = 1  # for now we are only extracting chip 8
+        self.gains = np.array([1.50])
         self.binning = 2
 
         # what area of the detector contains real data? (for individual amplifiers
         self.dataleft = 0
-        self.dataright = 512
+        self.dataright = 1024
         self.databottom = 0
         self.datatop = 2048
 
@@ -158,7 +151,7 @@ class LDSS3C(Spectrograph):
         self.ysize = (self.datatop - self.databottom)
 
         # what are the calibrations we should expect
-        self.detectorcalibrations = ['dark', 'bias', 'flat']
+        self.detectorcalibrations = ['bias', 'flat']
 
     def setupDisperser(self):
         '''
@@ -170,24 +163,13 @@ class LDSS3C(Spectrograph):
         self.disperser = self.grism
 
         # define a uniform grid of wavelengths for supersampling onto, later
-        if self.grism == 'vph-all':
-            self.uniformwavelengths = np.arange(4000, 10500)
-            self.alignmentranges = {    r'$H\beta$':(4750,5050),
-                                        r'$H\alpha$':(6425,6725),
+        if self.grism == 'gri-300-26.7':
+            self.uniformwavelengths = np.arange(5000-9000)
+            self.alignmentranges = {    r'$H\alpha$':(6425,6725),
                                         r'$O_2$ - B':(6750,7050),
                                         r'$O_2$ - A':(7500,7800),
                                         r'Ca triplet':(8450,8750),
-                                        r'$H_2O$':(9200, 9700),
                                             }
-        elif self.grism == 'vph-red':
-            self.uniformwavelengths = np.arange(6000, 10500)
-            self.alignmentranges = dict(#UV=(6870, 6900),
-                                            O2=(7580, 7650),
-                                            Ca1=(8490, 8525),
-                                            Ca2=(8535, 8580),
-                                            Ca3=(8650, 8700),
-                                            H2O=(9300, 9700)
-                                            )
 
 
         # the available arc lamps for wavelength calibration
@@ -199,12 +181,12 @@ class LDSS3C(Spectrograph):
                                                 self.name + '/',
                                                 self.disperser + '/')
         self.wavelength2pixelsFile = os.path.join(self.disperserDirectory,
-                '{0}_wavelength_identifications.txt'.format(self.grism))
+                '{0}_wavelength_identifications.txt'.format(self.grism))    # at this stage this .txt file is NOT the correct one for IMACS
 
         self.wavelengthsFile = os.path.join(self.disperserDirectory,
                 'HeNeAr.txt')
 
-        self.peakoffset = -1024
+        self.peakoffset = -2048 # absolutely non idea if this is remotely correct
         # find the peak of the combined correlation function
         #if self.aperture.obs.instrument == 'LDSS3C':
         #    self.peakoffset = -1024 # KLUDGE KLUDGE KLUDGE! np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)
@@ -316,17 +298,8 @@ class LDSS3C(Spectrograph):
         '''
         tail = os.path.split(filename)[-1]
 
-        # LDSS3C is split into two amplifiers, let's pull out the prefix
-        return tail.replace('c2.fits', '').replace('c1.fits', '')
-
-    def file2prefix(self, filename):
-        '''
-        This function returns a shortened fileprefix from a given filename.
-        '''
-        tail = os.path.split(filename)[-1]
-
-        # LDSS3C is split into two amplifiers, let's pull out the prefix
-        return tail.replace('c2.fits', '').replace('c1.fits', '')
+        # for now we are only doing chip 8 of the IMACS chip array
+        return tail.replace('c8.fits', '')
 
     def prefix2number(self, prefix):
         '''

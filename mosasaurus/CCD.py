@@ -177,6 +177,7 @@ class CCD(Talker):
 
 
             # load the two halves
+            # FINDME - these need to be de-LDSS3C'd
             c1data, c1header = self.loadOverscanTrimHalfCCD(filenames[0])
             c2data, c2header = self.loadOverscanTrimHalfCCD(filenames[1])
 

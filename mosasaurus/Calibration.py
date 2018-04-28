@@ -83,6 +83,18 @@ class Calibration(Talker):
 			self.speak('  (no image type defined; doing nothing)')
 			return
 
+        # this is a slight hack to deal with IMACS, which we do not take darks for
+		if (imageType=='dark') & (imageType not in self.obs.fileprefixes.keys()):
+			self.speak("populating the master {0} image".format(imageType))
+			self.speak('no dark for this instrument so making a dummy image and master')
+			masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
+			noisestring = 'StdDev'
+			self.images[imageType] = np.zeros((2048,2048)) # ask zack if there's a better way to get these dimensions out
+			self.images[imageType+noisestring] = np.zeros((2048,2048)) # ask zack if there's a better way to get these dimensions out
+			writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
+			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
+			return
+
 		# set the CCD to a particular image type
 		self.ccd.set(exposureprefix=None, imageType=imageType)
 
