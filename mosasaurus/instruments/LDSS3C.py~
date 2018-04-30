@@ -204,8 +204,7 @@ class LDSS3C(Spectrograph):
         self.wavelengthsFile = os.path.join(self.disperserDirectory,
                 'HeNeAr.txt')
 
-        if self.binning == 2:
-            self.offsetBetweenReferenceAndWavelengthIDs = -1024
+        self.peakoffset = -1024
         # find the peak of the combined correlation function
         #if self.aperture.obs.instrument == 'LDSS3C':
         #    self.peakoffset = -1024 # KLUDGE KLUDGE KLUDGE! np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)

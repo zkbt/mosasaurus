@@ -186,7 +186,8 @@ class IMACS(Spectrograph):
         self.wavelengthsFile = os.path.join(self.disperserDirectory,
                 'HeNeAr.txt')
 
-        self.peakoffset = -2048 # absolutely non idea if this is remotely correct
+        if self.binning == 2:
+            self.offsetBetweenReferenceAndWavelengthIDs = -1024 # absolutely no idea if this is remotely correct
         # find the peak of the combined correlation function
         #if self.aperture.obs.instrument == 'LDSS3C':
         #    self.peakoffset = -1024 # KLUDGE KLUDGE KLUDGE! np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)
@@ -320,6 +321,6 @@ class IMACS(Spectrograph):
 
     def stitchChips(self, listOfChips):
         # for now just working with chip8
-        return listOfChips[0]
+        return np.flipud(listOfChips[0])
 
 #def identifyImageNumbers(self, lookingfor)
