@@ -97,6 +97,22 @@ class Calibration(Talker):
 			writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
 			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
 			return
+        
+        # this is a slight hack to deal with IMACS, we didn't take biases for K2-25
+		if (imageType=='bias') & (imageType not in self.obs.fileprefixes.keys()):
+			self.speak("populating the master {0} image".format(imageType))
+			self.speak('no bias for this instrument so making a dummy image and master')
+
+			masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
+			noisestring = 'StdDev'
+
+			self.images[imageType] = np.zeros((2048,1024)) # ask zach if there's a better way to get these dimensions out
+			self.images[imageType+noisestring] = np.zeros((2048,1024)) # ask zach if there's a better way to get these dimensions out
+
+			writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
+			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
+			return
+
 
 		# set the CCD to a particular image type
 		self.ccd.set(exposureprefix=None, imageType=imageType)

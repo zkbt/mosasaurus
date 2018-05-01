@@ -151,7 +151,8 @@ class IMACS(Spectrograph):
         self.ysize = (self.datatop - self.databottom)
 
         # what are the calibrations we should expect
-        self.detectorcalibrations = ['bias', 'flat']
+        #self.detectorcalibrations = ['bias', 'flat']
+        self.detectorcalibrations = ['flat']
 
     def setupDisperser(self):
         '''

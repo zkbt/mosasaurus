@@ -1,0 +1,35 @@
+name                 GJ1132b
+instrument           LDSS3C
+grism                VPH-red
+baseDirectory        /Users/zkbt/Cosmos/Data/Magellan/LDSS3/
+dataDirectory        data/
+workingDirectory     working/
+extractionDirectory  multipleapertures/
+
+
+# other properties
+cosmicThreshold      10
+
+# CCD number ranges
+nReference         1595 1596
+nScience             1625 2025
+nHe                   162  166
+nNe                   172  176
+nAr                   177  181
+nWideFlat             194  204
+nBias                 141  151
+nWideMask             156  158
+nThinMask             159  161
+nDark                 205  230
+nFinder              1585 1585
+
+
+# which comparison stars to use?
+target        0
+comp          1 3 5 6 7 8
+cosmicAbandon 100
+
+# how should spectra be shifted relative to each other?
+correlationAnchors 8498.0 8542.0 8662.0
+correlationRange   8350 8800
+correlationSmooth  2
