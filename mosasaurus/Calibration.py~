@@ -90,9 +90,9 @@ class Calibration(Talker):
 
 			masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
 			noisestring = 'StdDev'
-            
-			self.images[imageType] = np.zeros((4096,4096)) # ask zach if there's a better way to get these dimensions out
-			self.images[imageType+noisestring] = np.zeros((4096,4096)) # ask zach if there's a better way to get these dimensions out
+
+			self.images[imageType] = np.zeros((2048,1024)) # ask zach if there's a better way to get these dimensions out
+			self.images[imageType+noisestring] = np.zeros((2048,1024)) # ask zach if there's a better way to get these dimensions out
 
 			writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
 			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
@@ -106,8 +106,8 @@ class Calibration(Talker):
 			masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
 			noisestring = 'StdDev'
 
-			self.images[imageType] = np.zeros((4096,4096)) # ask zach if there's a better way to get these dimensions out
-			self.images[imageType+noisestring] = np.zeros((4096,4096)) # ask zach if there's a better way to get these dimensions out
+			self.images[imageType] = np.zeros((2048,1024)) # ask zach if there's a better way to get these dimensions out
+			self.images[imageType+noisestring] = np.zeros((2048,1024)) # ask zach if there's a better way to get these dimensions out
 
 			writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
 			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')

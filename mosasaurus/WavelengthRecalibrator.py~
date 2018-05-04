@@ -186,8 +186,8 @@ class WavelengthRecalibrator(Talker):
 
 							# do a quadratic fit to estimate the peak
 							x = np.arange(len(xc))
-							#print(xc)
-							#print(x[xc.argmax()-5:xc.argmax()+5], xc[xc.argmax()-5:xc.argmax()+5])
+							print(xc)
+							print(x[xc.argmax()-5:xc.argmax()+5], xc[xc.argmax()-5:xc.argmax()+5])
 							xcmin, xcmax = xc.argmax()-5, xc.argmax()+5
 							if xcmin < 0: xcmin = 0
 							coeff = np.polynomial.polynomial.polyfit(x[xcmin:xcmax], xc[xcmin:xcmax], 2)

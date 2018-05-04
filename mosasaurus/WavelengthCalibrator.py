@@ -8,7 +8,7 @@ shortcuts = {'h':'He', 'n':'Ne', 'a':'Ar'}
 class WavelengthCalibrator(Talker):
     def __init__(self,  aperture,
                         elements=['He', 'Ne','Ar'],
-                        polynomialdegree=3,
+                        polynomialdegree=1,
                         matchdistance=100):
         Talker.__init__(self)
 
@@ -47,7 +47,7 @@ class WavelengthCalibrator(Talker):
             # try to load a custom wavelength id file
             assert(restart == False)
 
-            self.speak('checking for a custom wavelength-to-pixel file')
+            self.speak('checking for a custom wavelength-to-pixel file: {0}'.format(self.waveidfilename))
             self.waveids = astropy.io.ascii.read(self.waveidfilename)
 
             # keep track of which waveid file is used
@@ -60,7 +60,7 @@ class WavelengthCalibrator(Talker):
             # load the default for this grism, as set in obs. file
             d = astropy.io.ascii.read(self.aperture.instrument.wavelength2pixelsFile)
             self.rawwaveids = d[['pixel', 'wavelength', 'name']]
-            self.rawwaveids['pixel'] /= self.aperture.instrument.binning
+            #self.rawwaveids['pixel'] /= self.aperture.instrument.binning    # for K2-25 we identified lines by hand, so should not divide by binning
 
             # use a cross-corrlation to find the rough offset
             #  (the function call will define waveids)
@@ -106,7 +106,7 @@ class WavelengthCalibrator(Talker):
         self.figcal.savefig(self.wavelengthprefix + 'calibration.pdf')
 
     def loadCalibration(self):
-
+        self.speak('trying to load calibration data')
         coef, domain = np.load(self.calibrationfilename)
         self.pixelstowavelengths = Legendre(coef, domain)
         self.polynomialdegree = self.pixelstowavelengths.degree()
@@ -118,7 +118,7 @@ class WavelengthCalibrator(Talker):
         self.speak("saved wavelength calibration coefficients to {0}".format(self.calibrationfilename))
 
     def populate(self, restart=False):
-
+        self.speak('populating wavelength data')
         # populate the wavelength identifications
         self.loadWavelengthIdentifications(restart=restart)
         try:
@@ -131,6 +131,7 @@ class WavelengthCalibrator(Talker):
             #unhappy = ('n' in self.input('Are you happy with the wavelength calibration? [Y,n]').lower())
             #assert(unhappy == False)
         except (IOError, AssertionError):
+            self.speak('makine new calibration')
             self.justloaded = False
             self.create()
 
@@ -212,7 +213,9 @@ class WavelengthCalibrator(Talker):
 
         # define the new, shifted, waveids array
         self.waveids = copy.deepcopy(self.rawwaveids)
+        print('waveids', self.waveids)
         self.waveids['pixel'] += self.aperture.obs.instrument.offsetBetweenReferenceAndWavelengthIDs
+        print('waveidse pixel', self.waveids['pixel'])
 
         '''
         # plot the shifted wavelength ids, and combined corfuncs
@@ -308,7 +311,7 @@ class WavelengthCalibrator(Talker):
         # create a temporary calibration to match reference wavelengths to reference pixels (so we can extrapolate to additional wavelengths not recorded in the dispersion solution file)
 
 
-
+        print('finding known wavelengths')
 
         self.knownwavelengths = {}
 
@@ -327,6 +330,8 @@ class WavelengthCalibrator(Talker):
                             }
                     self.knownwavelengths[element].append(known)
 
+        print(self.knownwavelengths)
+
     @property
     def matchesfilename(self):
         return self.wavelengthprefix + 'wavelengthmatches.npy'
@@ -340,12 +345,15 @@ class WavelengthCalibrator(Talker):
         self.speak('loaded wavelength matches from {0}'.format(self.matchesfilename))
 
     def guessMatches(self):
+
+        print('WavelengthCalibrator.guessMatches: Guessing matches')
         self.matches = []
 
         # do identification with one arc at a time
         for element in self.elements:
             # pull out my peaks and theirs
             myPeaks = np.array([p['w'] for p in self.peaks[element]])
+            print(0, myPeaks)
             theirPeaksOnMyPixels = np.array([known['pixelguess']
                                             for known
                                             in self.knownwavelengths[element]])
@@ -355,7 +363,9 @@ class WavelengthCalibrator(Talker):
             for i in range(len(myPeaks)):
 
                 # find my closest peak to theirs
+                #print(1, myPeaks[i], theirPeaksOnMyPixels)
                 distance = myPeaks[i] - theirPeaksOnMyPixels
+                #print(2, distance)
                 closest = np.sort(np.nonzero(np.abs(distance) == np.min(np.abs(distance)))[0])[0]
 
                 if distance[closest] < self.matchdistance:
@@ -393,8 +403,8 @@ class WavelengthCalibrator(Talker):
 
     def create(self, remake=False):
         '''Populate the wavelength calibration for this aperture.'''
-
-        self.speak("populating wavelength calibration")
+        
+        self.speak("creating wavelength calibration")
 
 
 
@@ -410,6 +420,11 @@ class WavelengthCalibrator(Talker):
                 self.justloaded = False
             else:
                 # do an initial fit
+                print(self.pixel)
+                print(self.wavelength)
+                print(self.weights)
+                # E & H rejecttion of stupid matches
+                
                 self.pixelstowavelengths = Legendre.fit(
                                                     x=self.pixel,
                                                     y=self.wavelength,
