@@ -325,7 +325,7 @@ class IMACS(Spectrograph):
 
     def stitchChips(self, listOfChips):
 
-        toprow = np.hstack((np.flipud(listOfChips[6]), np.flipud(listOfChips[7]), np.flipud(listOfChips[4]), np.flipud(listOfChips[5])))
+        toprow = np.hstack((listOfChips[6], listOfChips[7], listOfChips[4], listOfChips[5]))
         bottomrow = np.hstack((np.flipud(np.fliplr(listOfChips[3])), np.flipud(np.fliplr(listOfChips[2])), np.flipud(np.fliplr(listOfChips[1])), np.flipud(np.fliplr(listOfChips[0]))))
         return np.vstack((toprow, bottomrow))
         # for now just working with chip8

@@ -31,7 +31,7 @@ c.imageCube(keys=['raw_counts'], stars=[c.target])
 
 
 from mosasaurus.WavelengthRecalibrator import WavelengthRecalibrator
-wr = WavelengthRecalibrator(c, visualize=True)
+wr = WavelengthRecalibrator(c)
 
 # fix up the wavelength calibration for each exposure
 r.mask.setup()

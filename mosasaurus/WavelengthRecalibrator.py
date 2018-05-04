@@ -189,6 +189,7 @@ class WavelengthRecalibrator(Talker):
 							#print(xc)
 							#print(x[xc.argmax()-5:xc.argmax()+5], xc[xc.argmax()-5:xc.argmax()+5])
 							xcmin, xcmax = xc.argmax()-5, xc.argmax()+5
+                            # try putting in an assertions; peak needs to be in some shift; can't shift more than 50 px
 							if xcmin < 0: xcmin = 0
 							coeff = np.polynomial.polynomial.polyfit(x[xcmin:xcmax], xc[xcmin:xcmax], 2)
 							fit = np.polynomial.polynomial.Polynomial(coeff)
