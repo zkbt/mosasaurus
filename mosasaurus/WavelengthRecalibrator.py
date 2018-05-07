@@ -155,7 +155,6 @@ class WavelengthRecalibrator(Talker):
 
 						# set up the arrays for this correlation
 						l, r = alignmentranges[line]
-
 						# define the range for this correlation
 						left = np.argmin(np.abs(self.unshiftedcube.spectral['wavelength'] - l))
 						right = np.argmin(np.abs(self.unshiftedcube.spectral['wavelength'] - r))

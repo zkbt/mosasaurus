@@ -91,12 +91,11 @@ class Calibration(Talker):
 			masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
 			noisestring = 'StdDev'
              
-            # just make these 0.            
-			self.images[imageType] = np.zeros((4096,4096)) # ask zach if there's a better way to get these dimensions out
-			self.images[imageType+noisestring] = np.zeros((4096,4096)) # ask zach if there's a better way to get these dimensions out
+			self.images[imageType] = np.array([0.])
+			self.images[imageType+noisestring] = np.array([0.])
 
-			#writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
-			#writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
+			writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
+			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
 			return
         
         # this is a slight hack to deal with IMACS, we didn't take biases for K2-25
@@ -107,11 +106,11 @@ class Calibration(Talker):
 			masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
 			noisestring = 'StdDev'
 
-			self.images[imageType] = np.zeros((4096,4096)) # ask zach if there's a better way to get these dimensions out
-			self.images[imageType+noisestring] = np.zeros((4096,4096)) # ask zach if there's a better way to get these dimensions out
+			self.images[imageType] = np.array([0.])
+			self.images[imageType+noisestring] = np.array([0.])
 
-			#writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
-			#writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
+			writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
+			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
 			return
 
 
@@ -127,6 +126,7 @@ class Calibration(Talker):
 		masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
 		noisestring = 'StdDev'
 		try:
+			print(imageType)
 			# has the master image already been created?
 			self.images[imageType] = readFitsData(masterFilePrefix + '.fits')
 			# has the master standard deviation image already been created?

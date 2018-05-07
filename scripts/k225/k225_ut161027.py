@@ -8,7 +8,7 @@ n.createNightlyLog(remake=False)
 # create an observation
 from mosasaurus.Observation import Observation
 o = Observation(t, i, n)
-o.setupFilePrefixes(science=['K225'], reference=['K225'], flat=['lamp'])
+o.setupFilePrefixes(science=['K225'], reference=['K225 field'], flat=['lamp'])
 
 # create a reducer to analyze this observation
 from mosasaurus.Reducer import Reducer
@@ -17,7 +17,7 @@ r.reduce()
 
 from mosasaurus.Cube import Cube
 c = Cube(o, width=6)
-c.setStars(target='aperture_604_715', comparisons='aperture_191_246')
+c.setStars(target='aperture_605_714', comparisons='aperture_192_247')
 c.populate(shift=False, max=None)
 c.savable=c.savable + ['target', 'comparisons']
 c.save()

@@ -4,7 +4,7 @@ class IMACS(Spectrograph):
 
     name = 'IMACS'
 
-    basicpattern = 'ift*c1.fits' # for now we will just extract chip 8; stitching is hard
+    basicpattern = 'ift*c8.fits' # for now we will just extract chip 8; stitching is hard
 
     # which header of the fits file contains the header with useful information
     fitsextensionforheader = 0
@@ -136,10 +136,12 @@ class IMACS(Spectrograph):
         '''
 
         # basic information about the amplifiers
-        #self.namps = 1  # for now we are only extracting chip 8
-        #self.gains = np.array([1.50])
-        self.namps = 8
-        self.gains = np.array([1.47, 1.47, 1.58, 1.50, 1.52, 1.54, 1.48, 1.50])
+        self.namps = 1  # for now we are only extracting chip 8
+        self.gains = np.array([1.50])
+        #self.namps = 8
+        #self.gains = np.array([1.47, 1.47, 1.58, 1.50, 1.52, 1.54, 1.48, 1.50])
+        #self.namps = 4
+        #self.gains = np.array([1.52, 1.54, 1.48, 1.50])
 
         self.binning = 2
 
@@ -168,14 +170,19 @@ class IMACS(Spectrograph):
 
         # define a uniform grid of wavelengths for supersampling onto, later
         if self.grism == 'gri-150-10.8':
-            self.uniformwavelengths = np.arange(5000, 9000)
-            self.alignmentranges = {    r'$H\alpha$':(6425,6725),
-                                        r'$O_2$ - B':(6750,7050),
-                                        r'$O_2$ - A':(7500,7800),
+            self.uniformwavelengths = np.arange(5000, 10000)
+            self.alignmentranges = {    r'$O_2$ - A':(7500,7800),
                                         r'Ca triplet':(8450,8750),
                                         r'$H_2O$':(9200, 9700),
                                             }
-
+            self.offsetBetweenReferenceAndWavelengthIDs = 0.
+        if self.grism == 'gri-300-26.7':
+            self.uniformwavelengths = np.arange(5000, 10000)
+            self.alignmentranges = {    r'$O_2$ - A':(7500,7800),
+                                        r'Ca triplet':(8450,8750),
+                                        r'$H_2O$':(9200, 9700),
+                                            }
+            self.offsetBetweenReferenceAndWavelengthIDs = 0.
 
         # the available arc lamps for wavelength calibration
         self.arclamps = ['He', 'Ne', 'Ar']
@@ -192,7 +199,7 @@ class IMACS(Spectrograph):
                 'HeNeAr.txt')
 
         # offset to where wavelengths were idenified
-        self.offsetBetweenReferenceAndWavelengthIDs = 0.
+
         # find the peak of the combined correlation function
         #if self.aperture.obs.instrument == 'LDSS3C':
         #    self.peakoffset = -1024 # KLUDGE KLUDGE KLUDGE! np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)
@@ -304,9 +311,11 @@ class IMACS(Spectrograph):
         '''
         tail = os.path.split(filename)[-1]
 
-        return tail.replace('c1.fits', '').replace('c2.fits', '').replace('c3.fits', '').replace('c4.fits', '').replace('c5.fits', '').replace('c6.fits', '').replace('c7.fits', '').replace('c8.fits', '')
+        #return tail.replace('c1.fits', '').replace('c2.fits', '').replace('c3.fits', '').replace('c4.fits', '').replace('c5.fits', '').replace('c6.fits', '').replace('c7.fits', '').replace('c8.fits', '')
         # for now we are only doing chip 8 of the IMACS chip array
-        #return tail.replace('c8.fits', '')
+        return tail.replace('c8.fits', '')
+        # just bottom row - otherwise file is too big
+        #return tail.replace('c5.fits', '').replace('c6.fits', '').replace('c7.fits', '').replace('c8.fits', '')
 
     def prefix2number(self, prefix):
         '''
@@ -320,16 +329,20 @@ class IMACS(Spectrograph):
         This function returns a list of filenames (without complete path)
         that are associated with this given prefix.
         '''
-        return [prefix + 'c1.fits', prefix + 'c2.fits', prefix + 'c3.fits', prefix + 'c4.fits', prefix + 'c5.fits', prefix + 'c6.fits', prefix + 'c7.fits', prefix + 'c8.fits']
+        #return [prefix + 'c1.fits', prefix + 'c2.fits', prefix + 'c3.fits', prefix + 'c4.fits', prefix + 'c5.fits', prefix + 'c6.fits', prefix + 'c7.fits', prefix + 'c8.fits']
         # for now just chip 8
-        #return [prefix + 'c8.fits']
+        return [prefix + 'c8.fits']
+        # just bottom row - otherwise file is too big
+        #return [prefix + 'c5.fits', prefix + 'c6.fits', prefix + 'c7.fits', prefix + 'c8.fits']
 
     def stitchChips(self, listOfChips):
 
-        toprow = np.hstack((listOfChips[6], listOfChips[7], listOfChips[4], listOfChips[5]))
-        bottomrow = np.hstack((np.flipud(np.fliplr(listOfChips[3])), np.flipud(np.fliplr(listOfChips[2])), np.flipud(np.fliplr(listOfChips[1])), np.flipud(np.fliplr(listOfChips[0]))))
-        return np.vstack((toprow, bottomrow))
+        #bottomrow = np.hstack((np.flipud(listOfChips[2]), np.flipud(listOfChips[3]), np.flipud(listOfChips[0]), np.flipud(listOfChips[1])))
+        #toprow = np.hstack((np.fliplr(listOfChips[3]), np.fliplr(listOfChips[2]), np.fliplr(listOfChips[1]), np.fliplr(listOfChips[0])))
+        #return bottomrow
         # for now just working with chip8
-        #return np.flipud(listOfChips[0])
+        return np.flipud(listOfChips[0])
+        # try just chip 8 and the one below it
+        #return np.vstack((np.flipud(listOfChips[1]), np.flipud(np.fliplr(listOfChips[0]))))
 
 #def identifyImageNumbers(self, lookingfor)
