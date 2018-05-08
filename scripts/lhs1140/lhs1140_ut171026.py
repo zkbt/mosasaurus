@@ -18,7 +18,7 @@ r.reduce()
 from mosasaurus.Cube import Cube
 c = Cube(o, width=16)
 c.populate(shift=False, max=None)
-c.setStars(target='aperture_714_1064', comparisons='aperture_755_1064')
+c.setStars(target='aperture_327_1517', comparisons='')
 c.savable=c.savable + ['target', 'comparisons']
 c.save()
 c.imageCube(keys=['raw_counts'], stars=[c.target])

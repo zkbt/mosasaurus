@@ -115,11 +115,16 @@ class Mask(Talker):
       # open a dispersed image (take the first one)
       imageDispersed = self.calib.science()
 
-
-      for i in range(len(self.xextract)):
-        x, y = self.xextract[i], self.yextract[i]
-        a = Aperture(x,y,self)
-        self.apertures.append(a)
+      try:
+          for i in range(len(self.xextract)):
+            x, y = self.xextract[i], self.yextract[i]
+            a = Aperture(x,y,self)
+            self.apertures.append(a)
+      except(TypeError):
+          # this if there's only one star being extracted; i.e., only one extraction center
+          x, y = self.xextract, self.yextract
+          a = Aperture(x,y,self)
+          self.apertures.append(a)
 
       filename = os.path.join(self.reducer.extractionDirectory, 'genericfinderchart.pdf')
       if visualize and (os.path.exists(filename) == False):

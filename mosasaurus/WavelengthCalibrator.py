@@ -8,7 +8,7 @@ shortcuts = {'h':'He', 'n':'Ne', 'a':'Ar'}
 class WavelengthCalibrator(Talker):
     def __init__(self,  aperture,
                         elements=['He', 'Ne','Ar'],
-                        polynomialdegree=1,
+                        polynomialdegree=3,
                         matchdistance=100):
         Talker.__init__(self)
 
