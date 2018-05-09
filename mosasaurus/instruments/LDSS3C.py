@@ -160,6 +160,10 @@ class LDSS3C(Spectrograph):
         # what are the calibrations we should expect
         self.detectorcalibrations = ['dark', 'bias', 'flat']
 
+        # how many stitched images can we hold in memory?
+        self.maximumimagesinmemory = 128
+
+
     def setupDisperser(self):
         '''
         Setup the basics for the disperser.

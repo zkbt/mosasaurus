@@ -159,6 +159,9 @@ class IMACS(Spectrograph):
         #self.detectorcalibrations = ['bias', 'flat']
         self.detectorcalibrations = ['flat']
 
+        # how many stitched images can we hold in memory?
+        self.maximumimagesinmemory = 64
+
     def setupDisperser(self):
         '''
         Setup the basics for the disperser.
