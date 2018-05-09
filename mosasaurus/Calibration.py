@@ -90,14 +90,14 @@ class Calibration(Talker):
 
 			masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
 			noisestring = 'StdDev'
-             
+
 			self.images[imageType] = np.array([0.])
 			self.images[imageType+noisestring] = np.array([0.])
 
 			writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
 			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
 			return
-        
+
         # this is a slight hack to deal with IMACS, we didn't take biases for K2-25
 		if (imageType=='bias') & (imageType not in self.obs.fileprefixes.keys()):
 			self.speak("populating the master {0} image".format(imageType))
@@ -150,7 +150,7 @@ class Calibration(Talker):
 			#self.display.scale('log', limits=[0,np.percentile(self.images[imageType],99)])
 			#assert('n' not in self.input("Do you like master image {0}? [Y,n]".format(imageType)).lower())
 
-	def createStackedImage(self, n, imageType=None, threshold=5.0, truncation=100):
+	def createStackedImage(self, n, imageType=None, threshold=5.0):
 		'''
 		Take an outlier-rejected stack of a series of images
 		(requires enough memory to hold them all).
@@ -162,6 +162,9 @@ class Calibration(Talker):
 		'''
 
 		# if there are more than "truncation" images, take only some fraction of them
+		truncation = self.obs.instrument.maximumimagesinmemory
+
+		# if we're trying to load too many images, skip some of them
 		stride = np.int(np.maximum(len(n)/truncation, 1))
 		if stride > 1:
 			self.speak('stacking {0}/{2} {1} images'.format(len(n),imageType,truncation))
