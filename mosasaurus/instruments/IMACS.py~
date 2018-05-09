@@ -220,7 +220,7 @@ class IMACS(Spectrograph):
         if self.grism == 'gri-150-10.8':
             self.extractiondefaults['wavelengthredward'] = 500
             self.extractiondefaults['wavelengthblueward'] = 500
-        if self.grism == 'gri-300-26.7-comp':
+        if self.grism == 'gri-300-26.7':
             self.extractiondefaults['wavelengthredward'] = np.inf
             self.extractiondefaults['wavelengthblueward'] = np.inf
 

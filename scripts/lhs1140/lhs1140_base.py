@@ -10,7 +10,7 @@ sys.path.append('/h/mulan0/code/mosasaurus')
 #from mosasaurus.instruments import LDSS3C
 #i = LDSS3C(grism='VPH-red')
 from mosasaurus.instruments import IMACS
-i = IMACS(grism='Gri-300-26.7')
+i = IMACS(grism='Gri-300-26.7-comp')
 
 # for working on a remote hardisk
 import os

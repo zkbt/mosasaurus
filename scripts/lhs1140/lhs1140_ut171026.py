@@ -16,9 +16,9 @@ r = Reducer(o, visualize=False)
 r.reduce()
 
 from mosasaurus.Cube import Cube
-c = Cube(o, width=16)
+c = Cube(o, width=6)
+c.setStars(target='aperture_426_662', comparisons='aperture_786_600')
 c.populate(shift=False, max=None)
-c.setStars(target='aperture_327_1517', comparisons='')
 c.savable=c.savable + ['target', 'comparisons']
 c.save()
 c.imageCube(keys=['raw_counts'], stars=[c.target])
@@ -29,8 +29,17 @@ c.imageCube(keys=['raw_counts'], stars=[c.target])
 #c.imageCube()
 #c.exportShiftStretch()
 
+from mosasaurus.WavelengthRecalibrator import WavelengthRecalibrator
+wr = WavelengthRecalibrator(c, visualize=True)
 
+# fix up the wavelength calibration for each exposure
+r.mask.setup()
+r.mask.addWavelengthCalibration(shift=True)
 
+# repopulate the cube
+c.populate(shift=True, remake=True)
+c.save()
+c.imageCube(keys=['raw_counts'], stars=[c.target])
 
 #c.exportShiftStretch()
 
