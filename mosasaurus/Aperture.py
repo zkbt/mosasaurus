@@ -61,87 +61,39 @@ class Aperture(Talker):
   def setup(self,x,y):
     '''Setup the basic geometry of the aperture.'''
 
-    if self.instrument.name == 'LDSS3C':
-      self.x = x
-      self.y = y
-      self.maskWidth = self.instrument.extractiondefaults['spatialsubarray']
-      #(self.obs.skyWidth + self.obs.skyGap)*2 #+20 +
-      blueward = self.instrument.extractiondefaults['wavelengthblueward']
-      redward = self.instrument.extractiondefaults['wavelengthredward']
-      self.ystart = np.maximum(y - blueward, 0).astype(np.int)
-      self.yend = np.minimum(y + redward, self.instrument.ysize).astype(np.int)
-      self.xstart = np.maximum(x - self.maskWidth, 0).astype(np.int)
-      self.xend = np.minimum(x + self.maskWidth, self.instrument.xsize).astype(np.int)
-      # remember python indexes arrays by [row,column], which is opposite [x,y]
-      x_fullframe, y_fullframe = np.meshgrid(np.arange(self.calib.images['science'].shape[1]),
-                        np.arange(self.calib.images['science'].shape[0]))
-      self.x_sub = x_fullframe[self.ystart:self.yend, self.xstart:self.xend]
-      self.y_sub = y_fullframe[self.ystart:self.yend, self.xstart:self.xend]
+    self.x = x
+    self.y = y
+    self.maskWidth = self.instrument.extractiondefaults['spatialsubarray']
+    #(self.obs.skyWidth + self.obs.skyGap)*2 #+20 +
+    blueward = self.instrument.extractiondefaults['wavelengthblueward']
+    redward = self.instrument.extractiondefaults['wavelengthredward']
+    self.ystart = np.maximum(y - blueward, 0).astype(np.int)
+    self.yend = np.minimum(y + redward, self.instrument.ysize).astype(np.int)
+    self.xstart = np.maximum(x - self.maskWidth, 0).astype(np.int)
+    self.xend = np.minimum(x + self.maskWidth, self.instrument.xsize).astype(np.int)
+    # remember python indexes arrays by [row,column], which is opposite [x,y]
+    x_fullframe, y_fullframe = np.meshgrid(np.arange(self.calib.images['science'].shape[1]),
+                    np.arange(self.calib.images['science'].shape[0]))
+    self.x_sub = x_fullframe[self.ystart:self.yend, self.xstart:self.xend]
+    self.y_sub = y_fullframe[self.ystart:self.yend, self.xstart:self.xend]
 
-      self.xbox = (self.xstart + self.xend)/2
-      self.ybox = (self.ystart + self.yend)/2
-      self.wbox = np.abs(self.xend - self.xstart)
-      self.hbox = np.abs(self.yend - self.ystart)
-
-      # first index of np. array is in the wavelength (w) direction
-      # second index is in the spatial (s) direction
-      # we'll define these now to help keep things straight
-      self.w = self.y_sub - self.y#self.ystart
-      self.s = self.x_sub - self.x#self.xstart
-      self.windex = 0
-      self.sindex = 1 - self.windex
-      if self.windex == 0:
-        self.waxis = self.w[:,0]
-        self.saxis = self.s[0,:]
+    # first index of np. array is in the wavelength (w) direction
+    # second index is in the spatial (s) direction
+    # we'll define these now to help keep things straight
+    self.w = self.y_sub - self.y#self.ystart
+    self.s = self.x_sub - self.x#self.xstart
+    self.windex = 0
+    self.sindex = 1 - self.windex
+    if self.windex == 0:
+    self.waxis = self.w[:,0]
+    self.saxis = self.s[0,:]
 
 
-      self.name = 'aperture_{0:.0f}_{1:.0f}'.format(self.x, self.y)
-      self.directory = os.path.join(self.mask.reducer.extractionDirectory, self.name)
-      mkdir(self.directory)
-      self.speak("created a spectroscopic aperture at ({0:.1f}, {1:.1f})".format(self.x, self.y))
+    self.name = 'aperture_{0:.0f}_{1:.0f}'.format(self.x, self.y)
+    self.directory = os.path.join(self.mask.reducer.extractionDirectory, self.name)
+    mkdir(self.directory)
+    self.speak("created a spectroscopic aperture at ({0:.1f}, {1:.1f})".format(self.x, self.y))
 
-    elif self.instrument.name == 'IMACS':
-      self.x = x  # extraction center x position
-      self.y = y  # extraction center y positoin
-      self.maskWidth = self.instrument.extractiondefaults['spatialsubarray']
-      #(self.obs.skyWidth + self.obs.skyGap)*2 #+20 +
-      blueward = self.instrument.extractiondefaults['wavelengthblueward']
-      redward = self.instrument.extractiondefaults['wavelengthredward']
-      self.ystart = np.maximum(y - blueward, 0).astype(np.int)
-      self.yend = np.minimum(y + redward, self.instrument.ysize).astype(np.int)
-      self.xstart = np.maximum(x - self.maskWidth, 0).astype(np.int)
-      self.xend = np.minimum(x + self.maskWidth, self.instrument.xsize).astype(np.int)
-      print(self.maskWidth, self.ystart, self.yend, self.xstart, self.xend)
-      # remember python indexes arrays by [row,column], which is opposite [x,y]
-      x_fullframe, y_fullframe = np.meshgrid(np.arange(self.calib.images['science'].shape[1]),
-                        np.arange(self.calib.images['science'].shape[0]))
-      self.x_sub = x_fullframe[self.ystart:self.yend, self.xstart:self.xend]
-      self.y_sub = y_fullframe[self.ystart:self.yend, self.xstart:self.xend]
-
-      self.xbox = (self.xstart + self.xend)/2
-      self.ybox = (self.ystart + self.yend)/2
-      self.wbox = np.abs(self.xend - self.xstart)
-      self.hbox = np.abs(self.yend - self.ystart)
-
-      # first index of np. array is in the wavelength (w) direction
-      # second index is in the spatial (s) direction
-      # we'll define these now to help keep things straight
-      self.w = self.y_sub - self.y#self.ystart
-      self.s = self.x_sub - self.x#self.xstart
-      self.windex = 0
-      self.sindex = 1 - self.windex
-      if self.windex == 0:
-        self.waxis = self.w[:,0]
-        self.saxis = self.s[0,:]
-
-
-      self.name = 'aperture_{0:.0f}_{1:.0f}'.format(self.x, self.y)
-      self.directory = os.path.join(self.mask.reducer.extractionDirectory, self.name)
-      mkdir(self.directory)
-      self.speak("created a spectroscopic aperture at ({0:.1f}, {1:.1f})".format(self.x, self.y))
-
-    else:
-      self.speak("*!$!%()@! no cameras besides LDSS3C have been defined yet!")
 
 
   def stamp(self, image):
