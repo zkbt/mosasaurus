@@ -162,7 +162,9 @@ class Calibration(Talker):
 		'''
 
 		# if there are more than "truncation" images, take only some fraction of them
-		truncation = self.obs.instrument.maximumimagesinmemory
+		if imageType == 'science': truncation = self.obs.instrument.maximumimagesinmemoryforscience
+		else: truncation = self.obs.instrument.maximumimagesinmemory
+
 
 		# if we're trying to load too many images, skip some of them
 		stride = np.int(np.maximum(len(n)/truncation, 1))

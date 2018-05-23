@@ -76,7 +76,6 @@ class Aperture(Talker):
                     np.arange(self.calib.images['science'].shape[0]))
     self.x_sub = x_fullframe[self.ystart:self.yend, self.xstart:self.xend]
     self.y_sub = y_fullframe[self.ystart:self.yend, self.xstart:self.xend]
-
     # first index of np. array is in the wavelength (w) direction
     # second index is in the spatial (s) direction
     # we'll define these now to help keep things straight
@@ -85,16 +84,14 @@ class Aperture(Talker):
     self.windex = 0
     self.sindex = 1 - self.windex
     if self.windex == 0:
-    self.waxis = self.w[:,0]
-    self.saxis = self.s[0,:]
+        self.waxis = self.w[:,0]
+        self.saxis = self.s[0,:]
 
 
     self.name = 'aperture_{0:.0f}_{1:.0f}'.format(self.x, self.y)
     self.directory = os.path.join(self.mask.reducer.extractionDirectory, self.name)
     mkdir(self.directory)
     self.speak("created a spectroscopic aperture at ({0:.1f}, {1:.1f})".format(self.x, self.y))
-
-
 
   def stamp(self, image):
     '''Return a postage stamp of an image, appropriate for this aperture.'''
@@ -215,17 +212,16 @@ class Aperture(Talker):
       self.images['NormalizedFlat'] += np.abs(normmask - 1)
 
       # visualize and save NormalizedFlat
+      if visualize:
+          # flat field has been medianed so most values should center on 1; want to be able to see finer-scale structure
+          self.display.one(self.images['NormalizedFlat'], aspect='auto', vmin=0.95, vmax=1.05, scale='linear')
+          self.display.run()
+
       plt.figure('normalized flat')
       ax = plt.subplot()
       ax.imshow(self.images['NormalizedFlat'].T, cmap='gray', aspect='auto', vmin=0.95, vmax=1.05)
       ax.set_xlabel('pixels')
       ax.set_ylabel('pixels')
-      if visualize:
-          # flat field has been medianed so most values should center on 1; want to be able to see finer-scale structure
-          self.display.one(self.images['NormalizedFlat'], aspect='auto', vmin=0.95, vmax=1.05)
-          self.display.run()
-          answer = self.input("Did you like the NormalizedFlat for this stamp? [Y,n]").lower()
-      assert('n' not in answer)
 
       plt.savefig(normfilename)
       self.speak("saved normalized flat to {0}".format(normfilename))
