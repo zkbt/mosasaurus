@@ -136,8 +136,8 @@ class IMACS(Spectrograph):
         '''
 
         # basic information about the amplifiers
-        self.namps = 2  # for now we are only extracting chip 8
-        self.gains = np.array([1.48, 1.50])
+        self.namps = 1  # for now we are only extracting chip 8
+        self.gains = np.array([1.50])
         #self.namps = 8
         #self.gains = np.array([1.47, 1.47, 1.58, 1.50, 1.52, 1.54, 1.48, 1.50])
         #self.namps = 4
@@ -152,15 +152,16 @@ class IMACS(Spectrograph):
         self.datatop = 2048
 
         # set up the size of the image
-        self.xsize = self.namps*(self.dataright - self.dataleft)
-        self.ysize = (self.datatop - self.databottom)
+        self.xsize = 4096
+        self.ysize = 4096
 
         # what are the calibrations we should expect
         #self.detectorcalibrations = ['bias', 'flat']
         self.detectorcalibrations = ['flat']
 
         # how many stitched images can we hold in memory?
-        self.maximumimagesinmemory = 64
+        self.maximumimagesinmemory = 128
+        self.maximumimagesinmemoryforscience = 32
 
     def setupDisperser(self):
         '''
@@ -181,6 +182,14 @@ class IMACS(Spectrograph):
             self.offsetBetweenReferenceAndWavelengthIDs = 0.
 
         if self.grism == 'gri-300-26.7-comp':
+            self.uniformwavelengths = np.arange(5000, 10000)
+            self.alignmentranges = {    r'$O_2$ - A':(7500,7800),
+                                        r'Ca triplet':(8450,8750),
+                                        r'$H_2O$':(9200, 9700),
+                                            }
+            self.offsetBetweenReferenceAndWavelengthIDs = 0.
+
+        if self.grism == 'gri-300-26.7':
             self.uniformwavelengths = np.arange(5000, 10000)
             self.alignmentranges = {    r'$O_2$ - A':(7500,7800),
                                         r'Ca triplet':(8450,8750),
@@ -226,6 +235,11 @@ class IMACS(Spectrograph):
         if self.grism == 'gri-300-26.7-comp':
             self.extractiondefaults['wavelengthredward'] = np.inf
             self.extractiondefaults['wavelengthblueward'] = np.inf
+        if self.grism == 'gri-300-26.7':
+            self.extractiondefaults['wavelengthredward'] = 750
+            self.extractiondefaults['wavelengthblueward'] = 1200
+
+
 
         # setup the default initial extraction geometry
         #  (some of these these can be modified interactively later)
@@ -319,8 +333,8 @@ class IMACS(Spectrograph):
         tail = os.path.split(filename)[-1]
 
         #return tail.replace('c1.fits', '').replace('c2.fits', '').replace('c3.fits', '').replace('c4.fits', '').replace('c5.fits', '').replace('c6.fits', '').replace('c7.fits', '').replace('c8.fits', '')
-        # for now we are only doing chip 8 of the IMACS chip array
-        return tail.replace('c7.fits', '').replace('c8.fits', '')
+        #for now we are only doing chip 8 of the IMACS chip array
+        return tail.replace('c8.fits', '')
         # just bottom row - otherwise file is too big
         #return tail.replace('c5.fits', '').replace('c6.fits', '').replace('c7.fits', '').replace('c8.fits', '')
 
@@ -338,7 +352,7 @@ class IMACS(Spectrograph):
         '''
         #return [prefix + 'c1.fits', prefix + 'c2.fits', prefix + 'c3.fits', prefix + 'c4.fits', prefix + 'c5.fits', prefix + 'c6.fits', prefix + 'c7.fits', prefix + 'c8.fits']
         # for now just chip 8
-        return [prefix + 'c7.fits', prefix + 'c8.fits']
+        return [prefix + 'c8.fits']
         # just bottom row - otherwise file is too big
         #return [prefix + 'c5.fits', prefix + 'c6.fits', prefix + 'c7.fits', prefix + 'c8.fits']
 
@@ -346,9 +360,9 @@ class IMACS(Spectrograph):
 
         #bottomrow = np.hstack((np.flipud(listOfChips[6]), np.flipud(listOfChips[7]), np.flipud(listOfChips[4]), np.flipud(listOfChips[5])))
         #toprow = np.hstack((np.fliplr(listOfChips[3]), np.fliplr(listOfChips[2]), np.fliplr(listOfChips[1]), np.fliplr(listOfChips[0])))
-        #return bottomrow
+        #return np.vstack((toprow, bottomrow))
         # for now just working with chip8
-        return np.hstack((np.flipud(listOfChips[0]), np.flipud(listOfChips[1])))
+        return np.flipud(listOfChips[0])
         # try just chip 8 and the one below it
         #return np.vstack((np.flipud(listOfChips[1]), np.flipud(np.fliplr(listOfChips[0]))))
 

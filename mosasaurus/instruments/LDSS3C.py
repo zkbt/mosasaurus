@@ -162,6 +162,7 @@ class LDSS3C(Spectrograph):
 
         # how many stitched images can we hold in memory?
         self.maximumimagesinmemory = 128
+        self.maximumimagesinmemoryforscience = 128
 
 
     def setupDisperser(self):
