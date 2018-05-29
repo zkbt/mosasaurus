@@ -113,6 +113,20 @@ class Calibration(Talker):
 			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
 			return
 
+        # this is a slight hack; want to try extraction without flat fielding
+		if (imageType=='flat') & (imageType not in self.obs.fileprefixes.keys()):
+			self.speak("populating the master {0} image".format(imageType))
+			self.speak('no flat for this instrument so making a dummy image and master')
+
+			masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
+			noisestring = 'StdDev'
+
+			self.images[imageType] = np.array([0.])
+			self.images[imageType+noisestring] = np.array([0.])
+
+			writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
+			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
+			return
 
 		# set the CCD to a particular image type
 		self.ccd.set(exposureprefix=None, imageType=imageType)
@@ -198,32 +212,37 @@ class Calibration(Talker):
 			self.images['badpixels'] = readFitsData(badPixelFilename)
 			self.speak( "loaded bad pixel mask from {0}".format(badPixelFilename))
 		except:
-			self.speak( "creating bad pixel mask from the master flat frames")
-			c = self.ccd#CCD(self.obs, calib=self)
+			if 'flat' in self.obs.fileprefixes.keys():
+			    self.speak( "creating bad pixel mask from the master flat frames")
+			    c = self.ccd#CCD(self.obs, calib=self)
 
-			# make a cube of flat images
-			cube = []
-			for exposureprefix in self.obs.fileprefixes['flat']:
-				c.set(exposureprefix, 'flat')
-				cube.append(c.readData())
-			cube = np.array(cube)
+			    # make a cube of flat images
+			    cube = []
+        
+			    for exposureprefix in self.obs.fileprefixes['flat']:
+				    c.set(exposureprefix, 'flat')
+				    cube.append(c.readData())
+			    cube = np.array(cube)
 
-			#
-			median = np.median(cube,0)
-			noise = np.median(np.abs(cube - median.reshape(1,cube.shape[1], cube.shape[2])), 0)
-			plt.figure('bad pixel mask')
-			ax = plt.subplot()
-			ax.plot(median.flatten(), noise.flatten(), color='black', alpha=0.5, marker='o', markersize=4, markeredgewidth=0, linewidth=0)
-			ax.set_yscale('log')
-			bad = (noise < 0.05*np.sqrt(median)) | (noise == 0) | (median == 0) | (median < 0) | (self.bias() > 10000) | (self.dark() > 100)
-			ax.plot(median[bad].flatten(), noise[bad].flatten(), color='red', alpha=0.5, marker='o', markersize=10, markeredgecolor='red', linewidth=0)
-			ax.set_xlabel('Fluence')
-			ax.set_ylabel('RMS')
-			self.images['badpixels'] = bad.astype(np.int)
-			if visualize:
-				self.display.one(self.images['badpixels'])
-				answer = self.input("Does the bad pixel mask seem reasonable? [Y,n]").lower()
-			assert('n' not in answer)
+			    #
+			    median = np.median(cube,0)
+			    noise = np.median(np.abs(cube - median.reshape(1,cube.shape[1], cube.shape[2])), 0)
+			    plt.figure('bad pixel mask')
+			    ax = plt.subplot()
+			    ax.plot(median.flatten(), noise.flatten(), color='black', alpha=0.5, marker='o', markersize=4, markeredgewidth=0, linewidth=0)
+			    ax.set_yscale('log')
+			    bad = (noise < 0.05*np.sqrt(median)) | (noise == 0) | (median == 0) | (median < 0) | (self.bias() > 10000) | (self.dark() > 100)
+			    ax.plot(median[bad].flatten(), noise[bad].flatten(), color='red', alpha=0.5, marker='o', markersize=10, markeredgecolor='red', linewidth=0)
+			    ax.set_xlabel('Fluence')
+			    ax.set_ylabel('RMS')
+			    self.images['badpixels'] = bad.astype(np.int)
+			    if visualize:
+				    self.display.one(self.images['badpixels'])
+				    answer = self.input("Does the bad pixel mask seem reasonable? [Y,n]").lower()
+			    assert('n' not in answer)
+
+			else: self.images['badpixels'] = np.zeros_like(self.bias())
+
 			writeFitsData(self.images['badpixels'], badPixelFilename)
 
 	def bias(self):

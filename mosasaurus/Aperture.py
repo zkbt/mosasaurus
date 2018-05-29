@@ -125,6 +125,8 @@ class Aperture(Talker):
       #self.speak('these are the stamps before interpolating over bad pixels')
       #self.displayStamps(self.images, keys = ['science', 'flat', 'badpixels'])
       #self.input('', prompt='(press return to continue)')
+      #self.images['badpixels'] = np.zeros_like(self.images['science'])
+      print(self.images['badpixels'])
       for k in interesting:
           if k != 'badpixels':
               self.images[k] = craftroom.twod.interpolateOverBadPixels(self.images[k], self.images['badpixels'])
@@ -139,7 +141,11 @@ class Aperture(Talker):
       #		self.images[k] -= self.images['dark']
 
       # this is a rough flat - will be refined later in create NormalizedFlat
-      self.images['RoughFlat'] = self.images['flat']/np.median(self.images['flat'], self.sindex).reshape(self.waxis.shape[0], 1)
+      try:
+          self.images['RoughFlat'] = self.images['flat']/np.median(self.images['flat'], self.sindex).reshape(self.waxis.shape[0], 1)
+      except(KeyError):
+          self.images['flat'] = np.ones_like(self.images['science'])
+          self.images['RoughFlat'] = np.ones_like(self.images['science'])
 
       np.save(calibfilename, self.images)
       self.speak("saved calibration stamps to {0}".format(calibfilename))

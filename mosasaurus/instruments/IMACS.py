@@ -157,7 +157,7 @@ class IMACS(Spectrograph):
 
         # what are the calibrations we should expect
         #self.detectorcalibrations = ['bias', 'flat']
-        self.detectorcalibrations = ['flat']
+        self.detectorcalibrations = ['bias', 'flat']
 
         # how many stitched images can we hold in memory?
         self.maximumimagesinmemory = 128
@@ -236,8 +236,8 @@ class IMACS(Spectrograph):
             self.extractiondefaults['wavelengthredward'] = np.inf
             self.extractiondefaults['wavelengthblueward'] = np.inf
         if self.grism == 'gri-300-26.7':
-            self.extractiondefaults['wavelengthredward'] = 750
-            self.extractiondefaults['wavelengthblueward'] = 1200
+            self.extractiondefaults['wavelengthredward'] = np.inf
+            self.extractiondefaults['wavelengthblueward'] = np.inf
 
 
 
