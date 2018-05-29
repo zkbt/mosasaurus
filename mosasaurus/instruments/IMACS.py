@@ -179,15 +179,6 @@ class IMACS(Spectrograph):
                                         r'Ca triplet':(8450,8750),
                                         r'$H_2O$':(9200, 9700),
                                             }
-            self.offsetBetweenReferenceAndWavelengthIDs = 0.
-
-        if self.grism == 'gri-300-26.7-comp':
-            self.uniformwavelengths = np.arange(5000, 10000)
-            self.alignmentranges = {    r'$O_2$ - A':(7500,7800),
-                                        r'Ca triplet':(8450,8750),
-                                        r'$H_2O$':(9200, 9700),
-                                            }
-            self.offsetBetweenReferenceAndWavelengthIDs = 0.
 
         if self.grism == 'gri-300-26.7':
             self.uniformwavelengths = np.arange(5000, 10000)
@@ -195,7 +186,8 @@ class IMACS(Spectrograph):
                                         r'Ca triplet':(8450,8750),
                                         r'$H_2O$':(9200, 9700),
                                             }
-            self.offsetBetweenReferenceAndWavelengthIDs = 0.
+            
+        self.offsetBetweenReferenceAndWavelengthIDs = 0.
 
         # the available arc lamps for wavelength calibration
         self.arclamps = ['He', 'Ne', 'Ar']
@@ -232,9 +224,7 @@ class IMACS(Spectrograph):
         if self.grism == 'gri-150-10.8':
             self.extractiondefaults['wavelengthredward'] = 500
             self.extractiondefaults['wavelengthblueward'] = 500
-        if self.grism == 'gri-300-26.7-comp':
-            self.extractiondefaults['wavelengthredward'] = np.inf
-            self.extractiondefaults['wavelengthblueward'] = np.inf
+
         if self.grism == 'gri-300-26.7':
             self.extractiondefaults['wavelengthredward'] = np.inf
             self.extractiondefaults['wavelengthblueward'] = np.inf
