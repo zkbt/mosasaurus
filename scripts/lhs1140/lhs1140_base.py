@@ -19,10 +19,10 @@ path = '/h/mulan0/data/LHS1140/IMACS/' # directory that contains /data/
 if os.path.exists(path):
     i.setupDirectories(path)
 
-i.extractiondefaults['spatialsubarray'] = 50
-i.extractiondefaults['narrowest'] = 4
-i.extractiondefaults['widest'] = 12
-i.extractiondefaults['numberofapertures'] = 5
+i.extractiondefaults['spatialsubarray'] = 100
+i.extractiondefaults['narrowest'] = 6
+i.extractiondefaults['widest'] = 8
+i.extractiondefaults['numberofapertures'] = 1
 i.extractiondefaults['zapcosmics'] = False
 i.summarize()
 
