@@ -292,7 +292,7 @@ class Cube(Talker):
                 assert(s>0.0)
 
           # pull out data from the (unsupersampled) spectra to populate a square with dimensions self.numberofstars x self.numberoftimes
-          for key in ['sky', 'width', 'centroid', 'shift', 'stretch']:#, 'cosmicdiagnostic']:
+          for key in ['sky', 'width', 'centroid', 'shift', 'stretch']:#, 'median_width']:#, 'cosmicdiagnostic']:
 
               if (self.shift == False) and (key in ['shift', 'stretch']):
                   continue

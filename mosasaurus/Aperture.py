@@ -126,7 +126,6 @@ class Aperture(Talker):
       #self.displayStamps(self.images, keys = ['science', 'flat', 'badpixels'])
       #self.input('', prompt='(press return to continue)')
       #self.images['badpixels'] = np.zeros_like(self.images['science'])
-      print(self.images['badpixels'])
       for k in interesting:
           if k != 'badpixels':
               self.images[k] = craftroom.twod.interpolateOverBadPixels(self.images[k], self.images['badpixels'])
@@ -343,33 +342,49 @@ class Aperture(Talker):
                 '''
                 #####################################################
                 # hzdl modification: making extraction and sky windows based on FWHM of each row in the cross-dispersion direction
-                mask = (self.images['BadPixels']-1)*-1
+                
+                # pick out the exposure prefixes that will get plotted as a diagnostic
+                fileprefixes = self.obs.fileprefixes['science']
+                indices = np.floor(np.linspace(0, len(fileprefixes)-1, 6)).astype('int')
+
+                self.speak('using FWHM modification')
+                mask = (self.images['badpixels']-1)*-1
                 subimage = (image/self.images['NormalizedFlat']*mask)#[:,boxcuts[0]:boxcuts[-1]]
                 disp, crossdisp = subimage.shape
                 FWHM = np.zeros(disp)
                 edge1, edge2 = np.zeros(disp), np.zeros(disp)
 
+                subarray = self.instrument.extractiondefaults['spatialsubarray']
+                lastr1, lastr2 = subarray, subarray+width
                 for i in range(disp):
 
                     # make a psf by cross-dispersion column; multiply by extraction mask so neighboring spectra are not included
                     psf = subimage[i]*self.intermediates[width]['extractMask'][i]
                     # create a spline to fit to the psf; this will give the FWHM roots
-                    spline = spi.UnivariateSpline(range(len(psf)), psf-np.max(psf)/2.)
-                    r1, r2 = spline.roots() # find the roots
+                    spline = scipy.interpolate.UnivariateSpline(range(len(psf)), psf-np.max(psf)/2.)
+                    #print(i)
+                    #print(psf)
+                    #ipyprint(spline.roots())
+                    try:
+                        r1, r2 = spline.roots() # find the roots
+                        lastr1, lastr2 = r1, r2
+                    except(ValueError): 
+                        #print(i, width, 'roots: ', spline.roots(), 'using: ', lastr1, lastr2)
+                        r1, r2 = lastr1, lastr2
 
                     FWHM[i] = r2-r1
                     edge1[i] = r1
                     edge2[i] = r2
 
-                # up to here edges will be the same for every extraction width;
-                # extend edges out by width/2 times FWHM/2 on each side
-                edge1 -= (FWHM/2.)*(width/2.)
-                edge2 += (FWHM/2.)*(width/2.)
+                # up to here edges will be basically the same for every extraction width;
+                # extend edges out by width/2 times FWHM/2
+                edge1 -= (FWHM/2.) * (width/2.)
+                edge2 += (FWHM/2.) * (width/2.)
 
                 # smooth edges
-                edge1spline = spi.UnivariateSpline(range(len(edge1)), edge1)
+                edge1spline = scipy.interpolate.UnivariateSpline(range(len(edge1)), edge1)
                 edge1smooth = edge1spline(range(len(edge1)))
-                edge2spline = spi.UnivariateSpline(range(len(edge2)), edge2)
+                edge2spline = scipy.interpolate.UnivariateSpline(range(len(edge2)), edge2)
                 edge2smooth = edge2spline(range(len(edge2)))
 
                 # this will become the new extraction mask; make sure to include partial pixels
@@ -393,6 +408,8 @@ class Aperture(Talker):
                 self.intermediates[width]['extractMask'] = newextractmask
                 self.intermediates[width]['skyMask'] = newskymask
 
+                self.extracted[width]['median_width'] = np.median(edge2smooth - edge1smooth)
+
                 # end hzdl modification
                 ###############################
                 '''
@@ -410,6 +427,16 @@ class Aperture(Talker):
 
                 # store the 2D sky subtracted image
                 self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat'] - self.intermediates[width]['sky']
+
+                #if self.exposureprefix in [fileprefixes[i] for i in indices]:
+                #    diagnosticFilename = os.path.join(self.directory, 'extracted_diagnostic_{0}_{1}px.pdf'.format(self.exposureprefix, width))
+                #    plt.figure('diagnostic')
+                #    plt.imshow(image/self.images['NormalizedFlat' ] - self.intermediates[width]['sky'], aspect='auto', interpolation='none', vmin=0, vmax=50000)
+                #    plt.plot(edge1smooth, range(len(self.waxis)), color='C1')
+                #    plt.plot(edge2smooth, range(len(self.waxis)), color='C1')
+                #    plt.colorbar()
+                #    plt.savefig(diagnosticFilename)
+                #    plt.close('diagnostic')
 
                 '''
                 # optimal extraction
