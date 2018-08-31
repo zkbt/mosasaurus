@@ -61,84 +61,53 @@ class Aperture(Talker):
   def setup(self,x,y):
     '''Setup the basic geometry of the aperture.'''
 
-    if self.instrument.name == 'LDSS3C':
-      self.x = x
-      self.y = y
-      self.maskWidth = self.instrument.extractiondefaults['spatialsubarray']
-      #(self.obs.skyWidth + self.obs.skyGap)*2 #+20 +
-      blueward = self.instrument.extractiondefaults['stampwavelengthblueward']
-      redward = self.instrument.extractiondefaults['stampwavelengthredward']
-      self.ystart = np.maximum(y - blueward, 0).astype(np.int)
-      self.yend = np.minimum(y + redward, self.instrument.ysize).astype(np.int)
-      self.xstart = np.maximum(x - self.maskWidth, 0).astype(np.int)
-      self.xend = np.minimum(x + self.maskWidth, self.instrument.xsize).astype(np.int)
-      # remember python indexes arrays by [row,column], which is opposite [x,y]
-      x_fullframe, y_fullframe = np.meshgrid(np.arange(self.calib.images['science'].shape[1]),
-                        np.arange(self.calib.images['science'].shape[0]))
-      self.x_sub = x_fullframe[self.ystart:self.yend, self.xstart:self.xend]
-      self.y_sub = y_fullframe[self.ystart:self.yend, self.xstart:self.xend]
+    # what's the center of the aperture, on the original image?
+    self.x = x
+    self.y = y
 
-      self.xbox = (self.xstart + self.xend)/2
-      self.ybox = (self.ystart + self.yend)/2
-      self.wbox = np.abs(self.xend - self.xstart)
-      self.hbox = np.abs(self.yend - self.ystart)
+    # define the subarray width (spatial)
+    self.maskWidth = self.instrument.extractiondefaults['spatialsubarray']
 
-      # first index of np. array is in the wavelength (w) direction
-      # second index is in the spatial (s) direction
-      # we'll define these now to help keep things straight
-      self.w = self.y_sub - self.y#self.ystart
-      self.s = self.x_sub - self.x#self.xstart
-      self.windex = 0
-      self.sindex = 1 - self.windex
-      if self.windex == 0:
+    # define the subarray length (wavelength)
+    blueward = self.instrument.extractiondefaults['stampwavelengthblueward']
+    redward = self.instrument.extractiondefaults['stampwavelengthredward']
+    self.ystart = np.maximum(y - blueward, 0).astype(np.int)
+    self.yend = np.minimum(y + redward, self.instrument.ysize).astype(np.int)
+    self.xstart = np.maximum(x - self.maskWidth, 0).astype(np.int)
+    self.xend = np.minimum(x + self.maskWidth, self.instrument.xsize).astype(np.int)
+
+    # remember python indexes arrays by [row,column], which is opposite [x,y]
+    x_fullframe, y_fullframe = np.meshgrid(np.arange(self.calib.images['science'].shape[1]),
+                    np.arange(self.calib.images['science'].shape[0]))
+    self.x_sub = x_fullframe[self.ystart:self.yend, self.xstart:self.xend]
+    self.y_sub = y_fullframe[self.ystart:self.yend, self.xstart:self.xend]
+
+    # create some box sizes
+    self.xbox = (self.xstart + self.xend)/2
+    self.ybox = (self.ystart + self.yend)/2
+    self.wbox = np.abs(self.xend - self.xstart)
+    self.hbox = np.abs(self.yend - self.ystart)
+
+    # first index of np. array is in the wavelength (w) direction
+    # second index is in the spatial (s) direction
+    # we'll define these now to help keep things straight
+    self.w = self.y_sub - self.y#self.ystart
+    self.s = self.x_sub - self.x#self.xstart
+
+    # images *must* be row=wavelength, col=spatial
+    self.windex = 0
+    self.sindex = 1 - self.windex
+
+    if self.windex == 0:
         self.waxis = self.w[:,0]
         self.saxis = self.s[0,:]
 
 
-      self.name = 'aperture_{0:.0f}_{1:.0f}'.format(self.x, self.y)
-      self.directory = os.path.join(self.mask.reducer.extractionDirectory, self.name)
-      mkdir(self.directory)
-      self.speak("created a spectroscopic aperture at ({0:.1f}, {1:.1f})".format(self.x, self.y))
-
-    elif self.obs.instrument == 'IMACS':
-      self.x = x
-      self.y = y
-      self.maskWidth = self.obs.subarray
-      #(self.obs.skyWidth + self.obs.skyGap)*2 #+20 +
-      self.ystart = np.maximum(y - self.obs.blueward, 0).astype(np.int)
-      self.yend = np.minimum(y + self.obs.redward, self.obs.ysize).astype(np.int)
-      self.xstart = np.maximum(x - self.maskWidth, 0).astype(np.int)
-      self.xend = np.minimum(x + self.maskWidth, self.obs.xsize).astype(np.int)
-      # remember python indexes arrays by [row,column], which is opposite [x,y]
-      x_fullframe, y_fullframe = np.meshgrid(np.arange(self.calib.images['Science'].shape[1]),
-                        np.arange(self.calib.images['Science'].shape[0]))
-      self.x_sub = x_fullframe[self.ystart:self.yend, self.xstart:self.xend]
-      self.y_sub = y_fullframe[self.ystart:self.yend, self.xstart:self.xend]
-
-      self.xbox = (self.xstart + self.xend)/2
-      self.ybox = (self.ystart + self.yend)/2
-      self.wbox = np.abs(self.xend - self.xstart)
-      self.hbox = np.abs(self.yend - self.ystart)
-
-      # first index of np. array is in the wavelength (w) direction
-      # second index is in the spatial (s) direction
-      # we'll define these now to help keep things straight
-      self.w = self.y_sub - self.y#self.ystart
-      self.s = self.x_sub - self.x#self.xstart
-      self.windex = 0
-      self.sindex = 1 - self.windex
-      if self.windex == 0:
-        self.waxis = self.w[:,0]
-        self.saxis = self.s[0,:]
-
-
-      self.name = 'aperture_{0:.0f}_{1:.0f}'.format(self.x, self.y)
-      self.directory = self.obs.extractionDirectory + self.name + '/'
-      zachopy.utils.mkdir(self.directory)
-      self.speak("created a spectroscopic aperture at ({0:.1f}, {1:.1f})".format(self.x, self.y))
-
-    else:
-      self.speak("*!$!%()@! no cameras besides LDSS3C have been defined yet!")
+    # define a name and directory for this aperture
+    self.name = 'aperture_{0:.0f}_{1:.0f}'.format(self.x, self.y)
+    self.directory = os.path.join(self.mask.reducer.extractionDirectory, self.name)
+    mkdir(self.directory)
+    self.speak("created a spectroscopic aperture at ({0:.1f}, {1:.1f})".format(self.x, self.y))
 
 
   def stamp(self, image):
@@ -257,7 +226,7 @@ class Aperture(Talker):
           medfilt_1d[i] = np.median(self.images['flat'][i][minindex:maxindex+1])
 
       # divide masked flat by the 1d_median filter, reshaped for division purposes
-      self.images['NormalizedFlat'] = (self.images['flat']*normmask)/medfilt_1d.reshape(self.waxis.shape[0], 1) 
+      self.images['NormalizedFlat'] = (self.images['flat']*normmask)/medfilt_1d.reshape(self.waxis.shape[0], 1)
       # need values outside of extraction to be 1, not 0, for future division purposes
       self.images['NormalizedFlat'] += np.abs(normmask - 1)
 
@@ -269,7 +238,7 @@ class Aperture(Talker):
       ax.set_ylabel('pixels')
       if visualize:
           # flat field has been medianed so most values should center on 1; want to be able to see finer-scale structure
-          self.display.one(self.images['NormalizedFlat'], aspect='auto', vmin=0.95, vmax=1.05) 
+          self.display.one(self.images['NormalizedFlat'], aspect='auto', vmin=0.95, vmax=1.05)
           self.display.run()
           answer = self.input("Did you like the NormalizedFlat for this stamp? [Y,n]").lower()
       assert('n' not in answer)
@@ -395,7 +364,7 @@ class Aperture(Talker):
                 edge1, edge2 = np.zeros(disp), np.zeros(disp)
 
                 for i in range(disp):
-                    
+
                     # make a psf by cross-dispersion column; multiply by extraction mask so neighboring spectra are not included
                     psf = subimage[i]*self.intermediates[width]['extractMask'][i]
                     # create a spline to fit to the psf; this will give the FWHM roots
@@ -417,7 +386,7 @@ class Aperture(Talker):
                 edge2spline = spi.UnivariateSpline(range(len(edge2)), edge2)
                 edge2smooth = edge2spline(range(len(edge2)))
 
-                # this will become the new extraction mask; make sure to include partial pixels 
+                # this will become the new extraction mask; make sure to include partial pixels
                 newextractmask = np.zeros(subimage.shape)
                 for i in range(disp):
                     # hard edges will have values of 1; soft edges have partial pixel values; be careful of indexing

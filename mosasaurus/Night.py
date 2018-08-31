@@ -67,7 +67,12 @@ class Night(Talker):
                 self.speak( 'Loading header information from {}.'.format(
                                 os.path.basename(file)), progress=True)
 
-                keys, values = self.instrument.extractInterestingHeaderKeys(file)
+                try:
+                    keys, values = self.instrument.extractInterestingHeaderKeys(file)
+                except:
+                    self.speak('There was something troubling about {}'.format(file))
+                    continue
+                    
                 for i, v in enumerate(values):
                     if type(v) == astropy.io.fits.card.Undefined:
                         values[i] = '???'
@@ -150,7 +155,7 @@ class Night(Talker):
             self.summarylog = self.summarylog[['count'] + grouped.colnames]
 
             # sort this by the file prefixes, again
-            self.summarylog.sort('fileprefix')
+            self.summarylog.sort(self.instrument.summarysortkey)
 
 
             self.summarylog.write(self.summaryFilename, **tablekw)

@@ -101,13 +101,13 @@ class Observation(Talker):
                         wordstosearchfor = [self.target.starname]
                     else:
                         wordstosearchfor = self.instrument.wordstosearchfor[k]
-
+                
                 # this will find the indices that match the wordstosearchfor
                 match = self.night.find(wordstosearchfor, self.instrument.keytosearch)
 
                 # make sure this table is sorted by the fileprefix
                 tableforthissubset = self.night.log[match]
-                tableforthissubset.sort('fileprefix')
+                tableforthissubset.sort(self.instrument.summarysortkey)
 
 
                 self.exposures[k] = tableforthissubset

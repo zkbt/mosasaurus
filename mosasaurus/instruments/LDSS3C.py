@@ -71,6 +71,9 @@ class LDSS3C(Spectrograph):
     # for other instruments, I could imagine "comments" being useful sometimes
     keytosearch = 'object'
 
+    # by what key should files be sorted in the summaries?
+    summarysortkey = 'fileprefix'
+
     # within that header key, what words do we search for?
     wordstosearchfor = { 'dark':['dark'],
                          'bias':['bias'],
@@ -78,6 +81,13 @@ class LDSS3C(Spectrograph):
                            'He':['He', 'helium'],
                            'Ne':['Ne', 'neon'],
                            'Ar':['Ar', 'argon']}
+
+    wordstoavoid  =    { 'dark':[],
+                         'bias':[],
+                         'flat':[],
+                           'He':[],
+                           'Ne':[],
+                           'Ar':['dark', 'quartz']}
 
     def __repr__(self):
         '''

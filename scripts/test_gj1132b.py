@@ -7,7 +7,7 @@ i.summarize()
 
 # create a night to analyze
 from mosasaurus.Night import Night
-n = Night('ut160227_28', instrument=i)
+n = Night('UT180304', instrument=i)
 n.createNightlyLog(remake=False)
 
 # create a target from values (in case you want to work offline)

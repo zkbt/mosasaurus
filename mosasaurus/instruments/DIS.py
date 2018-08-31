@@ -11,11 +11,6 @@ class DIS(Spectrograph):
     # a string for the instrument name
     name = 'DIS'
 
-    # file search patten to get a *single* fileprefix for each exposure
-    # DIS has two camera readouts ('*b.fits' and '*r.fits' for blue and red);
-    # this pulls the fileprefix just from blue
-    basicpattern = '*b.fits'
-
     # which header of the fits file contains the header with useful information
     fitsextensionforheader = 0
 
@@ -61,7 +56,10 @@ class DIS(Spectrograph):
     # these keys are useful to search for guessing the filetype
     # for LDSS3C, the usful information is in the "object" key of the header
     # for other instruments, I could imagine "comments" being useful sometimes
-    keytosearch = 'IMAGETYP'
+    keytosearch = 'FILENAME'
+
+    # by what key should files be sorted in the summaries?
+    summarysortkey = 'FILENAME'
 
     # within that header key, what words do we search for?
     wordstosearchfor = { 'dark':['dark'],
@@ -71,28 +69,43 @@ class DIS(Spectrograph):
                            'Ne':['Ne', 'neon'],
                            'Ar':['Ar', 'argon']}
 
+    wordstoavoid  =    { 'dark':[],
+                         'bias':[],
+                         'flat':[],
+                           'He':[],
+                           'Ne':[],
+                           'Ar':['dark', 'quartz']}
 
 
-    def __init__(self, grism='vph-red'):
+    def __init__(self, grating='R300'):
+        '''
+        This initializes a DIS instrument for a single camera side.
+        '''
 
         # what's the name of this instrument?
-        self.name = 'LDSS3C'
+        self.name = 'DIS'
 
         # where is it located? (needed for BJD calculation)
-        self.telescope = 'Magellan'
-        self.sitename = 'LCO'
+        self.telescope = 'APO'
+        self.sitename = 'APO'
 
-        #try:
-        #self.observatory = coord.EarthLocation.of_site(self.sitename)
-        self.observatory = coord.EarthLocation.from_geodetic(-4.71333*u.hourangle, -29.00833*u.deg, 2282.0*u.m)
-        #EarthLocation(1845655.49905341*m, -5270856.2947176*m, -3075330.77760682*m)
+        # you can use astropy to get the coordinates of an observatory
+        # (we hard code them, so you can run this without internet,
+        #  in case you might be trying to work on a plane or mountain top)
+        # self.observatory = coord.EarthLocation.of_site(self.sitename)
+        self.observatory = coord.EarthLocation.from_geodetic(-105.82*u.deg, 32.78*u.deg, 2798.0*u.m)
 
 
-        # what grism is being used ['vph-red', 'vph-all', 'vph-blue']
-        self.grism = grism.lower()
+        # what grating is being used? ['B400', 'R300'] are supported so far
+        self.grating = grating.lower()
+        self.camera = self.grating[0]
+        # file search patten to get a *single* fileprefix for each exposure
+        self.basicpattern = '*{}.fits'.format(self.camera)
 
         # run the setup scripts, once these basics are defined
         Spectrograph.__init__(self)
+
+
 
     def setupDetector(self):
         '''
@@ -105,8 +118,9 @@ class DIS(Spectrograph):
         '''
 
         # basic information about the amplifiers
-        self.namps = 2
-        self.gains = np.array([1.72, 1.49])
+        self.namps = 1
+
+        # a default, for now?
         self.binning = 2
 
         # what area of the detector contains real data? (for individual amplifiers
@@ -128,28 +142,14 @@ class DIS(Spectrograph):
         '''
 
         # what is the name and type of the disperser
-        self.dispersertype = 'grism'
-        self.disperser = self.grism
+        self.dispersertype = 'grating'
+        self.disperser = self.grating
 
         # define a uniform grid of wavelengths for supersampling onto, later
-        if self.grism == 'vph-all':
+        if self.grating == 'R300':
             self.uniformwavelengths = np.arange(4000, 10500)
-            self.alignmentranges = {    r'$H\beta$':(4750,5050),
-                                        r'$H\alpha$':(6425,6725),
-                                        r'$O_2$ - B':(6750,7050),
-                                        r'$O_2$ - A':(7500,7800),
-                                        r'Ca triplet':(8450,8750),
-                                        r'$H_2O$':(9200, 9700),
-                                            }
-        elif self.grism == 'vph-red':
-            self.uniformwavelengths = np.arange(6000, 10500)
-            self.alignmentranges = dict(    O2=(7580, 7650),
-                                            Ca1=(8490, 8525),
-                                            Ca2=(8535, 8580),
-                                            Ca3=(8650, 8700),
-                                            H2O=(9300, 9700)
-                                            )
-
+            self.alignmentranges = {}
+            # pull good aligntment ranges from LDSS3C if you need them
 
         # the available arc lamps for wavelength calibration
         self.arclamps = ['He', 'Ne', 'Ar']
@@ -160,13 +160,13 @@ class DIS(Spectrograph):
                                                 self.name + '/',
                                                 self.disperser + '/')
         self.wavelength2pixelsFile = os.path.join(self.disperserDirectory,
-                '{0}_wavelength_identifications.txt'.format(self.grism))
+                '{0}_wavelength_identifications.txt'.format(self.grating))
 
         self.wavelengthsFile = os.path.join(self.disperserDirectory,
                 'HeNeAr.txt')
 
         if self.binning == 2:
-            self.offsetBetweenReferenceAndWavelengthIDs = -1024
+            self.offsetBetweenReferenceAndWavelengthIDs = 0# -1024
 
         # find the peak of the combined correlation function
         #if self.aperture.obs.instrument == 'LDSS3C':
@@ -206,9 +206,8 @@ class DIS(Spectrograph):
         # what are the kinds of images extractions can work with
         self.extractables = ['science', 'reference']
 
-
     def setupDirectories(self,
-            baseDirectory='/Users/zkbt/Cosmos/Data/Magellan/LDSS3/',
+            baseDirectory='/Users/zkbt/Cosmos/Data/APO/DIS/',
             dataDirectory='data/',
             workingDirectory='working/',
             extractionDirectory='extraction/'):
@@ -243,16 +242,29 @@ class DIS(Spectrograph):
         '''
         For an astropy table of extracted header values,
         extract the mid-exposure times in JD_UTC.
+
+        Parameters
+        ----------
+
+        headers : astropy table (or generally iterable)
+            a table containing temporal keywords, for determing times
+
+        Returns
+        -------
+
+        times_earth : astropy time array
+            the mid-exposure times, as measured at Earth
+
         '''
 
         # stitch together date+time strings
-        timestrings = ['{0} {1}'.format(row['ut-date'], row['ut-time']) for row in headers]
+        timestrings = ['{0}'.format(row['DATE-OBS']) for row in headers]
 
         # calculate a JD from these times (and adding half the exposure time, assuming ut-time is the start of the exposure)
-        starttimes = astropy.time.Time(timestrings, format='iso', scale='utc', location=self.observatory)
+        starttimes = astropy.time.Time(timestrings, format='isot', scale='utc', location=self.observatory)
 
         # mid-exposure
-        times_earth = starttimes + 0.5*headers['exptime']*u.second
+        times_earth = starttimes + 0.5*headers['EXPTIME']*u.second
 
         # return as astropy times, in the UTC system, at the location of the telescope
         return times_earth
@@ -261,11 +273,23 @@ class DIS(Spectrograph):
     def file2prefix(self, filename):
         '''
         This function returns a shortened fileprefix from a given filename.
-        '''
-        tail = os.path.split(filename)[-1]
 
-        # LDSS3C is split into two amplifiers, let's pull out the prefix
-        return tail.replace('c2.fits', '').replace('c1.fits', '')
+        Parameters
+        ----------
+
+        filename : str
+            The filename of a particular file.
+
+        Returns
+        -------
+
+        prefix : str
+            A shortened fileprefix for the file.
+        '''
+        tail = os.path.basename(filename)
+
+        # let's pull out just the prefix from this DIS camera
+        return tail.replace('{}.fits'.format(self.camera), '')
 
     def prefix2number(self, prefix):
         '''
@@ -279,28 +303,53 @@ class DIS(Spectrograph):
         This function returns a list of filenames (without complete path)
         that are associated with this given prefix.
         '''
-        return [prefix + 'c1.fits', prefix + 'c2.fits']
+        return [prefix + '{}.fits'.format(self.camera)]
 
 
-    def loadOverscanTrimHalfCCD(self, filename):
+    def gain(self, header):
         '''
-        Open one half of an LDSS3 CCD, subtract the overscan, and trim.
+        Return the gain, from a given header.
+        (DIS has good headers, so this is easy.)
+        '''
+        return header['GAIN']
+
+    def exptime(self, header):
+        return header['EXPTIME']
+
+    def darkexptime(self, header):
+        return header['DARKTIME']
+
+    def loadAndTrim(self, filename):
+        '''
+        Load a DIS image; subtract and trim its overscan.
+
+        Returns
+        -------
+        image : array
+            a overscan-trimmed
+
         '''
 
-        # open the FITS file, split into header and data
-        hdu = astropy.io.fits.open(filename)
-        header = hdu[0].header
-        data = readFitsData(filename)
+        # open (temporarily) the file
+        with astropy.io.fits.open(filename) as hdu:
+            self.data, self.header = hdu[0].data,  hdu[0].header
 
-        # take the parts of CCD exposed to light
-        goodData = data[self.databottom:self.datatop,self.dataleft:self.dataright]
-        goodBias = data[self.databottom:self.datatop,self.dataright:]
+        # pull out just the data section
+        dbottom, dtop, dleft, dright = iraf2python(self.header['DATASEC'])
+        trimmed = self.data[dbottom:dtop, dleft:dright].astype(np.float)
 
-        # estimate the 1D bias (and drawdown, etc...) from the overscan
-        biasEstimate = np.median(goodBias, axis=1)
-        biasImage = np.ones(goodData.shape)*biasEstimate[:,np.newaxis]
+         # subtract bias overscan (just one value)
+        bbottom, btop, bleft, bright = iraf2python(self.header['BIASSEC'])
+        biaslevel = np.median(self.data[bbottom:btop,bleft:bright])
+        trimmed -= biaslevel
 
-        return (goodData - biasImage), header
+         # record that these have been stitched
+        header = copy.copy(self.header)
+        header['STITCHED'] = True
+
+        # return the trimmed
+        return trimmed.T, header
+
 
     def createStitched(self, ccd):
         '''Create and load a stitched CCD image, given a file prefix.'''
@@ -313,22 +362,18 @@ class DIS(Spectrograph):
             ccd.flags['subtractbias'] = False
             ccd.flags['subtractdark'] = False
             ccd.flags['multiplygain'] = False
-            ccd.flags['subtractcrosstalk'] = False
         elif ccd.imageType == 'dark':
             ccd.flags['subtractbias'] = True
             ccd.flags['subtractdark'] = False
             ccd.flags['multiplygain'] = False
-            ccd.flags['subtractcrosstalk'] = False
         elif ccd.imageType == 'FlatInADU':
             ccd.flags['subtractbias'] = True
             ccd.flags['subtractdark'] = True
             ccd.flags['multiplygain'] = False
-            ccd.flags['subtractcrosstalk'] = False
         else:
             ccd.flags['subtractbias'] = True
             ccd.flags['subtractdark'] = True
             ccd.flags['multiplygain'] = True
-            ccd.flags['subtractcrosstalk'] = True
 
         # don't restitch if unnecessary
         if os.path.exists(ccd.stitched_filename):
@@ -337,20 +382,11 @@ class DIS(Spectrograph):
             # process the two halves separately, and then smush them together
             filenames = [os.path.join(self.obs.night.dataDirectory, f) for f in self.prefix2files(ccd.exposureprefix)]
 
-
-            # load the two halves
-            c1data, c1header = self.loadOverscanTrimHalfCCD(filenames[0])
-            c2data, c2header = self.loadOverscanTrimHalfCCD(filenames[1])
+            # load the (only) image
+            stitched, header = self.loadAndTrim(filenames[0])
 
             if ccd.visualize:
-                tempstitched = np.hstack([c1data, np.fliplr(c2data)])
-
-            if ccd.flags['subtractcrosstalk']:
-                    # is this possible?
-                    pass
-
-            # stitch the CCD's together
-            stitched = np.hstack([c1data, np.fliplr(c2data)])
+                tempstitched = stitched
 
             if ccd.visualize:
                 ccd.display.one(stitched, clobber=True)
@@ -367,30 +403,22 @@ class DIS(Spectrograph):
 
             # normalize darks by exposure time
             if ccd.imageType == 'dark':
-                stitched /= c1header['EXPTIME']
+                stitched /= self.darkexptime(header)
 
             # subtract dark
             if ccd.flags['subtractdark']:
                 self.speak("subtracting dark image")
-                stitched -= ccd.calib.dark()*c1header['EXPTIME']
+                stitched -= ccd.calib.dark()*self.darkexptime(header)
 
             if ccd.visualize:
                 ccd.display.one(stitched, clobber=True)
                 ccd.visualize = self.input('after subtracting dark; type [s] to stop showing these').lower() != 's'
 
-            # divide by the gain (KLUDGE! make sure these are the best estimates!)
+            # divide by the gain (pulled from the header)
             if ccd.flags['multiplygain']:
-
-                try:
-                    self.gains
-                except AttributeError:
-                        self.ccd.estimateGain()
-
-                self.speak("multiplying by gains of {0} e-/ADU".format(self.gains))
-                gain1 = np.zeros_like(c1data) + self.gains[0]
-                gain2 = np.zeros_like(c2data)+ self.gains[1]
-                gainimage = np.hstack([gain1, np.fliplr(gain2)])
-                stitched *= gainimage
+                gain = self.gain(header)
+                self.speak("multiplying by gain of {0} e-/ADU".format(gain))
+                stitched *= gain
 
             if ccd.visualize:
                 ccd.display.one(stitched, clobber=True)
@@ -407,6 +435,6 @@ class DIS(Spectrograph):
             # write out the image to a stitched image
             writeFitsData(ccd.data, ccd.stitched_filename)
             self.speak("stitched and saved {0}".format(ccd.name))
-
+            assert(np.isfinite(ccd.data).any())
 
 #def identifyImageNumbers(self, lookingfor)
