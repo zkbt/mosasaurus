@@ -9,7 +9,12 @@ class Spectrograph(Talker):
         self.setupDirectories()
         self.setupExtraction()
 
-
+    def __repr__(self):
+        '''
+        How should this object be represented as a string?
+        '''
+        return '<Spectrograph {}>'.format(self.name)
+        
     def extractInterestingHeaderKeys(self, file):
         '''
         This will work for files with only one interesting extension.
