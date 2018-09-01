@@ -85,8 +85,8 @@ class DIS(Spectrograph):
         # what's the name of this instrument?
         self.name = 'DIS'
 
-        # where is it located? (needed for BJD calculation)
-        self.telescope = 'APO'
+        # where is it located? 
+        self.telescope = 'ARC 3.5m'
         self.sitename = 'APO'
 
         # you can use astropy to get the coordinates of an observatory
@@ -104,7 +104,6 @@ class DIS(Spectrograph):
 
         # run the setup scripts, once these basics are defined
         Spectrograph.__init__(self)
-
 
 
     def setupDetector(self):

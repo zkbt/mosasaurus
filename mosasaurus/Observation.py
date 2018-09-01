@@ -97,13 +97,16 @@ class Observation(Talker):
                     # find exposures where
                     if k == 'science':
                         wordstosearchfor = [self.target.starname]
+                        wordstoavoid=[]
                     elif k == 'reference':
                         wordstosearchfor = [self.target.starname]
+                        wordstoavoid=[]
                     else:
                         wordstosearchfor = self.instrument.wordstosearchfor[k]
-                
+                        wordstoavoid = self.instrument.wordstoavoid[k]
+
                 # this will find the indices that match the wordstosearchfor
-                match = self.night.find(wordstosearchfor, self.instrument.keytosearch)
+                match = self.night.find(wordstosearchfor, self.instrument.keytosearch, wordstoavoid=wordstoavoid)
 
                 # make sure this table is sorted by the fileprefix
                 tableforthissubset = self.night.log[match]

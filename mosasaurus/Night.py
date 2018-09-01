@@ -72,7 +72,7 @@ class Night(Talker):
                 except:
                     self.speak('There was something troubling about {}'.format(file))
                     continue
-                    
+
                 for i, v in enumerate(values):
                     if type(v) == astropy.io.fits.card.Undefined:
                         values[i] = '???'
@@ -163,11 +163,25 @@ class Night(Talker):
             self.speak('wrote the aggregated summary for {} to {}'.format(self.name, self.summaryFilename))
 
 
-    def find(self, wordstolookfor, placetolook):
+    def find(self, wordstolookfor, placetolook, wordstoavoid=[]):
         '''
         Find which rows of the log contain
         contain any one of the wordstolookfor
         in any one of the placetolook.
+
+        Parameters
+        ----------
+
+        wordstolookfor : list of strings
+            If a string matches any of these strings,
+            it will be included in the list of returned rows.
+
+        placestolook : string
+            Which column of the log should be searched?
+
+        wordstoavoid : list of strings
+            If a string matches any of these strings,
+            it will *not* be included in the list of returned rows.
 
         (returns a boolean array)
         '''
@@ -178,6 +192,12 @@ class Night(Talker):
         # find whether the wordstolookfor are seen anywhere in the placetolook
         for w in wordstolookfor:
             thismatch = np.array([w.lower() in word.lower() for word in self.log[placetolook]])
+
+            # reject those bad ones
+            for bad in wordstoavoid:
+                isbad = np.array([bad.lower() in word.lower() for word in self.log[placetolook]])
+                thismatch = thismatch & (isbad == False)
+
             self.speak('{} elements in "{}" contained "{}"'.format(
                         np.sum(thismatch), placetolook, w))
             match = match | thismatch
