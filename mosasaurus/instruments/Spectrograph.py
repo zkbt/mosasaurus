@@ -26,6 +26,11 @@ class Spectrograph(Talker):
     path = '/Users/zkbt/Cosmos/Data/'
     # FIXME -- should this *try* to pull from an environment variable?
 
+
+    # are the slits in a "mask" (with different locations for every star)
+    #               or a "longslit" (with one location for each star?)
+    slitstyle = 'mask'
+
     def __init__(self, **kw):
         '''
         Initialize a spectrograph, using custom-defined

@@ -61,6 +61,18 @@ class Aperture(Talker):
   def setup(self,x,y):
     '''Setup the basic geometry of the aperture.'''
 
+
+    # images *must* be row=wavelength, col=spatial
+    self.windex = 0
+    self.sindex = 1 - self.windex
+
+    # set all longslit apertures to have the *same* w-zeropoint
+    if self.instrument.slitstyle == 'longslit':
+        if self.windex == 0:
+            y = 0
+        else:
+            x = 0
+
     # what's the center of the aperture, on the original image?
     self.x = x
     self.y = y
@@ -93,10 +105,6 @@ class Aperture(Talker):
     # we'll define these now to help keep things straight
     self.w = self.y_sub - self.y#self.ystart
     self.s = self.x_sub - self.x#self.xstart
-
-    # images *must* be row=wavelength, col=spatial
-    self.windex = 0
-    self.sindex = 1 - self.windex
 
     if self.windex == 0:
         self.waxis = self.w[:,0]

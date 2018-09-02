@@ -11,6 +11,10 @@ class LDSS3C(Spectrograph):
     # a string for the instrument name
     name = 'LDSS3C'
 
+    # are the slits in a "mask" (with different locations for every star)
+    #               or a "longslit" (with one location for each star?)
+    slitstyle = 'mask'
+    
     # file search patten to get a *single* fileprefix for each exposure
     # LDSS3C has two amplifier readouts ('c1.fits' and 'c2.fits');
     #  this pulls the fileprefix just from c1

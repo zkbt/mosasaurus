@@ -14,6 +14,9 @@ class DIS(Spectrograph):
     # a string for the instrument name
     name = 'DIS'
 
+    # are the slits in a "mask" (with different locations for every star)
+    #               or a "longslit" (with one location for each star?)
+    slitstyle = 'longslit' 
 
     # which header of the fits file contains the header with useful information
     fitsextensionforheader = 0
