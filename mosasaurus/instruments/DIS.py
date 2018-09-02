@@ -8,8 +8,12 @@ class DIS(Spectrograph):
     many instruments should likely be coded there.
     '''
 
+    telescope = 'APO'
+    sitename = 'APO'
+
     # a string for the instrument name
     name = 'DIS'
+
 
     # which header of the fits file contains the header with useful information
     fitsextensionforheader = 0
@@ -82,12 +86,10 @@ class DIS(Spectrograph):
         This initializes a DIS instrument for a single camera side.
         '''
 
-        # what's the name of this instrument?
-        self.name = 'DIS'
+        # what grating is being used? ['B400', 'R300'] are supported so far
+        self.grating = grating.upper()
+        self.camera = self.grating[0]
 
-        # where is it located? 
-        self.telescope = 'ARC 3.5m'
-        self.sitename = 'APO'
 
         # you can use astropy to get the coordinates of an observatory
         # (we hard code them, so you can run this without internet,
@@ -96,11 +98,8 @@ class DIS(Spectrograph):
         self.observatory = coord.EarthLocation.from_geodetic(-105.82*u.deg, 32.78*u.deg, 2798.0*u.m)
 
 
-        # what grating is being used? ['B400', 'R300'] are supported so far
-        self.grating = grating.lower()
-        self.camera = self.grating[0]
         # file search patten to get a *single* fileprefix for each exposure
-        self.basicpattern = '*{}.fits'.format(self.camera)
+        self.basicpattern = '*{}.fits'.format(self.camera.lower())
 
         # run the setup scripts, once these basics are defined
         Spectrograph.__init__(self)
@@ -119,6 +118,7 @@ class DIS(Spectrograph):
         # basic information about the amplifiers
         self.namps = 1
 
+        # FIXME -- it'd be real swell if these could be pulled from headers
         # a default, for now?
         self.binning = 2
 
@@ -154,14 +154,16 @@ class DIS(Spectrograph):
         self.arclamps = ['He', 'Ne', 'Ar']
 
         # set up the wavelength calibration paths and files
-        self.disperserDirectory = os.path.join(mosasaurusdirectory,
+        self.disperserDataDirectory = os.path.join(mosasaurusdirectory,
                                                 'data/',
                                                 self.name + '/',
                                                 self.disperser + '/')
-        self.wavelength2pixelsFile = os.path.join(self.disperserDirectory,
+
+
+        self.wavelength2pixelsFile = os.path.join(self.disperserDataDirectory,
                 '{0}_wavelength_identifications.txt'.format(self.grating))
 
-        self.wavelengthsFile = os.path.join(self.disperserDirectory,
+        self.wavelengthsFile = os.path.join(self.disperserDataDirectory,
                 'HeNeAr.txt')
 
         if self.binning == 2:
@@ -173,68 +175,6 @@ class DIS(Spectrograph):
         #    # (old?) to convert: len(x) - xPeak = x + offsetBetweenReferenceAndWavelengthIDs
         #elif self.aperture.obs.instrument == 'IMACS': self.offsetBetweenReferenceAndWavelengthIDs = -75  # also a kludge
 
-    def setupExtraction(self):
-        '''
-        Setup the default extraction parameters associated with this instrument.
-        '''
-        self.extractiondefaults = {}
-
-        # the geometry of the pixels to consider for each extraction
-        # how many pixels in the spatial direction should analysis extend?
-        self.extractiondefaults['spatialsubarray'] = 50
-        # how far (in pixels) does spectrum extend away from direct image position
-        self.extractiondefaults['stampwavelengthredward'] = np.inf
-        self.extractiondefaults['stampwavelengthblueward'] = np.inf
-
-
-        # setup the default initial extraction geometry
-        #  (some of these these can be modified interactively later)
-        # what are the aperture widths to consider?
-        self.extractiondefaults['narrowest'] = 2
-        self.extractiondefaults['widest'] = 12
-        self.extractiondefaults['numberofapertures'] = 6
-        # what order polynomial to use for trace shape?
-        self.extractiondefaults['traceOrder'] = 2
-        # initial guess for the width of the sky regions
-        self.extractiondefaults['skyWidth'] = 10
-        # required minimum gap between extraction and sky apertures
-        self.extractiondefaults['skyGap'] = 2
-        # should we try to zap cosmic rays?
-        self.extractiondefaults['zapcosmics'] = False
-
-        # what are the kinds of images extractions can work with
-        self.extractables = ['science', 'reference']
-
-    def setupDirectories(self,
-            baseDirectory='/Users/zkbt/Cosmos/Data/APO/DIS/',
-            dataDirectory='data/',
-            workingDirectory='working/',
-            extractionDirectory='extraction/'):
-        '''
-        Setup the basic file structure associated with this instrument.
-        If you store your data anywhere other than the defaults listed here,
-        then adjust the directory structure with:
-            i = LDSS3C()
-            i.setupDirectories("/absolute/path/to/base/directory/")
-        '''
-
-        # absolute path to where the data are located
-        self.baseDirectory = baseDirectory
-
-        # data directory is where raw (not-to-be-modified) files are stored
-        self.dataDirectory = os.path.join(self.baseDirectory,
-                                                dataDirectory)
-        mkdir(self.dataDirectory)
-
-        # working directory is where in-progress files + results are created
-        self.workingDirectory = os.path.join(self.baseDirectory,
-                                                workingDirectory)
-        mkdir(self.workingDirectory)
-
-        # extraction directory is where extracted spectra land
-        self.extractionDirectory = os.path.join(self.baseDirectory,
-                                                extractionDirectory)
-        mkdir(self.extractionDirectory)
 
 
     def extractMidExposureTimes(self, headers):
@@ -288,7 +228,7 @@ class DIS(Spectrograph):
         tail = os.path.basename(filename)
 
         # let's pull out just the prefix from this DIS camera
-        return tail.replace('{}.fits'.format(self.camera), '')
+        return tail.replace('{}.fits'.format(self.camera.lower()), '')
 
     def prefix2number(self, prefix):
         '''
@@ -302,7 +242,7 @@ class DIS(Spectrograph):
         This function returns a list of filenames (without complete path)
         that are associated with this given prefix.
         '''
-        return [prefix + '{}.fits'.format(self.camera)]
+        return [prefix + '{}.fits'.format(self.camera.lower())]
 
 
     def gain(self, header):

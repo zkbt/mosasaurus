@@ -4,8 +4,11 @@ from .Headers import Headers
 
 #  an object that stores all the specifics related to a particular target/night of observing
 class Observation(Talker):
-    '''Observation object store basic information about an observation of
-        one object with one instrument on one night.'''
+    '''
+    An Observation object store basic information about
+    an observation of one object with one instrument on one night.
+    '''
+
     def __init__(self, target=None, instrument=None, night=None, **kwargs):
         '''Initialize an observation object.'''
 
@@ -18,8 +21,7 @@ class Observation(Talker):
         self.night=night
 
         # make a directory hold all analyses for this observation
-        self.directory = os.path.join(self.instrument.workingDirectory,
-                                        "{}_{}".format(self.night.name, self.target.name))
+        self.directory = os.path.join(self.night.directory, self.target.name)
         mkdir(self.directory)
 
         # set up the observation with the prefixes it will need

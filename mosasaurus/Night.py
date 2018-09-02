@@ -13,6 +13,10 @@ class Night(Talker):
         self.name = name
         self.instrument = instrument
 
+        # create a directory, for this night, on this instrument
+        self.directory = os.path.join(self.instrument.workingDirectory, self.name)
+        mkdir(self.directory)
+
         # create an observing log for this night
         self.createNightlyLog()
 
@@ -45,7 +49,7 @@ class Night(Talker):
                             pattern))
 
         # load or create a nightly obseravtion log
-        self.logFilename = self.instrument.workingDirectory + 'nightly_log_{}.txt'.format(self.name)
+        self.logFilename = os.path.join(self.directory, 'nightly_log_{}.txt'.format(self.name))
 
         try:
             assert(remake == False)
@@ -110,7 +114,7 @@ class Night(Talker):
         '''
 
         # try to not to duplicate effort
-        self.summaryFilename = self.instrument.workingDirectory + 'nightly_summary_{}.txt'.format(self.name)
+        self.summaryFilename = os.path.join(self.directory, 'nightly_summary_{}.txt'.format(self.name))
         try:
             assert(remake == False)
             # load the nightly summary as a astropy table

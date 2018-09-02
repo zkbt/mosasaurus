@@ -177,14 +177,14 @@ class LDSS3C(Spectrograph):
         self.arclamps = ['He', 'Ne', 'Ar']
 
         # set up the wavelength calibration paths and files
-        self.disperserDirectory = os.path.join(mosasaurusdirectory,
+        self.disperserDataDirectory = os.path.join(mosasaurusdirectory,
                                                 'data/',
                                                 self.name + '/',
                                                 self.disperser + '/')
-        self.wavelength2pixelsFile = os.path.join(self.disperserDirectory,
+        self.wavelength2pixelsFile = os.path.join(self.disperserDataDirectory,
                 '{0}_wavelength_identifications.txt'.format(self.grism))
 
-        self.wavelengthsFile = os.path.join(self.disperserDirectory,
+        self.wavelengthsFile = os.path.join(self.disperserDataDirectory,
                 'HeNeAr.txt')
 
         if self.binning == 2:
