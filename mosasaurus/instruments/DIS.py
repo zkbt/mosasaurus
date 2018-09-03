@@ -16,7 +16,7 @@ class DIS(Spectrograph):
 
     # are the slits in a "mask" (with different locations for every star)
     #               or a "longslit" (with one location for each star?)
-    slitstyle = 'longslit' 
+    slitstyle = 'longslit'
 
     # which header of the fits file contains the header with useful information
     fitsextensionforheader = 0
@@ -45,6 +45,8 @@ class DIS(Spectrograph):
                             'SLITMASK',
                             'GRATING',
                             'AIRMASS']
+
+    globallinekeys = ['AIRMASS', 'TELROT']
 
     # what keys do we want to store associated with a science timeseries?
     # these will show up, ultimately, in the 'temporal' key of a cube
@@ -150,7 +152,12 @@ class DIS(Spectrograph):
         # define a uniform grid of wavelengths for supersampling onto, later
         if self.grating == 'R300':
             self.uniformwavelengths = np.arange(4000, 10500)
-            self.alignmentranges = {}
+            self.alignmentranges = {
+                                                    r'$O_2$ - B':(6750,7050),
+                                                    r'$O_2$ - A':(7500,7800),
+                                                    r'Ca triplet':(8450,8750),
+                                                    r'$H_2O$':(9200, 9700)
+                                   }
             # pull good aligntment ranges from LDSS3C if you need them
 
         # the available arc lamps for wavelength calibration
@@ -378,5 +385,3 @@ class DIS(Spectrograph):
             writeFitsData(ccd.data, ccd.stitched_filename)
             self.speak("stitched and saved {0}".format(ccd.name))
             assert(np.isfinite(ccd.data).any())
-
-#def identifyImageNumbers(self, lookingfor)

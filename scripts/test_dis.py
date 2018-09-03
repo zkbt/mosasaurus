@@ -32,10 +32,24 @@ r.reduce()
 from mosasaurus.Cube import Cube
 c = Cube(o, width=6)
 c.populate(shift=False)
-c.setStars(target='aperture_100_809', comparisons=['aperture_693_656'])
-#c.shiftCube(plot=True)
-#c.nudgeWavelengths()
-#c.movieCube(stride=1, figsize=(12,8))
-#c.listWidths()
-#c.populate(shift=False)
-#
+c.movieCube(stride=1, remake=False)
+c.setStars(target='aperture_79_0', comparisons=['aperture_390_0'])
+c.save()
+c.imageCube(keys=['raw_counts'], stars=[c.target])
+
+
+
+from mosasaurus.WavelengthRecalibrator import WavelengthRecalibrator
+wr = WavelengthRecalibrator(c, visualize=True)
+
+# fix up the wavelength calibration for each exposure
+r.mask.setup()
+r.mask.addWavelengthCalibration(shift=True)
+
+# repopulate the cube
+c.populate(shift=True, remake=True)
+c.imageCube(keys=['raw_counts'], stars=[c.target])
+c.save()
+
+# make movie of the shifted cube
+c.movieCube(stride=1, remake=False)

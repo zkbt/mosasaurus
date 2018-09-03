@@ -14,7 +14,7 @@ class LDSS3C(Spectrograph):
     # are the slits in a "mask" (with different locations for every star)
     #               or a "longslit" (with one location for each star?)
     slitstyle = 'mask'
-    
+
     # file search patten to get a *single* fileprefix for each exposure
     # LDSS3C has two amplifier readouts ('c1.fits' and 'c2.fits');
     #  this pulls the fileprefix just from c1
@@ -69,7 +69,7 @@ class LDSS3C(Spectrograph):
                             'rotangle',
                             'rotatore']
 
-
+    globallinekeys = ['airmass', 'rotatore']
     # these keys are useful to search for guessing the filetype
     # for LDSS3C, the usful information is in the "object" key of the header
     # for other instruments, I could imagine "comments" being useful sometimes
