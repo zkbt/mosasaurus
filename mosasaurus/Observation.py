@@ -92,7 +92,7 @@ class Observation(Talker):
                     # if the strategy is a string, then just look for that
                     if type(strategy[k]) == list:
                         wordstosearchfor = strategy[k]
-
+                    wordstoavoid = []
                     # add other options?
 
                 else:
