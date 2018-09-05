@@ -420,14 +420,20 @@ class Aperture(Talker):
                 self.extracted[width]['sky'] = (self.intermediates[width]['sky']*self.intermediates[width]['extractMask']).sum(self.sindex)
 
                 # for raw counts, weight by extraction mask, divide by flat, subtract the sky
-                self.extracted[width]['raw_counts'] = (self.intermediates[width]['extractMask']*image/self.images['NormalizedFlat']).sum(self.sindex) - self.extracted[width]['sky']
+                #self.extracted[width]['raw_counts'] = (self.intermediates[width]['extractMask']*image/self.images['NormalizedFlat']).sum(self.sindex) - self.extracted[width]['sky']
+                # TEST! NO SKY SUBTRACTION
+                print('test - no sky subtraction')
+                self.extracted[width]['raw_counts'] = (self.intermediates[width]['extractMask']*image/self.images['NormalizedFlat']).sum(self.sindex)
 
                 # for testing, save a non-flatfielded version extraction, just to make sure
                 self.extracted[width]['no_flat'] =  (self.intermediates[width]['extractMask']*(image - self.intermediates[width]['sky']*self.images['NormalizedFlat'])).sum(self.sindex)
 
                 # store the 2D sky subtracted image
-                self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat'] - self.intermediates[width]['sky']
+                #self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat'] - self.intermediates[width]['sky']
+                # TEST - no sky subtraction
+                self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat']
 
+                # this is a plotting tool to go along with the FWHM modification
                 #if self.exposureprefix in [fileprefixes[i] for i in indices]:
                 #    diagnosticFilename = os.path.join(self.directory, 'extracted_diagnostic_{0}_{1}px.pdf'.format(self.exposureprefix, width))
                 #    plt.figure('diagnostic')
@@ -460,8 +466,8 @@ class Aperture(Talker):
                 spec, specunc, newmask = OptimalExtraction.optimize(subdata.T, submask.T, bg.T, spectrum, 1, 0, p5thresh=10, p7thresh=10, fittype='smooth', window_len=11)
                 self.extracted[width]['raw_counts_optext'] = spec
                 '''
-                self.extracted[width]['raw_counts_optext'] = self.extracted[width]['raw_counts']
 
+                self.extracted[width]['raw_counts_optext'] = self.extracted[width]['raw_counts']
 
                 #if self.obs.slow:
                 #    writeFitsData(self.intermediates['subtracted'], self.extractedFilename.replace('extracted', 'subtracted').replace('npy', 'fits'))
