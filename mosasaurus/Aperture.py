@@ -420,18 +420,13 @@ class Aperture(Talker):
                 self.extracted[width]['sky'] = (self.intermediates[width]['sky']*self.intermediates[width]['extractMask']).sum(self.sindex)
 
                 # for raw counts, weight by extraction mask, divide by flat, subtract the sky
-                #self.extracted[width]['raw_counts'] = (self.intermediates[width]['extractMask']*image/self.images['NormalizedFlat']).sum(self.sindex) - self.extracted[width]['sky']
-                # TEST! NO SKY SUBTRACTION
-                print('test - no sky subtraction')
-                self.extracted[width]['raw_counts'] = (self.intermediates[width]['extractMask']*image/self.images['NormalizedFlat']).sum(self.sindex)
+                self.extracted[width]['raw_counts'] = (self.intermediates[width]['extractMask']*image/self.images['NormalizedFlat']).sum(self.sindex) - self.extracted[width]['sky']
 
                 # for testing, save a non-flatfielded version extraction, just to make sure
                 self.extracted[width]['no_flat'] =  (self.intermediates[width]['extractMask']*(image - self.intermediates[width]['sky']*self.images['NormalizedFlat'])).sum(self.sindex)
 
                 # store the 2D sky subtracted image
-                #self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat'] - self.intermediates[width]['sky']
-                # TEST - no sky subtraction
-                self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat']
+                self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat'] - self.intermediates[width]['sky']
 
                 # this is a plotting tool to go along with the FWHM modification
                 #if self.exposureprefix in [fileprefixes[i] for i in indices]:
@@ -498,6 +493,9 @@ class Aperture(Talker):
                 self.extracted[width]['raw_counts'] = np.nansum(self.intermediates[width]['extractMask']*image/self.images['NormalizedFlat'], self.sindex)
                 # this is a kludge, to make the plotting look better for arcs
                 self.intermediates[width]['sky']  = np.zeros_like(self.intermediates['original'])# + np.percentile(self.extracted[width]['raw_counts'] , 1)
+
+            #import sys
+            #sys.exit("Breaking here. Check it out.")
 
         if arc==False:
             self.visualizeExtraction(width)
