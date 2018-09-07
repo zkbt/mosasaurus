@@ -105,7 +105,7 @@ class CCD(Talker):
             self.data = readFitsData(self.stitched_filename)
         except IOError:
             # if not, you'll need to create one
-            self.instrument.createStitched(self)
+            self.createStitched()
 
         ### FIX ME ### (come up with a better solution for cosmic ray mitigation)
         if self.instrument.zapcosmics:
@@ -228,3 +228,96 @@ class CCD(Talker):
 
         # return that array
         return cube
+
+    def createStitched(self):
+        '''Create and load a stitched CCD image, given a (stored) file prefix.'''
+
+        # print status
+        self.speak("creating a stitched image for {0}".format(self.stitched_filename))
+
+        # provide different options for different kinds of images
+        if self.imageType == 'bias':
+            self.flags['subtractbias'] = False
+            self.flags['subtractdark'] = False
+            self.flags['multiplygain'] = False
+        elif self.imageType == 'dark':
+            self.flags['subtractbias'] = True
+            self.flags['subtractdark'] = False
+            self.flags['multiplygain'] = False
+        elif self.imageType == 'FlatInADU':
+            self.flags['subtractbias'] = True
+            self.flags['subtractdark'] = True
+            self.flags['multiplygain'] = False
+        else:
+            self.flags['subtractbias'] = True
+            self.flags['subtractdark'] = True
+            self.flags['multiplygain'] = True
+
+        # don't restitch if unnecessary
+        if os.path.exists(self.stitched_filename):
+            self.speak("{0} has already been stitched".format(self.name))
+        else:
+            # process the two halves separately, and then smush them together
+            filenames = [os.path.join(self.obs.night.dataDirectory, f) for f in self.instrument.prefix2files(self.exposureprefix)]
+
+            # load the (only) image
+            stitched, header = self.instrument.loadSingleCCD(filenames)
+
+            if self.visualize:
+                tempstitched = stitched
+
+            if self.visualize:
+                self.display.one(stitched, clobber=True)
+                self.input('This is the raw stitched image; press enter to continue.')
+
+            # subtract bias
+            if self.flags['subtractbias']:
+                self.speak("subtracting bias image")
+
+                # pull the bias from the calibraion object
+                stitched -= self.calib.bias()
+
+            if self.visualize:
+                self.display.one(stitched, clobber=True)
+                self.input('after subtracting bias')
+
+            # normalize darks by exposure time
+            if self.imageType == 'dark':
+                # if we're creating a dark, normalize to e/s
+                stitched /= self.instrument.darkexptime(header)
+
+            # subtract dark
+            if self.flags['subtractdark']:
+                self.speak("subtracting dark image")
+                # pull the dark image from the calibration object; multiply by the effective exposure time for the image we're trying to calibrate
+                stitched -= self.calib.dark()*self.instrument.darkexptime(header)
+
+            if self.visualize:
+                self.display.one(stitched, clobber=True)
+                self.visualize = self.input('after subtracting dark; type [s] to stop showing these').lower() != 's'
+
+            # divide by the gain (pulled from the header)
+            if self.flags['multiplygain']:
+
+                # if there are multiple gains for different parts of the chip, you may need to make gain() return an image of the appropriate shape
+                gain = self.instrument.gain(header)
+                self.speak("multiplying by gain of {0} e-/ADU".format(np.unique(np.asarray(gain))))
+                # convert from ADU to electrons
+                stitched *= gain
+
+            if self.visualize:
+                self.display.one(stitched, clobber=True)
+                self.visualize = self.input('after multiplying by gain; type [s] to stop showing these').lower() != 's'
+
+            # put the stitched image into the CCD's memory
+            self.data = stitched
+
+            # find and reject cosmics based on nearby images in time
+            if self.instrument.zapcosmics:
+                if self.imageType == 'science':
+                    self.rejectCosmicRays() # KLUDGE -- I'm pretty sure this shouldn't be used
+
+            # write out the image to a stitched image
+            writeFitsData(self.data, self.stitched_filename)
+            self.speak("stitched and saved {0}".format(self.name))
+            assert(np.isfinite(self.data).any())

@@ -268,16 +268,30 @@ class DIS(Spectrograph):
     def darkexptime(self, header):
         return header['DARKTIME']
 
-    def loadAndTrim(self, filename):
+    def loadSingleCCD(self, filenames):
         '''
         Load a DIS image; subtract and trim its overscan.
 
+        In general, this function should load and return
+        a single image. If the detector uses multiple
+        amplifiers to read out different parts of the
+        same chip, this function should stitch those
+        sections together.
+
+        Parameters
+        ----------
+        filenames: list
+            a list of relevant filenames (e.g. multiple amplifiers)
+
         Returns
         -------
-        image : array
-            a overscan-trimmed
+        image: array
+            a overscan-trimmed CCD image
 
         '''
+
+        # for DIS, we need only one filename; it shouldn't be a list
+        filename = filenames[0]
 
         # open (temporarily) the file
         with astropy.io.fits.open(filename) as hdu:
@@ -298,90 +312,3 @@ class DIS(Spectrograph):
 
         # return the trimmed
         return trimmed.T, header
-
-
-    def createStitched(self, ccd):
-        '''Create and load a stitched CCD image, given a file prefix.'''
-
-        # print status
-        self.speak("creating a stitched image for {0}".format(ccd.stitched_filename))
-
-        # provide different options for different kinds of images
-        if ccd.imageType == 'bias':
-            ccd.flags['subtractbias'] = False
-            ccd.flags['subtractdark'] = False
-            ccd.flags['multiplygain'] = False
-        elif ccd.imageType == 'dark':
-            ccd.flags['subtractbias'] = True
-            ccd.flags['subtractdark'] = False
-            ccd.flags['multiplygain'] = False
-        elif ccd.imageType == 'FlatInADU':
-            ccd.flags['subtractbias'] = True
-            ccd.flags['subtractdark'] = True
-            ccd.flags['multiplygain'] = False
-        else:
-            ccd.flags['subtractbias'] = True
-            ccd.flags['subtractdark'] = True
-            ccd.flags['multiplygain'] = True
-
-        # don't restitch if unnecessary
-        if os.path.exists(ccd.stitched_filename):
-            self.speak("{0} has already been stitched".format(self.name))
-        else:
-            # process the two halves separately, and then smush them together
-            filenames = [os.path.join(self.obs.night.dataDirectory, f) for f in self.prefix2files(ccd.exposureprefix)]
-
-            # load the (only) image
-            stitched, header = self.loadAndTrim(filenames[0])
-
-            if ccd.visualize:
-                tempstitched = stitched
-
-            if ccd.visualize:
-                ccd.display.one(stitched, clobber=True)
-                self.input('This is the raw stitched image; press enter to continue.')
-
-            # subtract bias
-            if ccd.flags['subtractbias']:
-                self.speak("subtracting bias image")
-                stitched -= ccd.calib.bias()
-
-            if ccd.visualize:
-                ccd.display.one(stitched, clobber=True)
-                self.input('after subtracting bias')
-
-            # normalize darks by exposure time
-            if ccd.imageType == 'dark':
-                stitched /= self.darkexptime(header)
-
-            # subtract dark
-            if ccd.flags['subtractdark']:
-                self.speak("subtracting dark image")
-                stitched -= ccd.calib.dark()*self.darkexptime(header)
-
-            if ccd.visualize:
-                ccd.display.one(stitched, clobber=True)
-                ccd.visualize = self.input('after subtracting dark; type [s] to stop showing these').lower() != 's'
-
-            # divide by the gain (pulled from the header)
-            if ccd.flags['multiplygain']:
-                gain = self.gain(header)
-                self.speak("multiplying by gain of {0} e-/ADU".format(gain))
-                stitched *= gain
-
-            if ccd.visualize:
-                ccd.display.one(stitched, clobber=True)
-                ccd.visualize = self.input('after multiplying by gain; type [s] to stop showing these').lower() != 's'
-
-            # put the stitched image into the CCD's memory
-            ccd.data = stitched
-
-            # find and reject cosmics based on nearby images in time
-            if self.zapcosmics:
-                if ccd.imageType == 'science':
-                    ccd.rejectCosmicRays() # KLUDGE -- I'm pretty sure this shouldn't be used
-
-            # write out the image to a stitched image
-            writeFitsData(ccd.data, ccd.stitched_filename)
-            self.speak("stitched and saved {0}".format(ccd.name))
-            assert(np.isfinite(ccd.data).any())
