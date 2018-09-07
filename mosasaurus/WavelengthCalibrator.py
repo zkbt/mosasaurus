@@ -1,4 +1,4 @@
-'''Wavelength Calibrator defines the wavelength calibration, and '''
+'''Wavelength Calibrator defines the wavelength calibration.'''
 
 from .imports import *
 from numpy.polynomial import Legendre
@@ -39,9 +39,9 @@ class WavelengthCalibrator(Talker):
         return self.wavelengthprefix + 'waveids.txt'
 
     def loadWavelengthIdentifications(self, restart=False):
-        ''' Try loading a custom stored wavelength ID file
-            from the aperture's directory, and if that
-            doesn't work, load the default one for this grism.'''
+        '''
+        Try loading a custom stored wavelength ID file from the aperture's directory,
+        and if that doesn't work, load the default one for this grism.'''
 
         try:
             # try to load a custom wavelength id file
@@ -60,7 +60,9 @@ class WavelengthCalibrator(Talker):
             # load the default for this grism, as set in obs. file
             d = astropy.io.ascii.read(self.aperture.instrument.wavelength2pixelsFile)
             self.rawwaveids = d[['pixel', 'wavelength', 'name']]
-            self.rawwaveids['pixel'] /= self.aperture.instrument.binning
+
+            if self.aperture.instrument.name != 'DIS':
+                self.rawwaveids['pixel'] /= self.aperture.instrument.binning
 
             # use a cross-corrlation to find the rough offset
             #  (the function call will define waveids)
@@ -81,7 +83,7 @@ class WavelengthCalibrator(Talker):
         self.guessMatches()
 
     def saveWavelengthIdentification(self):
-        '''store the wavelength-to-pixel identifications'''
+        '''Store the wavelength-to-pixel identifications in a file.'''
 
         self.waveids.write( self.waveidfilename,
                             format='ascii.fixed_width',
@@ -90,6 +92,7 @@ class WavelengthCalibrator(Talker):
         self.speak('saved wavelength-to-pixel matches to '+self.waveidfilename)
 
     def save(self):
+        '''Save everything.'''
 
         self.speak('saving all aspects of the wavelength calibration')
 
@@ -106,7 +109,7 @@ class WavelengthCalibrator(Talker):
         self.figcal.savefig(self.wavelengthprefix + 'calibration.pdf')
 
     def loadCalibration(self):
-
+        '''Load the wavelength calibration.'''
         coef, domain = np.load(self.calibrationfilename)
         self.pixelstowavelengths = Legendre(coef, domain)
         self.polynomialdegree = self.pixelstowavelengths.degree()
@@ -114,10 +117,15 @@ class WavelengthCalibrator(Talker):
                 "from {0}".format(self.calibrationfilename))
 
     def saveCalibration(self):
+        '''Save the wavelength calibration.'''
         np.save(self.calibrationfilename, (self.pixelstowavelengths.coef, self.pixelstowavelengths.domain))
         self.speak("saved wavelength calibration coefficients to {0}".format(self.calibrationfilename))
 
     def populate(self, restart=False):
+        '''
+        Make sure the wavelength calibration is populated,
+        either by loading it or making it.
+        '''
 
         # populate the wavelength identifications
         self.loadWavelengthIdentifications(restart=restart)
@@ -134,115 +142,27 @@ class WavelengthCalibrator(Talker):
             self.justloaded = False
             self.create()
 
-
     def findRoughShift(self, blob=2.0):
         '''using a list of pixels matched to wavelengths, find the rough
                 offset of the this arc relative to the standard slits/setting'''
 
         self.speak("cross correlating arcs with known wavelengths")
 
-        # create a plot showing how well the lines match
-        '''
-        figure_waverough = plt.figure(  'wavelength rough offset',
-                                        figsize=(6,4), dpi=100)
-        gs = plt.matplotlib.gridspec.GridSpec(  3,2,
-                                                bottom=0.15, top=0.85,
-                                                hspace=0.1,wspace=0,
-                                                width_ratios=[1, .5])
-
-        # make the axes for checking the rough alignment
-        self.ax_waverough, self.ax_wavecor = {}, {}
-        sharer, sharec = None, None
-        for i, e in enumerate(self.elements):
-            self.ax_waverough[e] = plt.subplot(gs[i,0],sharex=sharer)
-            self.ax_wavecor[e] = plt.subplot(gs[i,1], sharex=sharec)
-            sharer, sharec = self.ax_waverough[e], self.ax_wavecor[e]
-
-        # calculate correlation functions
-        self.corre = {}
-        for count, element in enumerate(self.elements):
-            # pull out the peaks
-            xPeak = [p['w'] for p in self.peaks[element]]
-            yPeak = [p['intensity'] for p in self.peaks[element]]
-
-            # create fake spectra using the line positions (reference + new)
-            x = np.arange(-self.aperture.instrument.ysize,self.aperture.instrument.ysize)
-
-            myPeaks, theirPeaks = np.zeros(len(x)), np.zeros(len(x))
-            # create fake spectrum of their peaks
-            for i in range(len(self.rawwaveids)):
-                if element in self.rawwaveids['name'][i]:
-                    center = self.rawwaveids['pixel'][i]
-                    theirPeaks += np.exp(-0.5*((x-center)/blob)**2)
-
-            # create fake spectrum of my peaks
-            for i in range(len(xPeak)):
-                center = xPeak[i]
-                myPeaks += np.exp(-0.5*((x-center)/blob)**2)*np.log(yPeak[i])
-
-            # calculate the correlation function for this element
-            self.corre[element] = np.correlate(myPeaks, theirPeaks, 'full')
-
-            # plot the rough shift and identifications
-            self.ax_waverough[element].plot(x, myPeaks/myPeaks.max(),
-                                            label='extracted', alpha=0.5,
-                                            color=colors[element])
-            self.ax_waverough[element].set_ylim(0, 2)
-
-
-            # plot the correlation functions
-            normcor = self.corre[element]
-            assert(np.isfinite(self.corre[element]).any())
-
-            normcor /= np.nanmax(self.corre[element])
-            self.ax_wavecor[element].plot(normcor, label=element, alpha=0.5,
-                                            color=colors[element])
-            # tidy up the plots
-            for a in [self.ax_wavecor, self.ax_waverough]:
-                plt.setp(a[element].get_xticklabels(), visible=False)
-                plt.setp(a[element].get_yticklabels(), visible=False)
-
-            # multiply the correlation functions together
-            assert(np.isfinite(self.corre[element]).any())
-            if count == 0:
-                self.corre['combined'] = np.ones_like(self.corre[element])
-            self.corre['combined'] *= self.corre[element]
-        estimatedoffsetBetweenReferenceAndWavelengthIDs = np.argmax(self.corre['combined']) - len(x)
-        '''
-
         # define the new, shifted, waveids array
         self.waveids = copy.deepcopy(self.rawwaveids)
         self.waveids['pixel'] += self.aperture.obs.instrument.offsetBetweenReferenceAndWavelengthIDs
 
-        '''
-        # plot the shifted wavelength ids, and combined corfuncs
-        for element in self.elements:
-            for i in range(len(self.rawwaveids)):
-                if element in self.rawwaveids['name'][i]:
-                      center = self.waveids['pixel'][i]
-                      self.ax_waverough[element].axvline(center, alpha=0.25, color='black')
-            # plot the combined correlation function
-            normedcombined = self.corre['combined']/np.max(self.corre['combined'])
-            self.ax_wavecor[element].plot(normedcombined,
-                                label='combined', alpha=0.25, color='black')
-            # tidy up the plots
-            self.ax_waverough[element].set_ylabel(element)
-            ax = self.ax_waverough[self.elements[-1]]
-            plt.setp(ax.get_xticklabels(), visible=True)
-            ax.set_xlabel('Pixel Position')
-            fontsize = 8
-            self.ax_wavecor[self.elements[0]].set_title('cross correlation peaks at \n{0} pixels ({1}x{1} binned pixels)'.format(estimatedoffsetBetweenReferenceAndWavelengthIDs, self.aperture.instrument.binning), fontsize=fontsize)
-            self.ax_waverough[self.elements[0]].set_title(
-            'Coarse Wavelength Alignment\nfor ({0:0.1f},{1:0.1f})'.format(
-                 self.aperture.x, self.aperture.y),fontsize=fontsize)
-
-            # save the figure
-            figure_waverough.savefig(
-                os.path.join(self.aperture.directory, 'roughWavelengthAlignment_{0}.pdf'.format(
-                                self.aperture.name)))
-        '''
     @property
     def peaks(self):
+        '''
+        The peaks of the arc spectra (either pre-made, or made just now).
+
+        Returns
+        -------
+
+        peaks : dict
+            Element for each element of the arc lamp, with peaks for each.
+        '''
         try:
             return self._peaks
         except AttributeError:
@@ -250,7 +170,12 @@ class WavelengthCalibrator(Talker):
             return self._peaks
 
     def findPeaks(self):
-        '''identify peaks in the extracted arc spectrum'''
+        '''
+        Identify peaks in the extracted arc spectra.
+
+        This function extracts arc spectra for the aperture,
+        finds its peaks, and stores them in a dictionary (self._peaks).
+        '''
 
         # extract a spectrum from the master image for each lamp
         self.aperture.arcs = {}
@@ -265,6 +190,7 @@ class WavelengthCalibrator(Talker):
         # find the peaks in my spectra
         self._peaks = {}
 
+        # loop over elements
         for count, element in enumerate(self.elements):
 
             # the pixel spectrum self.aperture.extracted from this arc lamp
@@ -305,15 +231,19 @@ class WavelengthCalibrator(Talker):
                 self._peaks[element].append(peak)
 
     def findKnownWavelengths(self):
-        # create a temporary calibration to match reference wavelengths to reference pixels (so we can extrapolate to additional wavelengths not recorded in the dispersion solution file)
+        '''
+        Create a temporary calibration to match reference wavelengths to
+        reference pixels (so we can extrapolate to additional wavelengths not
+        recorded in the dispersion solution file).
 
-
-
+        (Or, at least, this is a set of pairs of wavelengths to pixels.
+        '''
 
         self.knownwavelengths = {}
 
         # treat the arc lamps separately
         for count, element in enumerate(self.elements):
+
             # pull out the wavelengths from the complete file
             self.knownwavelengths[element] = []
             for i in range(len(self.waveids)):
@@ -332,18 +262,28 @@ class WavelengthCalibrator(Talker):
         return self.wavelengthprefix + 'wavelengthmatches.npy'
 
     def saveMatches(self):
+        '''
+        Save (user-set) matches between pixel peaks and known wavelength lines.
+        '''
         self.speak('saving wavelength dictionaries to {}'.format(self.matchesfilename))
         np.save(self.matchesfilename, (self.matches, self.knownwavelengths))
 
     def loadMatches(self):
+        '''
+        Load (user-set) matches between pixel peaks and known wavelength lines.
+        '''
         (self.matches, self.knownwavelengths) = np.load(self.matchesfilename)
         self.speak('loaded wavelength matches from {0}'.format(self.matchesfilename))
 
     def guessMatches(self):
+        '''
+        Make an automated guess of linking our arc peaks to known ones.
+        '''
         self.matches = []
 
         # do identification with one arc at a time
         for element in self.elements:
+
             # pull out my peaks and theirs
             myPeaks = np.array([p['w'] for p in self.peaks[element]])
             theirPeaksOnMyPixels = np.array([known['pixelguess']
@@ -368,37 +308,19 @@ class WavelengthCalibrator(Talker):
                     thiselement.append(match)
 
             self.matches.extend(thiselement)
-            '''for theirs in theirPeaksOnMyPixels:
-
-
-                relevant = [m for m in thiselement if
-                            m['theirs']['pixelguess'] == theirs]
-
-                if len(relevant) > 0:
-                    print("{0} of my peaks match to their {1}".format(len(relevant), theirs))
-
-                    distances = np.abs([m['theirs']['pixelguess'] - m['mine']['w'] for m in relevant])
-
-
-                    best = distances.argmin()
-
-                    print("the closests one is {0}".format(relevant[best]['mine']['w']))
-                    self.matches.append(relevant[best])
-            '''
-
-
-
-            # add this to the list
-            #self.matches.extend(thiselement)
 
     def create(self, remake=False):
-        '''Populate the wavelength calibration for this aperture.'''
+        '''
+        Populate the wavelength calibration for this aperture,
+        using input from the user to try to link up lines between
+        the measured arc spectra and the known line wavelengths.
+        '''
 
         self.speak("populating wavelength calibration")
 
 
 
-        # loop through
+        # loop through until we've decided we're converged
         self.notconverged = True
         while(self.notconverged):
 
@@ -437,6 +359,10 @@ class WavelengthCalibrator(Talker):
 
     @property
     def weights(self):
+        '''
+        A kludgey way of specifying that hand-picked lines are more
+        important than automatically matched ones.
+        '''
         return self.good+self.handpicked*10
 
 

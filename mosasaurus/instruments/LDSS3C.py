@@ -11,6 +11,10 @@ class LDSS3C(Spectrograph):
     # a string for the instrument name
     name = 'LDSS3C'
 
+    # are the slits in a "mask" (with different locations for every star)
+    #               or a "longslit" (with one location for each star?)
+    slitstyle = 'mask'
+
     # file search patten to get a *single* fileprefix for each exposure
     # LDSS3C has two amplifier readouts ('c1.fits' and 'c2.fits');
     #  this pulls the fileprefix just from c1
@@ -65,11 +69,14 @@ class LDSS3C(Spectrograph):
                             'rotangle',
                             'rotatore']
 
-
+    globallinekeys = ['airmass', 'rotatore']
     # these keys are useful to search for guessing the filetype
     # for LDSS3C, the usful information is in the "object" key of the header
     # for other instruments, I could imagine "comments" being useful sometimes
     keytosearch = 'object'
+
+    # by what key should files be sorted in the summaries?
+    summarysortkey = 'fileprefix'
 
     # within that header key, what words do we search for?
     wordstosearchfor = { 'dark':['dark'],
@@ -78,6 +85,13 @@ class LDSS3C(Spectrograph):
                            'He':['He', 'helium'],
                            'Ne':['Ne', 'neon'],
                            'Ar':['Ar', 'argon']}
+
+    wordstoavoid  =    { 'dark':[],
+                         'bias':[],
+                         'flat':[],
+                           'He':[],
+                           'Ne':[],
+                           'Ar':['dark', 'quartz']}
 
     def __repr__(self):
         '''
@@ -167,14 +181,14 @@ class LDSS3C(Spectrograph):
         self.arclamps = ['He', 'Ne', 'Ar']
 
         # set up the wavelength calibration paths and files
-        self.disperserDirectory = os.path.join(mosasaurusdirectory,
+        self.disperserDataDirectory = os.path.join(mosasaurusdirectory,
                                                 'data/',
                                                 self.name + '/',
                                                 self.disperser + '/')
-        self.wavelength2pixelsFile = os.path.join(self.disperserDirectory,
+        self.wavelength2pixelsFile = os.path.join(self.disperserDataDirectory,
                 '{0}_wavelength_identifications.txt'.format(self.grism))
 
-        self.wavelengthsFile = os.path.join(self.disperserDirectory,
+        self.wavelengthsFile = os.path.join(self.disperserDataDirectory,
                 'HeNeAr.txt')
 
         if self.binning == 2:

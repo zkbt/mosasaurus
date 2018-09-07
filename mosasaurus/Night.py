@@ -13,6 +13,10 @@ class Night(Talker):
         self.name = name
         self.instrument = instrument
 
+        # create a directory, for this night, on this instrument
+        self.directory = os.path.join(self.instrument.workingDirectory, self.name)
+        mkdir(self.directory)
+
         # create an observing log for this night
         self.createNightlyLog()
 
@@ -45,7 +49,7 @@ class Night(Talker):
                             pattern))
 
         # load or create a nightly obseravtion log
-        self.logFilename = self.instrument.workingDirectory + 'nightly_log_{}.txt'.format(self.name)
+        self.logFilename = os.path.join(self.directory, 'nightly_log_{}.txt'.format(self.name))
 
         try:
             assert(remake == False)
@@ -67,7 +71,12 @@ class Night(Talker):
                 self.speak( 'Loading header information from {}.'.format(
                                 os.path.basename(file)), progress=True)
 
-                keys, values = self.instrument.extractInterestingHeaderKeys(file)
+                try:
+                    keys, values = self.instrument.extractInterestingHeaderKeys(file)
+                except:
+                    self.speak('There was something troubling about {}'.format(file))
+                    continue
+
                 for i, v in enumerate(values):
                     if type(v) == astropy.io.fits.card.Undefined:
                         values[i] = '???'
@@ -105,7 +114,7 @@ class Night(Talker):
         '''
 
         # try to not to duplicate effort
-        self.summaryFilename = self.instrument.workingDirectory + 'nightly_summary_{}.txt'.format(self.name)
+        self.summaryFilename = os.path.join(self.directory, 'nightly_summary_{}.txt'.format(self.name))
         try:
             assert(remake == False)
             # load the nightly summary as a astropy table
@@ -150,7 +159,7 @@ class Night(Talker):
             self.summarylog = self.summarylog[['count'] + grouped.colnames]
 
             # sort this by the file prefixes, again
-            self.summarylog.sort('fileprefix')
+            self.summarylog.sort(self.instrument.summarysortkey)
 
 
             self.summarylog.write(self.summaryFilename, **tablekw)
@@ -158,11 +167,25 @@ class Night(Talker):
             self.speak('wrote the aggregated summary for {} to {}'.format(self.name, self.summaryFilename))
 
 
-    def find(self, wordstolookfor, placetolook):
+    def find(self, wordstolookfor, placetolook, wordstoavoid=[]):
         '''
         Find which rows of the log contain
         contain any one of the wordstolookfor
         in any one of the placetolook.
+
+        Parameters
+        ----------
+
+        wordstolookfor : list of strings
+            If a string matches any of these strings,
+            it will be included in the list of returned rows.
+
+        placestolook : string
+            Which column of the log should be searched?
+
+        wordstoavoid : list of strings
+            If a string matches any of these strings,
+            it will *not* be included in the list of returned rows.
 
         (returns a boolean array)
         '''
@@ -173,6 +196,12 @@ class Night(Talker):
         # find whether the wordstolookfor are seen anywhere in the placetolook
         for w in wordstolookfor:
             thismatch = np.array([w.lower() in word.lower() for word in self.log[placetolook]])
+
+            # reject those bad ones
+            for bad in wordstoavoid:
+                isbad = np.array([bad.lower() in word.lower() for word in self.log[placetolook]])
+                thismatch = thismatch & (isbad == False)
+
             self.speak('{} elements in "{}" contained "{}"'.format(
                         np.sum(thismatch), placetolook, w))
             match = match | thismatch
