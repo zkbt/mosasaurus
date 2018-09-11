@@ -113,21 +113,6 @@ class Calibration(Talker):
 			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
 			return
 
-        # this is a slight hack; want to try extraction without flat fielding
-		if (imageType=='flat') & (imageType not in self.obs.fileprefixes.keys()):
-			self.speak("populating the master {0} image".format(imageType))
-			self.speak('no flat for this instrument so making a dummy image and master')
-
-			masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
-			noisestring = 'StdDev'
-
-			self.images[imageType] = np.array([0.])
-			self.images[imageType+noisestring] = np.array([0.])
-
-			writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
-			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
-			return
-
 		# set the CCD to a particular image type
 		self.ccd.set(exposureprefix=None, imageType=imageType)
 

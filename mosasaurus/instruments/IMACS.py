@@ -346,6 +346,19 @@ class IMACS(Spectrograph):
         # just bottom row - otherwise file is too big
         #return [prefix + 'c5.fits', prefix + 'c6.fits', prefix + 'c7.fits', prefix + 'c8.fits']
 
+    def gain(self, header):
+
+        zeros = [np.zeros((self.datatop, self.dataright)) for i in self.gains]
+        gains = [zeros[i] + self.gains[i] for i in range(len(zeros))]
+        gainimage = self.stitchChips(gains)
+        return gainimage
+
+    def exptime(self, header):
+        return header[0]['EXPTIME']
+
+    def darkexptime(self, header):
+        return header[0]['EXPTIME']
+
     def stitchChips(self, listOfChips):
 
         bottomrow = np.hstack((np.flipud(listOfChips[6]), np.flipud(listOfChips[7]), np.flipud(listOfChips[4]), np.flipud(listOfChips[5])))
@@ -356,4 +369,51 @@ class IMACS(Spectrograph):
         # try just chip 8 and the one below it
         #return np.vstack((np.flipud(listOfChips[1]), np.flipud(np.fliplr(listOfChips[0]))))
 
-#def identifyImageNumbers(self, lookingfor)
+    def loadOverscanTrimHalfCCD(self, filename):
+        '''Open one half of an amplifier of a chip, subtract the overscan, and trim.'''
+        ### FIX ME ### -- this should all be moved into the Spectrograph definition
+
+        # open the FITS file, split into header and data
+        hdu = astropy.io.fits.open(filename)
+        header = hdu[0].header
+        data = readFitsData(filename)
+
+        # take the parts of CCD exposed to light
+        goodData = data[self.databottom:self.datatop,self.dataleft:self.dataright]
+        goodBias = data[self.databottom:self.datatop,self.dataright:]
+
+        # estimate the 1D bias (and drawdown, etc...) from the overscan
+        biasEstimate = np.median(goodBias, axis=1)
+        biasImage = np.ones(goodData.shape)*biasEstimate[:,np.newaxis]
+
+        return (goodData - biasImage), header
+
+    def loadSingleCCD(self, filenames):
+        '''
+        Load an IMACS image; subtract and trim its overscan.
+        In general, this function should load and return a single image. 
+        If the detector uses multiple amplifiers to read out different parts of the same chip, 
+        this function should stitch those sections together.
+
+        Parameters
+        ----------
+        filenames: list
+            a list of relevant filenames (e.g. multiple amplifiers)
+
+        Returns
+        -------
+        image: array
+            a overscan-trimmed CCD image
+        '''
+
+        # load the chips
+        c_ = np.array([self.loadOverscanTrimHalfCCD(f) for f in filenames])
+        c_data = c_[:,0]    # list of chip data
+        c_header = c_[:,1]  # list of chip header
+
+        # stitch the CCD's together
+        stitched = self.stitchChips(c_data)
+
+        return stitched, c_header
+
+
