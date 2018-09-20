@@ -173,9 +173,3 @@ def estimateGain(self):
   			cosmicFilename = self.obs.instrument.workingDirectory + 'cosmics{0}to{1}.fits'.format(np.min(n), np.max(n))
   			writeFitsData(outlier, cosmicFilename)
   		return (summedImage-outlier)/count, stddev
-
-
-    def amplifiers(self):
-    # THIS CAME FROM CCD
-        return (self.data[:,0:self.obs.dataright - self.obs.dataleft],
-                self.data[:,self.obs.dataright - self.obs.dataleft:])

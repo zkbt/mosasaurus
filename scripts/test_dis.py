@@ -33,7 +33,7 @@ from mosasaurus.Cube import Cube
 c = Cube(o, width=6)
 c.populate(shift=False)
 c.movieCube(stride=1, remake=False)
-c.setStars(target='aperture_79_0', comparisons=['aperture_390_0'])
+c.setStars(target='aperture_78_0', comparisons=['aperture_390_0'])
 c.save()
 c.imageCube(keys=['raw_counts'], stars=[c.target])
 

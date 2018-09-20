@@ -47,7 +47,7 @@ class WavelengthCalibrator(Talker):
             # try to load a custom wavelength id file
             assert(restart == False)
 
-            self.speak('checking for a custom wavelength-to-pixel file')
+            self.speak('checking for a custom wavelength-to-pixel file: {0}'.format(self.waveidfilename))
             self.waveids = astropy.io.ascii.read(self.waveidfilename)
 
             # keep track of which waveid file is used
@@ -110,6 +110,7 @@ class WavelengthCalibrator(Talker):
 
     def loadCalibration(self):
         '''Load the wavelength calibration.'''
+        self.speak('trying to load calibration data')
         coef, domain = np.load(self.calibrationfilename)
         self.pixelstowavelengths = Legendre(coef, domain)
         self.polynomialdegree = self.pixelstowavelengths.degree()
@@ -126,7 +127,7 @@ class WavelengthCalibrator(Talker):
         Make sure the wavelength calibration is populated,
         either by loading it or making it.
         '''
-
+        self.speak('populating wavelength data')
         # populate the wavelength identifications
         self.loadWavelengthIdentifications(restart=restart)
         try:
@@ -139,6 +140,7 @@ class WavelengthCalibrator(Talker):
             #unhappy = ('n' in self.input('Are you happy with the wavelength calibration? [Y,n]').lower())
             #assert(unhappy == False)
         except (IOError, AssertionError):
+            self.speak('makine new calibration')
             self.justloaded = False
             self.create()
 
@@ -332,6 +334,7 @@ class WavelengthCalibrator(Talker):
                 self.justloaded = False
             else:
                 # do an initial fit
+
                 self.pixelstowavelengths = Legendre.fit(
                                                     x=self.pixel,
                                                     y=self.wavelength,

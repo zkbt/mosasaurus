@@ -118,7 +118,6 @@ class CCD(Talker):
         # return the image
         return self.data
 
-
     def rejectCosmicRays(self, remake=False, threshold=7.5, visualize=False, nBeforeAfter=5):
         '''Stitch all science images, establish a comparison noise level for each pixel.'''
 
@@ -132,14 +131,9 @@ class CCD(Talker):
         exposureprefix = self.exposureprefix
 
         try:
-            #print "testing"
             ok = remake == False
-            #print 'remake'
             ok = ok & os.path.exists(self.stitched_filename)
-            #print 'fits'
             ok = ok & os.path.exists(self.cosmicsFilename)
-            #print 'rejected'
-            #print ok
             assert(ok)
             self.speak('a cosmic-rejected stitched/Science{0:04.0f}.fits already exists!'.format(n))
 
@@ -230,41 +224,41 @@ class CCD(Talker):
         return cube
 
     def createStitched(self):
-        '''Create and load a stitched CCD image, given a (stored) file prefix.'''
+        '''Create and load a stitched CCD image, given a file prefix.'''
 
         # print status
-        self.speak("creating a stitched image for {0}".format(self.stitched_filename))
+        self.speak(self.space + "creating a stitched image for {0}".format( self.stitched_filename))
 
         # provide different options for different kinds of images
         if self.imageType == 'bias':
             self.flags['subtractbias'] = False
             self.flags['subtractdark'] = False
             self.flags['multiplygain'] = False
+            self.flags['subtractcrosstalk'] = False
         elif self.imageType == 'dark':
             self.flags['subtractbias'] = True
             self.flags['subtractdark'] = False
             self.flags['multiplygain'] = False
+            self.flags['subtractcrosstalk'] = False
         elif self.imageType == 'FlatInADU':
             self.flags['subtractbias'] = True
             self.flags['subtractdark'] = True
             self.flags['multiplygain'] = False
+            self.flags['subtractcrosstalk'] = False
         else:
             self.flags['subtractbias'] = True
             self.flags['subtractdark'] = True
             self.flags['multiplygain'] = True
+            self.flags['subtractcrosstalk'] = True
 
         # don't restitch if unnecessary
         if os.path.exists(self.stitched_filename):
-            self.speak("{0} has already been stitched".format(self.name))
+            self.speak(self.space + "{0} has already been stitched".format(self.name))
         else:
             # process the two halves separately, and then smush them together
             filenames = [os.path.join(self.obs.night.dataDirectory, f) for f in self.instrument.prefix2files(self.exposureprefix)]
 
-            # load the (only) image
             stitched, header = self.instrument.loadSingleCCD(filenames)
-
-            if self.visualize:
-                tempstitched = stitched
 
             if self.visualize:
                 self.display.one(stitched, clobber=True)
@@ -273,8 +267,6 @@ class CCD(Talker):
             # subtract bias
             if self.flags['subtractbias']:
                 self.speak("subtracting bias image")
-
-                # pull the bias from the calibraion object
                 stitched -= self.calib.bias()
 
             if self.visualize:
@@ -315,9 +307,8 @@ class CCD(Talker):
             # find and reject cosmics based on nearby images in time
             if self.instrument.zapcosmics:
                 if self.imageType == 'science':
-                    self.rejectCosmicRays() # KLUDGE -- I'm pretty sure this shouldn't be used
+                    self.rejectCosmicRays()
 
             # write out the image to a stitched image
             writeFitsData(self.data, self.stitched_filename)
-            self.speak("stitched and saved {0}".format(self.name))
-            assert(np.isfinite(self.data).any())
+            self.speak(self.space + "stitched and saved {0}".format(self.name))

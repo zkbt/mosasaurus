@@ -61,62 +61,40 @@ class Aperture(Talker):
   def setup(self,x,y):
     '''Setup the basic geometry of the aperture.'''
 
-
-    # images *must* be row=wavelength, col=spatial
-    self.windex = 0
-    self.sindex = 1 - self.windex
-
-    # set all longslit apertures to have the *same* w-zeropoint
-    if self.instrument.slitstyle == 'longslit':
-        if self.windex == 0:
-            y = 0
-        else:
-            x = 0
-
-    # what's the center of the aperture, on the original image?
     self.x = x
     self.y = y
-
-    # define the subarray width (spatial)
     self.maskWidth = self.instrument.extractiondefaults['spatialsubarray']
-
-    # define the subarray length (wavelength)
-    blueward = self.instrument.extractiondefaults['stampwavelengthblueward']
-    redward = self.instrument.extractiondefaults['stampwavelengthredward']
+    #(self.obs.skyWidth + self.obs.skyGap)*2 #+20 +
+    blueward = self.instrument.extractiondefaults['wavelengthblueward']
+    redward = self.instrument.extractiondefaults['wavelengthredward']
     self.ystart = np.maximum(y - blueward, 0).astype(np.int)
     self.yend = np.minimum(y + redward, self.instrument.ysize).astype(np.int)
     self.xstart = np.maximum(x - self.maskWidth, 0).astype(np.int)
     self.xend = np.minimum(x + self.maskWidth, self.instrument.xsize).astype(np.int)
-
     # remember python indexes arrays by [row,column], which is opposite [x,y]
     x_fullframe, y_fullframe = np.meshgrid(np.arange(self.calib.images['science'].shape[1]),
                     np.arange(self.calib.images['science'].shape[0]))
     self.x_sub = x_fullframe[self.ystart:self.yend, self.xstart:self.xend]
     self.y_sub = y_fullframe[self.ystart:self.yend, self.xstart:self.xend]
-
-    # create some box sizes
-    self.xbox = (self.xstart + self.xend)/2
-    self.ybox = (self.ystart + self.yend)/2
-    self.wbox = np.abs(self.xend - self.xstart)
-    self.hbox = np.abs(self.yend - self.ystart)
-
     # first index of np. array is in the wavelength (w) direction
     # second index is in the spatial (s) direction
     # we'll define these now to help keep things straight
     self.w = self.y_sub - self.y#self.ystart
     self.s = self.x_sub - self.x#self.xstart
-
+    self.windex = 0
+    self.sindex = 1 - self.windex
     if self.windex == 0:
         self.waxis = self.w[:,0]
         self.saxis = self.s[0,:]
 
+    # images *must* be row=wavelength, col=spatial
+    self.windex = 0
+    self.sindex = 1 - self.windex
 
-    # define a name and directory for this aperture
     self.name = 'aperture_{0:.0f}_{1:.0f}'.format(self.x, self.y)
     self.directory = os.path.join(self.mask.reducer.extractionDirectory, self.name)
     mkdir(self.directory)
     self.speak("created a spectroscopic aperture at ({0:.1f}, {1:.1f})".format(self.x, self.y))
-
 
   def stamp(self, image):
     '''Return a postage stamp of an image, appropriate for this aperture.'''
@@ -142,16 +120,15 @@ class Aperture(Talker):
 
 
       # cut out stamps from the big images
-      interesting = ['science' ,
-                    'flat',
-                    'He', 'Ne', 'Ar',
-                    'badpixels', 'dark', 'bias']
+      #interesting = ['science', 'flat', 'He', 'Ne', 'Ar','badpixels', 'dark', 'bias']
+      interesting = ['science', 'badpixels'] + self.instrument.detectorcalibrations + self.instrument.arclamps
       for k in interesting:
         self.images[k] = self.stamp(self.calib.images[k])
 
       #self.speak('these are the stamps before interpolating over bad pixels')
       #self.displayStamps(self.images, keys = ['science', 'flat', 'badpixels'])
       #self.input('', prompt='(press return to continue)')
+      #self.images['badpixels'] = np.zeros_like(self.images['science'])
       for k in interesting:
           if k != 'badpixels':
               self.images[k] = craftroom.twod.interpolateOverBadPixels(self.images[k], self.images['badpixels'])
@@ -166,7 +143,11 @@ class Aperture(Talker):
       #		self.images[k] -= self.images['dark']
 
       # this is a rough flat - will be refined later in create NormalizedFlat
-      self.images['RoughFlat'] = self.images['flat']/np.median(self.images['flat'], self.sindex).reshape(self.waxis.shape[0], 1)
+      try:
+          self.images['RoughFlat'] = self.images['flat']/np.median(self.images['flat'], self.sindex).reshape(self.waxis.shape[0], 1)
+      except(KeyError):
+          self.images['flat'] = np.ones_like(self.images['science'])
+          self.images['RoughFlat'] = np.ones_like(self.images['science'])
 
       np.save(calibfilename, self.images)
       self.speak("saved calibration stamps to {0}".format(calibfilename))
@@ -239,17 +220,16 @@ class Aperture(Talker):
       self.images['NormalizedFlat'] += np.abs(normmask - 1)
 
       # visualize and save NormalizedFlat
+      if visualize:
+          # flat field has been medianed so most values should center on 1; want to be able to see finer-scale structure
+          self.display.one(self.images['NormalizedFlat'], aspect='auto', vmin=0.95, vmax=1.05, scale='linear')
+          self.display.run()
+
       plt.figure('normalized flat')
       ax = plt.subplot()
       ax.imshow(self.images['NormalizedFlat'].T, cmap='gray', aspect='auto', vmin=0.95, vmax=1.05)
       ax.set_xlabel('pixels')
       ax.set_ylabel('pixels')
-      if visualize:
-          # flat field has been medianed so most values should center on 1; want to be able to see finer-scale structure
-          self.display.one(self.images['NormalizedFlat'], aspect='auto', vmin=0.95, vmax=1.05)
-          self.display.run()
-          answer = self.input("Did you like the NormalizedFlat for this stamp? [Y,n]").lower()
-      assert('n' not in answer)
 
       plt.savefig(normfilename)
       self.speak("saved normalized flat to {0}".format(normfilename))
@@ -365,33 +345,49 @@ class Aperture(Talker):
                 '''
                 #####################################################
                 # hzdl modification: making extraction and sky windows based on FWHM of each row in the cross-dispersion direction
-                mask = (self.images['BadPixels']-1)*-1
+
+                # pick out the exposure prefixes that will get plotted as a diagnostic
+                fileprefixes = self.obs.fileprefixes['science']
+                indices = np.floor(np.linspace(0, len(fileprefixes)-1, 6)).astype('int')
+
+                self.speak('using FWHM modification')
+                mask = (self.images['badpixels']-1)*-1
                 subimage = (image/self.images['NormalizedFlat']*mask)#[:,boxcuts[0]:boxcuts[-1]]
                 disp, crossdisp = subimage.shape
                 FWHM = np.zeros(disp)
                 edge1, edge2 = np.zeros(disp), np.zeros(disp)
 
+                subarray = self.instrument.extractiondefaults['spatialsubarray']
+                lastr1, lastr2 = subarray, subarray+width
                 for i in range(disp):
 
                     # make a psf by cross-dispersion column; multiply by extraction mask so neighboring spectra are not included
                     psf = subimage[i]*self.intermediates[width]['extractMask'][i]
                     # create a spline to fit to the psf; this will give the FWHM roots
-                    spline = spi.UnivariateSpline(range(len(psf)), psf-np.max(psf)/2.)
-                    r1, r2 = spline.roots() # find the roots
+                    spline = scipy.interpolate.UnivariateSpline(range(len(psf)), psf-np.max(psf)/2.)
+                    #print(i)
+                    #print(psf)
+                    #ipyprint(spline.roots())
+                    try:
+                        r1, r2 = spline.roots() # find the roots
+                        lastr1, lastr2 = r1, r2
+                    except(ValueError):
+                        #print(i, width, 'roots: ', spline.roots(), 'using: ', lastr1, lastr2)
+                        r1, r2 = lastr1, lastr2
 
                     FWHM[i] = r2-r1
                     edge1[i] = r1
                     edge2[i] = r2
 
-                # up to here edges will be the same for every extraction width;
-                # extend edges out by width/2 times FWHM/2 on each side
-                edge1 -= (FWHM/2.)*(width/2.)
-                edge2 += (FWHM/2.)*(width/2.)
+                # up to here edges will be basically the same for every extraction width;
+                # extend edges out by width/2 times FWHM/2
+                edge1 -= (FWHM/2.) * (width/2.)
+                edge2 += (FWHM/2.) * (width/2.)
 
                 # smooth edges
-                edge1spline = spi.UnivariateSpline(range(len(edge1)), edge1)
+                edge1spline = scipy.interpolate.UnivariateSpline(range(len(edge1)), edge1)
                 edge1smooth = edge1spline(range(len(edge1)))
-                edge2spline = spi.UnivariateSpline(range(len(edge2)), edge2)
+                edge2spline = scipy.interpolate.UnivariateSpline(range(len(edge2)), edge2)
                 edge2smooth = edge2spline(range(len(edge2)))
 
                 # this will become the new extraction mask; make sure to include partial pixels
@@ -415,6 +411,8 @@ class Aperture(Talker):
                 self.intermediates[width]['extractMask'] = newextractmask
                 self.intermediates[width]['skyMask'] = newskymask
 
+                self.extracted[width]['median_width'] = np.median(edge2smooth - edge1smooth)
+
                 # end hzdl modification
                 ###############################
                 '''
@@ -432,6 +430,17 @@ class Aperture(Talker):
 
                 # store the 2D sky subtracted image
                 self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat'] - self.intermediates[width]['sky']
+
+                # this is a plotting tool to go along with the FWHM modification
+                #if self.exposureprefix in [fileprefixes[i] for i in indices]:
+                #    diagnosticFilename = os.path.join(self.directory, 'extracted_diagnostic_{0}_{1}px.pdf'.format(self.exposureprefix, width))
+                #    plt.figure('diagnostic')
+                #    plt.imshow(image/self.images['NormalizedFlat' ] - self.intermediates[width]['sky'], aspect='auto', interpolation='none', vmin=0, vmax=50000)
+                #    plt.plot(edge1smooth, range(len(self.waxis)), color='C1')
+                #    plt.plot(edge2smooth, range(len(self.waxis)), color='C1')
+                #    plt.colorbar()
+                #    plt.savefig(diagnosticFilename)
+                #    plt.close('diagnostic')
 
                 '''
                 # optimal extraction
@@ -455,8 +464,8 @@ class Aperture(Talker):
                 spec, specunc, newmask = OptimalExtraction.optimize(subdata.T, submask.T, bg.T, spectrum, 1, 0, p5thresh=10, p7thresh=10, fittype='smooth', window_len=11)
                 self.extracted[width]['raw_counts_optext'] = spec
                 '''
-                self.extracted[width]['raw_counts_optext'] = self.extracted[width]['raw_counts']
 
+                self.extracted[width]['raw_counts_optext'] = self.extracted[width]['raw_counts']
 
                 #if self.obs.slow:
                 #    writeFitsData(self.intermediates['subtracted'], self.extractedFilename.replace('extracted', 'subtracted').replace('npy', 'fits'))
@@ -487,6 +496,9 @@ class Aperture(Talker):
                 self.extracted[width]['raw_counts'] = np.nansum(self.intermediates[width]['extractMask']*image/self.images['NormalizedFlat'], self.sindex)
                 # this is a kludge, to make the plotting look better for arcs
                 self.intermediates[width]['sky']  = np.zeros_like(self.intermediates['original'])# + np.percentile(self.extracted[width]['raw_counts'] , 1)
+
+            #import sys
+            #sys.exit("Breaking here. Check it out.")
 
         if arc==False:
             self.visualizeExtraction(width)
