@@ -87,6 +87,9 @@ class Aperture(Talker):
         self.waxis = self.w[:,0]
         self.saxis = self.s[0,:]
 
+    # images *must* be row=wavelength, col=spatial
+    self.windex = 0
+    self.sindex = 1 - self.windex
 
     self.name = 'aperture_{0:.0f}_{1:.0f}'.format(self.x, self.y)
     self.directory = os.path.join(self.mask.reducer.extractionDirectory, self.name)
@@ -342,7 +345,7 @@ class Aperture(Talker):
                 '''
                 #####################################################
                 # hzdl modification: making extraction and sky windows based on FWHM of each row in the cross-dispersion direction
-                
+
                 # pick out the exposure prefixes that will get plotted as a diagnostic
                 fileprefixes = self.obs.fileprefixes['science']
                 indices = np.floor(np.linspace(0, len(fileprefixes)-1, 6)).astype('int')
@@ -368,7 +371,7 @@ class Aperture(Talker):
                     try:
                         r1, r2 = spline.roots() # find the roots
                         lastr1, lastr2 = r1, r2
-                    except(ValueError): 
+                    except(ValueError):
                         #print(i, width, 'roots: ', spline.roots(), 'using: ', lastr1, lastr2)
                         r1, r2 = lastr1, lastr2
 
@@ -804,26 +807,54 @@ class Aperture(Talker):
           self.speak('{0} already exists'.format(self.supersampledFilename))
 
   def interpolate(self, remake=False, shift=False):
-        '''Interpolate the spectra onto a common (uniform) wavelength scale.'''
+        '''
+        Interpolate the spectra onto a common (uniform) wavelength scale.
+        This includes both the raw_counts, as well as all the auxiliary
+        wavelength-axis arrays (sky, peak, centroid, width) too. It saves
+        these resampled spectra to their own file.
+
+        Parameters
+        ----------
+        remake : bool
+            Should we remake the resampled arrays,
+            even if some saved files already exist?
+
+        shift : bool
+            Should we apply a shift/stretch to the wavelengths
+            when doing the resampling? A general path will be
+            to extract first with shift=False, then cross-correlate
+            multiple spectra (possibly in both times and stars)
+            to estimate time-dependent stretches, then rerun
+            this function with shift=True, so the resampling
+            uses the updated wavelengths.
+
+        '''
 
 
-        # these are things where we care about the sum matching extracted to supersampled
+        # these are things where we care about the sum matching between extracted and supersampled
         self.additivekeys = ['raw_counts', 'sky']
-        # these are things where we want the individual values matching extracted to supersampled
+
+        # these are things where we want the individual values matching between extracted and supersampled
         self.intrinsickeys = ['centroid', 'width', 'peak']
+
         # these are all the keys that will be supersampled
         self.keys = self.additivekeys + self.intrinsickeys
 
+
         try:
+            # try just loading the supersampled spectra from files
             assert(remake == False)
             self.supersampled = np.load(self.supersampledFilename)
             self.speak('loaded supersampled spectrum from {0}'.format(self.supersampledFilename))
         except (AssertionError, IOError):
-
+            # otherwise, make some new supersampled spectra
             if shift:
+
                 try:
+                    # do we already know how to stretch spectra in this aperture?
                     self.stretches
                 except AttributeError:
+                    # load the spectral stretches that were estimated via a WavelengthRecalibrator
                     stretchfilename = os.path.join(self.mask.reducer.extractionDirectory,  'spectralstretch.npy')
                     self.stretches = np.load(stretchfilename)[()]
                     self.speak('loaded stretches from {}'.format(stretchfilename))
@@ -862,20 +893,29 @@ class Aperture(Talker):
             # pull out the extracted wavelength and column pixel number
             if shift:
 
+                # the wavelength originally estimated for the pixels
                 originalwavelength = self.extracted['wavelength']
-                midpoint = self.stretches['midpoint']
+
+                # pull out the ingredients for stretching/shifting the wavelengths
                 star = self.name
+                midpoint = self.stretches['midpoint']
                 coefficients = self.stretches['stretch'][star][self.exposureprefix], self.stretches['shift'][star][self.exposureprefix]
+                # calculate dw = originalwavelength - newwavelength  = f(originalwavelength - midpoint)
                 dw = np.polyval(coefficients, originalwavelength - midpoint)
                 wavelength = originalwavelength - dw
+
+                # quote by how much the wavelengths were nudged
                 phrase = 'dw = {:.4}x(w - {midpoint}){:+.4}'.format(*coefficients, midpoint=midpoint)
                 self.speak('nudge wavelengths for {} by {}'.format(self.exposureprefix, phrase))
             else:
                 wavelength = self.extracted['wavelength']
+
+            # what's the original pixel number for each extracted bin?
             pixelnumber = self.extracted['w']
 
-            # set up a fine, common wavelength grid onto which everything will be interpolated
+            # set up a (generally higher resolution) common wavelength grid onto which everything will be interpolated
             try:
+                # does the supersampled grid already exist?
                 self.supersampled['wavelength']
             except (AttributeError, KeyError):
 
@@ -888,13 +928,14 @@ class Aperture(Talker):
 
                 # what fraction of an original pixel went into this new pixel?
                 doriginaldnew = fluxconservingresample(wavelength,
-                                                                        np.ones_like(pixelnumber),
-                                                                        commonwavelength)
+                                                       np.ones_like(pixelnumber),
+                                                       commonwavelength)
 
-
+                # store our shared wavelength grid
                 self.supersampled = {}
                 self.supersampled['wavelength'] = commonwavelength
                 self.supersampled['fractionofapixel'] = doriginaldnew
+
             # loop over the measurement types
             sharex=None
             for i, key in enumerate(self.keys):
@@ -923,14 +964,17 @@ class Aperture(Talker):
                                         self.supersampled['wavelength'],
                                         treatnanas=0.0)
 
-                    assert(np.isfinite(ysupersampled).all())
+                    assert(np.isfinite(ysupersampled).any())
 
                     # turn the bad elements back to nans
-                    #ysupersampled[yclosetonan] = np.nan
+                    ysupersampled[yclosetonan] = np.nan
 
+                    # decide whether we are summing or averaging this array
                     if key in self.additivekeys:
+                        # fluxconservingresample by default gives a sum
                         self.supersampled[combinedkey] = ysupersampled
                     elif key in self.intrinsickeys:
+                        # divide by the number of pixels to get down to an average
                         self.supersampled[combinedkey] = ysupersampled/self.supersampled['fractionofapixel']
                     else:
                         self.speak("Yikes! It's not clear if {} is an additive or intrinsic quantity!".format(key))

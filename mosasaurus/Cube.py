@@ -37,6 +37,9 @@ class Cube(Talker):
     self.tempfilename = os.path.join(self.directory, 'tempSpectralCube.npy')
     self.cubekeys = ['raw_counts', 'sky',  'centroid', 'width', 'peak']
 
+    self.target=None
+    self.comparisons=[]
+
     # what attributes are savable/loadable?
     self.savable = ['cubes', 'squares', 'temporal', 'spectral', 'stellar', 'target', 'comparisons']
 
@@ -923,7 +926,7 @@ class Cube(Talker):
         '''For the ith component in the cube, plot all the spectra.'''
 
         # these (global) values will be plotted along the right side of the plot
-        self.globallinekeys = ['airmass', 'rotatore']
+        self.globallinekeys = self.obs.instrument.globallinekeys
 
         # these (star-by-star) values will be plotted along the right side
         self.starlinekeys = ['sky', 'width', 'centroid']#, 'shift']# 'cosmicdiagnostic', #, 'lc']
@@ -990,11 +993,13 @@ class Cube(Talker):
                     thisy = thisy[np.isfinite(thisy)]
                     # make some adjustments, set ylim, and remove xlabels
                     if k in ['sky', 'peak', 'raw_counts']:
-                        ylim = (0, np.percentile(thisy,99.9)*1.2)
+                        ylim = (0, np.nanpercentile(thisy,99.9)*1.2)
                     elif k in ['centroid']:
                         ylim =  [-10.0, 10.0]#np.percentile(thisy,[1,99])
                     elif k in ['width']:
                         ylim = (0, 10.0)
+                    self.speak('ylim for {} is {}'.format(k, ylim))
+                    assert(ylim[0] != ylim[1])
                     self.ax_spectra[k][istar].set_ylim(*ylim )
                     plt.setp(self.ax_spectra[k][istar].get_xticklabels(), visible=False)
 
@@ -1041,7 +1046,8 @@ class Cube(Talker):
                 ax.get_xaxis().get_major_formatter().set_useOffset(False)
 
                 if i == int(len(self.linekeys)/2):
-                    self.timestamp = ax.set_title('{0}: {1} {2}'.format(self.obs.target.name, self.temporal['ut-date'][which], self.temporal['ut-time'][which]))
+                    this_time = astropy.time.Time(self.temporal['jd_utc'][which], format='jd', scale='utc').iso
+                    self.timestamp = ax.set_title('{0}: {1}'.format(self.obs.target.name, this_time))
 
             ax.set_ylim(self.numberoftimes, -1)
             for istar, star in enumerate(self.stars):
@@ -1065,4 +1071,5 @@ class Cube(Talker):
                 self.ps[s][k].set_data(x, y)
                 #self.speak('median {} value for star {} is {}'.format(k, s, np.median(y)))
             self.ax_spectra[self.cubekeys[0]][istar].set_title('image {0},\nstar {1}, aperture {2}'.format(self.temporal['fileprefix'][which], istar, s.replace('aperture_', '')))
-        self.timestamp.set_text('{0}: {1} {2}'.format(self.obs.target.name, self.temporal['ut-date'][which], self.temporal['ut-time'][which]))
+        this_time = astropy.time.Time(self.temporal['jd_utc'][which], format='jd', scale='utc').iso
+        self.timestamp.set_text('{0}: {1}'.format(self.obs.target.name, this_time))
