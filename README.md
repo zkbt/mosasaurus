@@ -1,10 +1,9 @@
 # mosasaurus
-Tools for extracting chromatic lightcurves from MultiObject Spectrograph data. This
+Tools for extracting chromatic lightcurves from MultiObject Spectrograph data.
 
-*These tools are still under active development. There's no promise they'll do something useful for you if you download them. Since January 2018, the `reorganization` branch is pretty darn far ahead of `master`. It'll be merged in soon.*
+*These tools are still under active development. There's no promise they'll do something useful for you if you download them.*
 
 ### Installation
-
 
 We recommend you fork/clone this repository onto your own computer and install directly from that editable package. From some base directory where you like to store code, run
 ```

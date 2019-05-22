@@ -4,8 +4,11 @@ from .Headers import Headers
 
 #  an object that stores all the specifics related to a particular target/night of observing
 class Observation(Talker):
-    '''Observation object store basic information about an observation of
-        one object with one instrument on one night.'''
+    '''
+    An Observation object store basic information about
+    an observation of one object with one instrument on one night.
+    '''
+
     def __init__(self, target=None, instrument=None, night=None, **kwargs):
         '''Initialize an observation object.'''
 
@@ -14,11 +17,11 @@ class Observation(Talker):
         # set up connections to the other necessary objects
         self.target=target
         self.instrument=instrument
+        self.instrument.obs = self # link this observation back to the instrument
         self.night=night
 
         # make a directory hold all analyses for this observation
-        self.directory = os.path.join(self.instrument.workingDirectory,
-                                        "{}_{}".format(self.night.name, self.target.name))
+        self.directory = os.path.join(self.night.directory, self.target.name)
         mkdir(self.directory)
 
         # set up the observation with the prefixes it will need
@@ -89,26 +92,29 @@ class Observation(Talker):
                     # if the strategy is a string, then just look for that
                     if type(strategy[k]) == list:
                         wordstosearchfor = strategy[k]
-
+                    wordstoavoid = []
                     # add other options?
 
                 else:
                     # find exposures where
                     if k == 'science':
                         wordstosearchfor = [self.target.starname]
+                        wordstoavoid=[]
                     elif k == 'reference':
                         wordstosearchfor = [self.target.starname]
+                        wordstoavoid=[]
                     else:
                         wordstosearchfor = self.instrument.wordstosearchfor[k]
+                        wordstoavoid = self.instrument.wordstoavoid[k]
 
                 # this will find the indices that match the wordstosearchfor
-                match = self.night.find(wordstosearchfor, self.instrument.keytosearch)
+                match = self.night.find(wordstosearchfor, self.instrument.keytosearch, wordstoavoid=wordstoavoid)
 
                 # make sure this table is sorted by the fileprefix
                 tableforthissubset = self.night.log[match]
-                tableforthissubset.sort('fileprefix')
+                tableforthissubset.sort(self.instrument.summarysortkey)
 
-                
+
                 self.exposures[k] = tableforthissubset
                 self.exposures[k].meta['comments'] = ['mosasaurus will treat these as [{}] exposures for {}'.format(k, self), '']
                 self.exposures[k].write(fileofiles, **tablekw)

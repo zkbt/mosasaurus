@@ -1,15 +1,30 @@
 from .Spectrograph import *
 
 class LDSS3C(Spectrograph):
+    '''
+    This is an LDSS3C instrument. It contains all instrument specific
+    parameters and processes. Some procedures are inherited generally
+    from Spectrograph, so functions that you expect to be common to
+    many instruments should likely be coded there.
+    '''
 
+    # a string for the instrument name
     name = 'LDSS3C'
 
+    # are the slits in a "mask" (with different locations for every star)
+    #               or a "longslit" (with one location for each star?)
+    slitstyle = 'mask'
+
+    # file search patten to get a *single* fileprefix for each exposure
+    # LDSS3C has two amplifier readouts ('c1.fits' and 'c2.fits');
+    #  this pulls the fileprefix just from c1
     basicpattern = 'ccd*c1.fits'
 
     # which header of the fits file contains the header with useful information
     fitsextensionforheader = 0
 
     # what keys should be included in the nightly logs for this instrument?
+    # this is everything you might want to have access to at some point
     keysforlogheader = [    'ut-date',
                             'ut-time',
                             'object',
@@ -27,6 +42,7 @@ class LDSS3C(Spectrograph):
                             'comment']
 
     # what keys should make it into condensed summary logs?
+    # these are things you'll want for deciding what type each file is
     keysforsummary = [      'fileprefix',
                             'object',
                             'exptime',
@@ -36,6 +52,7 @@ class LDSS3C(Spectrograph):
                             'airmass']
 
     # what keys do we want to store associated with a science timeseries?
+    # these will show up, ultimately, in the 'temporal' key of a cube
     keysfortimeseries = [   'date-obs',
                             'ut-date',
                             'ut-time',
@@ -52,51 +69,35 @@ class LDSS3C(Spectrograph):
                             'rotangle',
                             'rotatore']
 
-
+    globallinekeys = ['airmass', 'rotatore']
     # these keys are useful to search for guessing the filetype
+    # for LDSS3C, the usful information is in the "object" key of the header
+    # for other instruments, I could imagine "comments" being useful sometimes
     keytosearch = 'object'
 
-    # within those keys, what words do we search for?
-    wordstosearchfor = {'dark':['dark'],
+    # by what key should files be sorted in the summaries?
+    summarysortkey = 'fileprefix'
+
+    # within that header key, what words do we search for?
+    wordstosearchfor = { 'dark':['dark'],
                          'bias':['bias'],
                          'flat':['quartz', 'flat'],
-                         'He':['He', 'helium'],
-                         'Ne':['Ne', 'neon'],
-                         'Ar':['Ar', 'argon']}
+                           'He':['He', 'helium'],
+                           'Ne':['Ne', 'neon'],
+                           'Ar':['Ar', 'argon']}
+
+    wordstoavoid  =    { 'dark':[],
+                         'bias':[],
+                         'flat':[],
+                           'He':[],
+                           'Ne':[],
+                           'Ar':['dark', 'quartz']}
 
     def __repr__(self):
-        '''How should this object be represented as a string?'''
+        '''
+        How should this object be represented as a string?
+        '''
         return '<Spectrograph {}>'.format(self.name)
-
-    def findDarks(self, night):
-        '''Identify the dark exposures.'''
-        match = night.find( wordstolookfor = self.wordstosearchfor['dark'],
-                            placetolook = self.keytosearch)
-        return match
-
-    def findBiases(self, night):
-        '''Identify the bias exposures.'''
-        match = night.find( wordstolookfor = self.wordstosearchfor['bias'],
-                            placetolook = self.keytosearch)
-        return match
-
-    def findHe(self, night):
-        '''Identify the He exposures.'''
-        match = night.find( wordstolookfor = self.wordstosearchfor['He'],
-                            placetolook = self.keytosearch)
-        return match
-
-    def findNe(self, night):
-        '''Identify the Ne exposures.'''
-        match = night.find( wordstolookfor = self.wordstosearchfor['Ne'],
-                            placetolook = self.keytosearch)
-        return match
-
-    def findAr(self, night):
-        '''Identify the Ar exposures.'''
-        match = night.find( wordstolookfor = self.wordstosearchfor['Ar'],
-                            placetolook = self.keytosearch)
-        return match
 
     def __init__(self, grism='vph-red'):
 
@@ -112,19 +113,6 @@ class LDSS3C(Spectrograph):
         self.observatory = coord.EarthLocation.from_geodetic(-4.71333*u.hourangle, -29.00833*u.deg, 2282.0*u.m)
         #EarthLocation(1845655.49905341*m, -5270856.2947176*m, -3075330.77760682*m)
 
-        '''
-        # removed this once I realized astropy knew about LCO
-        self.observatory = dict(
-            name="Las Campanas Observatory",
-            timezone="Chilean",
-            standardzone = 4.0*astropy.units.hour,
-            usedaylightsaving = -1,
-            longitude = 4.71333*astropy.units.hourangle,
-            latitude = -29.00833*astropy.units.deg,
-            elevsea = 2282.0*astropy.units.m,
-            elev = 2282.0*astropy.units.m, # /* for ocean horizon, not Andes! */
-            )
-        '''
 
         # what grism is being used ['vph-red', 'vph-all', 'vph-blue']
         self.grism = grism.lower()
@@ -186,8 +174,7 @@ class LDSS3C(Spectrograph):
                                             }
         elif self.grism == 'vph-red':
             self.uniformwavelengths = np.arange(6000, 10500)
-            self.alignmentranges = dict(#UV=(6870, 6900),
-                                            O2=(7580, 7650),
+            self.alignmentranges = dict(    O2=(7580, 7650),
                                             Ca1=(8490, 8525),
                                             Ca2=(8535, 8580),
                                             Ca3=(8650, 8700),
@@ -199,23 +186,23 @@ class LDSS3C(Spectrograph):
         self.arclamps = ['He', 'Ne', 'Ar']
 
         # set up the wavelength calibration paths and files
-        self.disperserDirectory = os.path.join(mosasaurusdirectory,
+        self.disperserDataDirectory = os.path.join(mosasaurusdirectory,
                                                 'data/',
                                                 self.name + '/',
                                                 self.disperser + '/')
-        self.wavelength2pixelsFile = os.path.join(self.disperserDirectory,
+        self.wavelength2pixelsFile = os.path.join(self.disperserDataDirectory,
                 '{0}_wavelength_identifications.txt'.format(self.grism))
 
-        self.wavelengthsFile = os.path.join(self.disperserDirectory,
+        self.wavelengthsFile = os.path.join(self.disperserDataDirectory,
                 'HeNeAr.txt')
 
         if self.binning == 2:
             self.offsetBetweenReferenceAndWavelengthIDs = -1024
         # find the peak of the combined correlation function
         #if self.aperture.obs.instrument == 'LDSS3C':
-        #    self.peakoffset = -1024 # KLUDGE KLUDGE KLUDGE! np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)
-        #    # (old?) to convert: len(x) - xPeak = x + peakoffset
-        #elif self.aperture.obs.instrument == 'IMACS': self.peakoffset = -75  # also a kludge
+        #    self.offsetBetweenReferenceAndWavelengthIDs = -1024 # KLUDGE KLUDGE KLUDGE! np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)
+        #    # (old?) to convert: len(x) - xPeak = x + offsetBetweenReferenceAndWavelengthIDs
+        #elif self.aperture.obs.instrument == 'IMACS': self.offsetBetweenReferenceAndWavelengthIDs = -75  # also a kludge
 
     def setupExtraction(self):
         '''
@@ -248,11 +235,6 @@ class LDSS3C(Spectrograph):
 
         # what are the kinds of images extractions can work with
         self.extractables = ['science', 'reference']
-
-        # we're going to cross-correlate the spectra within this wavelength range
-        self.extractiondefaults['correlationAnchors'] = [8498.0, 8542.0, 8662.0]
-        self.extractiondefaults['correlationRange'] = [8350, 8800]
-        self.extractiondefaults['correlationSmooth'] = 2
 
 
     def setupDirectories(self,
@@ -305,25 +287,6 @@ class LDSS3C(Spectrograph):
         # return as astropy times, in the UTC system, at the location of the telescope
         return times_earth
 
-    def fileprefix(self, n):
-        '''
-        Feed in a CCD number,
-        spit out the file prefix for
-        that CCD amplifier pair.
-        '''
-        try:
-          return [self.dataDirectory + 'ccd{0:04}'.format(x) for x in n]
-        except TypeError:
-          return self.dataDirectory + 'ccd{0:04}'.format(n)
-
-    def file2prefix(self, filename):
-        '''
-        This function returns a shortened fileprefix from a given filename.
-        '''
-        tail = os.path.split(filename)[-1]
-
-        # LDSS3C is split into two amplifiers, let's pull out the prefix
-        return tail.replace('c2.fits', '').replace('c1.fits', '')
 
     def file2prefix(self, filename):
         '''
@@ -387,8 +350,8 @@ class LDSS3C(Spectrograph):
     def loadSingleCCD(self, filenames):
         '''
         Load an IMACS image; subtract and trim its overscan.
-        In general, this function should load and return a single image. 
-        If the detector uses multiple amplifiers to read out different parts of the same chip, 
+        In general, this function should load and return a single image.
+        If the detector uses multiple amplifiers to read out different parts of the same chip,
         this function should stitch those sections together.
 
         Parameters
@@ -411,5 +374,3 @@ class LDSS3C(Spectrograph):
         stitched = self.stitchChips(c_data)
 
         return stitched, c_header
-
-

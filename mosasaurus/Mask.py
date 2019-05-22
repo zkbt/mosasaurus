@@ -2,11 +2,12 @@ from .imports import *
 from .Aperture import Aperture
 
 class Mask(Talker):
-  '''Mask objects keep track of the collection of Apertures
-        that should be looked at for this observation.
+  '''
+  Mask objects keep track of the collection of Apertures
+     that should be looked at for this observation.
 
-            This can be thought of as the mosasaurus' checklist
-            of slits to investigate, and bookkeeping tools.'''
+  This can be thought of as the mosasaurus' checklist
+   of slits to investigate, and bookkeeping tools.'''
 
   def __init__(self, reducer, **kwargs):
     '''Initialize the mask object.'''

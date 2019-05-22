@@ -30,9 +30,6 @@ class CCD(Talker):
         mkdir(self.stitchedDirectory )
 
 
-        # for printing
-        self.space = '  '
-
         # set up options
         self.flags = {'subtractbias':True, 'subtractdark':True, 'multiplygain':False}
         self.visualize = self.obs.reducer.visualize
@@ -86,7 +83,7 @@ class CCD(Talker):
         # store the header in this object
         self.header = header
 
-        self.speak(self.space + "read header from {0}".format(self.name))
+        self.speak("read header from {0}".format(self.name))
 
         # return the header
         return self.header
@@ -116,7 +113,7 @@ class CCD(Talker):
                 self.cosmicdiagnostic = np.load(self.cosmicsFilename)
 
         # print status
-        self.speak(self.space + "read image from {0}".format(self.name))
+        self.speak("read image from {0}".format(self.name))
 
         # return the image
         return self.data
@@ -205,11 +202,6 @@ class CCD(Talker):
             self.speak('saved cosmic ray rejection checks to {0}'.format(cosmics_directory))
             #self.input('thoughts on CR?')
 
-    def amplifiers(self):
-        return (self.data[:,0:self.obs.dataright - self.obs.dataleft],
-                self.data[:,self.obs.dataright - self.obs.dataleft:])
-
-
     def loadImages(self, exposureprefixes, imageType=None):
         '''Load a series of CCD images, returning them as a cube.'''
 
@@ -283,11 +275,13 @@ class CCD(Talker):
 
             # normalize darks by exposure time
             if self.imageType == 'dark':
+                # if we're creating a dark, normalize to e/s
                 stitched /= self.instrument.darkexptime(header)
 
             # subtract dark
             if self.flags['subtractdark']:
                 self.speak("subtracting dark image")
+                # pull the dark image from the calibration object; multiply by the effective exposure time for the image we're trying to calibrate
                 stitched -= self.calib.dark()*self.instrument.darkexptime(header)
 
             if self.visualize:
