@@ -18,7 +18,7 @@ r.reduce()
 from mosasaurus.Cube import Cube
 for w in [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]:
     c = Cube(o, width=w)
-    c.setStars(target='aperture_545_1206', comparisons=['aperture_165_1139'])
+    c.setStars(target='aperture_545_1209', comparisons=['aperture_165_1141'])
     c.populate(shift=False, max=None)
     c.savable=c.savable + ['target', 'comparisons']
     c.save()
@@ -42,7 +42,7 @@ for w in [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]:
     c.save()
     c.imageCube(keys=['raw_counts'], stars=[c.target])
 
-    #c.exportShiftStretch() 
+    #c.exportShiftStretch()
 
     '''
     c.imageCube(remake=True)

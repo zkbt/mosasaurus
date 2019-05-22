@@ -144,7 +144,7 @@ class LDSS3C(Spectrograph):
 
         # basic information about the amplifiers
         self.namps = 2
-        self.gains = np.array([1.72, 1.49])
+        self.gains = np.array([1.67, 1.45])
         self.binning = 2
 
         # what area of the detector contains real data? (for individual amplifiers
@@ -228,7 +228,7 @@ class LDSS3C(Spectrograph):
         self.extractiondefaults['spatialsubarray'] = 50
         # how far (in pixels) does spectrum extend away from direct image position
         self.extractiondefaults['wavelengthredward'] = np.inf
-        self.extractiondefaults['wavelengthblueward'] = np.inf
+        self.extractiondefaults['wavelengthblueward'] = 1050
 
 
         # setup the default initial extraction geometry

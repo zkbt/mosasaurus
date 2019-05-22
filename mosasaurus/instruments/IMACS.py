@@ -57,11 +57,13 @@ class IMACS(Spectrograph):
     keytosearch = 'object'
 
     # within those keys, what words do we search for?
-    wordstosearchfor = { 'bias':['bias'],
-                         'flat':['quartz', 'flat'],
-                         'He':['He', 'helium'],
-                         'Ne':['Ne', 'neon'],
-                         'Ar':['Ar', 'argon']}
+    wordstosearchfor = {'dark':['dark'],
+                        'bias':['bias'],
+                        'flat':['quartz', 'flat'],
+                        'He':['He', 'helium'],
+                        'Ne':['Ne', 'neon'],
+                        'Ar':['Ar', 'argon']}
+
 
     def __repr__(self):
         '''How should this object be represented as a string?'''
@@ -157,10 +159,10 @@ class IMACS(Spectrograph):
 
         # what are the calibrations we should expect
         #self.detectorcalibrations = ['bias', 'flat']
-        self.detectorcalibrations = ['bias', 'flat']
+        self.detectorcalibrations = ['dark', 'bias', 'flat']
 
         # how many stitched images can we hold in memory?
-        self.maximumimagesinmemory = 128
+        self.maximumimagesinmemory = 75
         self.maximumimagesinmemoryforscience = 32
 
     def setupDisperser(self):
