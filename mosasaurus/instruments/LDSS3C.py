@@ -215,7 +215,7 @@ class LDSS3C(Spectrograph):
         self.extractiondefaults['spatialsubarray'] = 50
         # how far (in pixels) does spectrum extend away from direct image position
         self.extractiondefaults['stampwavelengthredward'] = np.inf
-        self.extractiondefaults['stampwavelengthblueward'] = np.inf
+        self.extractiondefaults['stampwavelengthblueward'] = 1050
 
 
         # setup the default initial extraction geometry
