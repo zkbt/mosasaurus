@@ -19,7 +19,7 @@ path = '/h/mulan0/data/LHS1140/LDSS3C/' # directory that contains /data/
 if os.path.exists(path):
     i.setupDirectories(path)
 
-i.extractiondefaults['spatialsubarray'] = 50
+i.extractiondefaults['spatialsubarray'] = 155
 i.extractiondefaults['narrowest'] = 6
 i.extractiondefaults['widest'] = 10
 i.extractiondefaults['numberofapertures'] = 3

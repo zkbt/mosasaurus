@@ -17,7 +17,7 @@ class CCD(Talker):
 
         # decide whether or not this Reducer is chatty
         Talker.__init__(self, **kwargs)
-
+        self.space = '  '
 
         # initialize the basic stuff we need
         self.obs = obs
