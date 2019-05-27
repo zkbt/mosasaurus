@@ -2,7 +2,7 @@ from lhs1140_base import *
 
 # create a night to analyze
 from mosasaurus.Night import Night
-n = Night('ut171026_27', instrument=i)
+n = Night('ut181101_02', instrument=i)
 n.createNightlyLog(remake=False)
 
 # create an observation

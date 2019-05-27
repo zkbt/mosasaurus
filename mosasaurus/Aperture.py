@@ -501,9 +501,9 @@ class Aperture(Talker):
 
             # diagnostic: saves files locally to be opened and played with
             import pickle
-            if (('ift' in self.exposureprefix) | ('ccd' in self.exposureprefix)) & (self.exposureprefix == self.obs.fileprefixes['science'][0]) & (width == 6.0):
-                pickle.dump(self.intermediates, open('/home/hdiamond/LHS1140/from_extraction/intermediates2018_'+self.name+'_'+self.exposureprefix+'_'+str(width)+'px.p', 'wb'))
-                pickle.dump(self.images, open('/home/hdiamond/LHS1140/from_extraction/images2018_'+self.name+'_'+self.exposureprefix+'_'+str(width)+'px.p', 'wb'))
+            #if (('ift' in self.exposureprefix) | ('ccd' in self.exposureprefix)) & (self.exposureprefix == self.obs.fileprefixes['science'][0]) & (width == 6.0):
+            pickle.dump(self.intermediates, open('/home/hdiamond/LHS1140/from_extraction/intermediates2018_'+self.name+'_'+self.exposureprefix+'_'+str(width)+'px.p', 'wb'))
+            pickle.dump(self.images, open('/home/hdiamond/LHS1140/from_extraction/images2018_'+self.name+'_'+self.exposureprefix+'_'+str(width)+'px.p', 'wb'))
 
             #import sys
             #sys.exit("Breaking here. Check it out.")
