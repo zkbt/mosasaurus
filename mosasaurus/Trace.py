@@ -405,8 +405,6 @@ class Trace(Talker):
 
         xfine = np.linspace(self.waxis.min(), self.waxis.max(), 10)
         self.plotted['traceguess'].set_data(xfine, self.traceguess(xfine))
-        print(xfine)
-        print(self.traceguess(xfine))
 
         # set the trace fit to be the guess!
         self.tracefit = self.traceguess

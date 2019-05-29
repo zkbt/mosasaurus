@@ -16,39 +16,38 @@ r = Reducer(o, visualize=False)
 r.reduce()
 
 from mosasaurus.Cube import Cube
-for w in [5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]:
-    c = Cube(o, width=w)
-    c.setStars(target='aperture_545_1209', comparisons=['aperture_165_1141'])
-    c.populate(shift=False, max=None)
-    c.savable=c.savable + ['target', 'comparisons']
-    c.save()
-    c.imageCube(keys=['raw_counts'], stars=[c.target])
-    #c.imageCube()
-    #c.populate(shift=True, max=None)
-    #c.imageCube(keys=['raw_counts'], stars=[c.target])
-    #c.save()
-    #c.imageCube()
-    #c.exportShiftStretch()
+c = Cube(o, width=6.0)
+c.setStars(target='aperture_545_1209', comparisons=['aperture_165_1141'])
+c.populate(shift=False, max=None)
+c.savable=c.savable + ['target', 'comparisons']
+c.save()
+c.imageCube(keys=['raw_counts'], stars=[c.target])
+#c.imageCube()
+#c.populate(shift=True, max=None)
+#c.imageCube(keys=['raw_counts'], stars=[c.target])
+#c.save()
+#c.imageCube()
+#c.exportShiftStretch()
 
-    from mosasaurus.WavelengthRecalibrator import WavelengthRecalibrator
-    wr = WavelengthRecalibrator(c, visualize=True)
+from mosasaurus.WavelengthRecalibrator import WavelengthRecalibrator
+wr = WavelengthRecalibrator(c, visualize=True)
 
-    # fix up the wavelength calibration for each exposure
-    r.mask.setup()
-    r.mask.addWavelengthCalibration(shift=True)
+# fix up the wavelength calibration for each exposure
+r.mask.setup()
+r.mask.addWavelengthCalibration(shift=True)
 
-    # repopulate the cube
-    c.populate(shift=True, remake=True)
-    c.save()
-    c.imageCube(keys=['raw_counts'], stars=[c.target])
+# repopulate the cube
+c.populate(shift=True, remake=True)
+c.save()
+c.imageCube(keys=['raw_counts'], stars=[c.target])
 
-    #c.exportShiftStretch()
+#c.exportShiftStretch()
 
-    '''
-    c.imageCube(remake=True)
-    c.movieCube(stride=1, remake=True)
-    c.shiftCube()
-    c.imageCube(remake=True)
-    c.movieCube(stride=1, remake=True)
-    #c.nudgeWavelengths()
-    '''
+'''
+c.imageCube(remake=True)
+c.movieCube(stride=1, remake=True)
+c.shiftCube()
+c.imageCube(remake=True)
+c.movieCube(stride=1, remake=True)
+#c.nudgeWavelengths()
+'''
