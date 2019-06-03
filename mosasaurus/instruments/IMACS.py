@@ -56,6 +56,9 @@ class IMACS(Spectrograph):
     # these keys are useful to search for guessing the filetype
     keytosearch = 'object'
 
+    # by what key should files be sorted in the summaries?
+    summarysortkey = 'fileprefix'
+
     # within those keys, what words do we search for?
     wordstosearchfor = {'dark':['dark'],
                         'bias':['bias'],
@@ -64,6 +67,12 @@ class IMACS(Spectrograph):
                         'Ne':['Ne', 'neon'],
                         'Ar':['Ar', 'argon']}
 
+    wordstoavoid  =    { 'dark':[],
+                         'bias':[],
+                         'flat':[],
+                           'He':[],
+                           'Ne':[],
+                           'Ar':['dark', 'quartz']}
 
     def __repr__(self):
         '''How should this object be represented as a string?'''
@@ -158,8 +167,8 @@ class IMACS(Spectrograph):
         self.ysize = 4096
 
         # what are the calibrations we should expect
-        #self.detectorcalibrations = ['bias', 'flat']
         self.detectorcalibrations = ['dark', 'bias', 'flat']
+        #self.detectorcalibrations = ['dark', 'bias', 'flat']
 
         # how many stitched images can we hold in memory?
         self.maximumimagesinmemory = 75

@@ -30,7 +30,7 @@ c.imageCube(keys=['raw_counts'], stars=[c.target])
 #c.exportShiftStretch()
 
 from mosasaurus.WavelengthRecalibrator import WavelengthRecalibrator
-wr = WavelengthRecalibrator(c, visualize=True)
+wr = WavelengthRecalibrator(c, outsidecube='/h/mulan0/data/LHS1140/LDSS3C/working/ut171026_27/LHS1140b/extraction_default/spectralCube_LHS1140b_ut171026_27_2stars_767spectra_06px_shifted.npy', visualize=True)
 
 # fix up the wavelength calibration for each exposure
 r.mask.setup()

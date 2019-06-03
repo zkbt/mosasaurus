@@ -81,7 +81,7 @@ class LDSS3C(Spectrograph):
     # within that header key, what words do we search for?
     wordstosearchfor = { 'dark':['dark'],
                          'bias':['bias'],
-                         'flat':['quartz', 'flat'],
+                         'flat':['quartz', 'flat', 'lamp'],
                            'He':['He', 'helium'],
                            'Ne':['Ne', 'neon'],
                            'Ar':['Ar', 'argon']}
