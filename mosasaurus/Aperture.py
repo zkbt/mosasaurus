@@ -501,10 +501,10 @@ class Aperture(Talker):
 
             # diagnostic: saves files locally to be opened and played with
             # should eventually make this less specific to my personal directories
-            import pickle
-            takefive = int(len(self.obs.fileprefixes['science'])/5)
-            if self.exposureprefix in self.obs.fileprefixes['science'][::takefive]:# & (width == 6.0):
-                pickle.dump(self.intermediates, open('/home/hdiamond/LHS1140/from_extraction/intermediates2018_'+self.name+'_'+self.exposureprefix+'_'+str(width)+'px.p', 'wb'))
+            #import pickle
+            #takefive = int(len(self.obs.fileprefixes['science'])/5)
+            #if self.exposureprefix in self.obs.fileprefixes['science'][::takefive]:# & (width == 6.0):
+            #    pickle.dump(self.intermediates, open('/home/hdiamond/LHS1140/from_extraction/intermediates_'+self.obs.night.name+'_'+self.name+'_'+self.exposureprefix+'_'+str(width)+'px.p', 'wb'))
                 #pickle.dump(self.images, open('/home/hdiamond/LHS1140/from_extraction/images2018_'+self.name+'_'+self.exposureprefix+'_'+str(width)+'px.p', 'wb'))
 
             #import sys

@@ -188,14 +188,14 @@ class IMACS(Spectrograph):
             self.uniformwavelengths = np.arange(5000, 10000)
             self.alignmentranges = {    r'$O_2$ - A':(7500,7800),
                                         r'Ca triplet':(8450,8750),
-                                        r'$H_2O$':(9200, 9700),
+                                        r'$H_2O$':(9200, 9500),
                                             }
 
         if self.grism == 'gri-300-26.7':
             self.uniformwavelengths = np.arange(5000, 10000)
             self.alignmentranges = {    r'$O_2$ - A':(7500,7800),
                                         r'Ca triplet':(8450,8750),
-                                        r'$H_2O$':(9200, 9700),
+                                        r'$H_2O$':(9200, 9500),
                                             }
             
         self.offsetBetweenReferenceAndWavelengthIDs = 0.
