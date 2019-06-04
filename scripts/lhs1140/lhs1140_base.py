@@ -7,22 +7,22 @@ sys.path.append('/h/mulan0/code/mosasaurus')
 
 
 # create an instrument with the appropriate settings
-from mosasaurus.instruments import LDSS3C
-i = LDSS3C(grism='VPH-red')
-#from mosasaurus.instruments import IMACS
-#i = IMACS(grism='Gri-300-26.7')
+#from mosasaurus.instruments import LDSS3C
+#i = LDSS3C(grism='VPH-red')
+from mosasaurus.instruments import IMACS
+i = IMACS(grism='Gri-300-26.7')
 
 # for working on a remote hardisk
 import os
-path = '/h/mulan0/data/LHS1140/LDSS3C/' # directory that contains /data/
+path = '/h/mulan0/data/LHS1140/IMACS/' # directory that contains /data/
 
 if os.path.exists(path):
     i.setupDirectories(path)
 
-i.extractiondefaults['spatialsubarray'] = 155
-i.extractiondefaults['narrowest'] = 6
-i.extractiondefaults['widest'] = 10
-i.extractiondefaults['numberofapertures'] = 3
+i.extractiondefaults['spatialsubarray'] = 150
+i.extractiondefaults['narrowest'] = 7
+i.extractiondefaults['widest'] = 7
+i.extractiondefaults['numberofapertures'] = 1
 i.extractiondefaults['zapcosmics'] = False
 i.summarize()
 

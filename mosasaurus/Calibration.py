@@ -2,264 +2,278 @@ from .imports import *
 from .CCD import CCD
 
 class Calibration(Talker):
-	'''
-	Calibrations are objects that store calibration data,
-	including both afternoon exposures (biases, darks, flats)
-	and some on-sky exposures (direct images, master science images).
+    '''
+    Calibrations are objects that store calibration data,
+    including both afternoon exposures (biases, darks, flats)
+    and some on-sky exposures (direct images, master science images).
 
-	This can be thought of as bookmarked pages of
-	the reducing mosasaurus' reference books,
-	keeping track of calibrations that might be useful.
-	'''
+    This can be thought of as bookmarked pages of
+    the reducing mosasaurus' reference books,
+    keeping track of calibrations that might be useful.
+    '''
 
-	def __init__(self, reducer, **kwargs):
-		'''Initialize calibration object.'''
+    def __init__(self, reducer, **kwargs):
+        '''Initialize calibration object.'''
 
-		# decide whether or not this Reducer is chatty
-		Talker.__init__(self, **kwargs)
+        # decide whether or not this Reducer is chatty
+        Talker.__init__(self, **kwargs)
 
-		self.speak('setting up calibrator')
+        self.speak('setting up calibrator')
 
-		# connect to useful componenets
-		self.reducer = reducer
-		self.obs = self.reducer.obs
-		self.display = self.reducer.display
+        # connect to useful componenets
+        self.reducer = reducer
+        self.obs = self.reducer.obs
+        self.display = self.reducer.display
 
-		# create a directory to store calibrations
-		self.calibrationDirectory = os.path.join(self.obs.directory, 'calibrations')
-		mkdir(self.calibrationDirectory)
+        # create a directory to store calibrations
+        self.calibrationDirectory = os.path.join(self.obs.directory, 'calibrations')
+        mkdir(self.calibrationDirectory)
 
-		# create a CCD object associated with this calibration
-		self.ccd = CCD(self.obs, calib=self)
+        # create a CCD object associated with this calibration
+        self.ccd = CCD(self.obs, calib=self)
 
-		# should we be visualizing the steps?
-		self.visualize = self.reducer.visualize
+        # should we be visualizing the steps?
+        self.visualize = self.reducer.visualize
 
-		# create a dictionary of full-frame calibration-relevant images
-		self.images = {}
+        # create a dictionary of full-frame calibration-relevant images
+        self.images = {}
 
-		# make all the data we need
-		self.setup()
+        # make all the data we need
+        self.setup()
 
-	def setup(self):
-		'''Create ingredients we'll need for calibrating all images.'''
+    def setup(self):
+        '''Create ingredients we'll need for calibrating all images.'''
 
-		# create master images
-		self.createMasterImages()
+        # create master images
+        self.createMasterImages()
 
-		# figure out which are the bad pixels
-		self.createBadPixelMask()
+        # figure out which are the bad pixels
+        self.createBadPixelMask()
 
-		self.speak('calibration data are processed and ready for use')
+        self.speak('calibration data are processed and ready for use')
 
-	def createMasterImages(self, remake=False):
-		'''
-		Combine individual exposures into master frames
-		for the various calibrations and references.
-		'''
+    def createMasterImages(self, remake=False):
+        '''
+        Combine individual exposures into master frames
+        for the various calibrations and references.
+        '''
 
-		# pull out the list of image types for which we want masters
-		keys = self.obs.fileprefixes.keys()
-		self.speak('creating master images for {}'.format(keys))
+        # pull out the list of image types for which we want masters
+        keys = self.obs.fileprefixes.keys()
+        self.speak('creating master images for {}'.format(keys))
 
-		# loop over all possible image types
-		for k in keys:
-			# create a stacked master image for everything except the science images
-			#if 'science' not in k:
-			self.createMasterImage(k, remake=remake)
+        # loop over all possible image types
+        for k in keys:
+            # create a stacked master image for everything except the science images
+            #if 'science' not in k:
+            self.createMasterImage(k, remake=remake)
 
 
-	def createMasterImage(self, imageType=None, remake=False):
-		'''
-		Create a master image from a stack of them,
-		using several different methods, depending on the
-		type of image being processed.
-		'''
+    def createMasterImage(self, imageType=None, remake=False):
+        '''
+        Create a master image from a stack of them,
+        using several different methods, depending on the
+        type of image being processed.
+        '''
 
-		self.speak('creating a stacked master image for {}'.format(imageType))
+        self.speak('creating a stacked master image for {}'.format(imageType))
 
-		# if no name included, do nothing
-		if imageType is None:
-			self.speak('  (no image type defined; doing nothing)')
-			return
+        # if no name included, do nothing
+        if imageType is None:
+            self.speak('  (no image type defined; doing nothing)')
+            return
 
         # this is a slight hack to deal with IMACS, which we do not take darks for
-		if (imageType=='dark') & (imageType not in self.obs.fileprefixes.keys()):
-			self.speak("populating the master {0} image".format(imageType))
-			self.speak('no dark for this instrument so making a dummy image and master')
+        if (imageType=='dark') & (imageType not in self.obs.fileprefixes.keys()):
+            self.speak("populating the master {0} image".format(imageType))
+            self.speak('no dark for this instrument so making a dummy image and master')
 
-			masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
-			noisestring = 'StdDev'
+            masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
+            noisestring = 'StdDev'
 
-			self.images[imageType] = np.array([0.])
-			self.images[imageType+noisestring] = np.array([0.])
+            self.images[imageType] = np.array([0.])
+            self.images[imageType+noisestring] = np.array([0.])
 
-			writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
-			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
-			return
+            writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
+            writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
+            return
 
         # this is a slight hack to deal with IMACS, we didn't take biases for K2-25
-		if (imageType=='bias') & (imageType not in self.obs.fileprefixes.keys()):
-			self.speak("populating the master {0} image".format(imageType))
-			self.speak('no bias for this instrument so making a dummy image and master')
+        if (imageType=='bias') & (imageType not in self.obs.fileprefixes.keys()):
+            self.speak("populating the master {0} image".format(imageType))
+            self.speak('no bias for this instrument so making a dummy image and master')
 
-			masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
-			noisestring = 'StdDev'
+            masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
+            noisestring = 'StdDev'
 
-			self.images[imageType] = np.array([0.])
-			self.images[imageType+noisestring] = np.array([0.])
+            self.images[imageType] = np.array([0.])
+            self.images[imageType+noisestring] = np.array([0.])
 
-			writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
-			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
-			return
+            writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
+            writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
+            return
 
-		# set the CCD to a particular image type
-		self.ccd.set(exposureprefix=None, imageType=imageType)
+        # set the CCD to a particular image type
+        self.ccd.set(exposureprefix=None, imageType=imageType)
 
-		# make sure this is a master image that is possible to make
-		assert(imageType in self.obs.fileprefixes.keys())
-
-
-		# we're going to save a master stacked image, and its standard deviation
-		self.speak("populating the master {0} image".format(imageType))
-		masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
-		noisestring = 'StdDev'
-		try:
-			print(imageType)
-			# has the master image already been created?
-			self.images[imageType] = readFitsData(masterFilePrefix + '.fits')
-			# has the master standard deviation image already been created?
-			self.images[imageType+noisestring] = readFitsData(masterFilePrefix + noisestring + '.fits')
-			# if both are true, then we're all set
-			self.speak( "loaded {0} from {1}.fits".format(imageType, masterFilePrefix))
-		except IOError:
-			# create a stacked image from the appropriate file prefixes
-			self.speak("creating from images " + truncate(str(self.obs.fileprefixes[imageType]), n=30))
-			self.images[imageType], self.images[imageType+noisestring] = self.createStackedImage(self.obs.fileprefixes[imageType], imageType=imageType)
-
-			# write these out to FITS files, so we can look at them in ds9
-			writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
-			writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
-
-			### FIX ME ### -- make sure the displays work nicely, for making images and movies
-			#self.display.one(self.images[imageType+noisestring], clobber=True)
-			#self.display.one(self.images[imageType], clobber=False)
-			#self.display.single()
-			#self.display.zoom()
-			#self.display.scale('log', limits=[0,np.percentile(self.images[imageType],99)])
-			#assert('n' not in self.input("Do you like master image {0}? [Y,n]".format(imageType)).lower())
-
-	def createStackedImage(self, n, imageType=None, threshold=5.0):
-		'''
-		Take an outlier-rejected stack of a series of images
-		(requires enough memory to hold them all).
-
-		n is an array of fileprefixes
-		imageType is a string describing the image type
-		threshold is how many sigma for clipping in the stacked image
-		truncation limits the number of images to be included (for large cubes)
-		'''
-
-		# if there are more than "truncation" images, take only some fraction of them
-		if imageType == 'science': truncation = self.obs.instrument.maximumimagesinmemoryforscience
-		else: truncation = self.obs.instrument.maximumimagesinmemory
+        # make sure this is a master image that is possible to make
+        assert(imageType in self.obs.fileprefixes.keys())
 
 
-		# if we're trying to load too many images, skip some of them
-		stride = np.int(np.maximum(len(n)/truncation, 1))
-		if stride > 1:
-			self.speak('stacking {0}/{2} {1} images'.format(len(n),imageType,truncation))
-		else:
-			self.speak('stacking {0} {1} images'.format(len(n), imageType))
+        # we're going to save a master stacked image, and its standard deviation
+        self.speak("populating the master {0} image".format(imageType))
+        masterFilePrefix = os.path.join(self.calibrationDirectory, "master_{0}".format(imageType))
+        noisestring = 'StdDev'
+        try:
+            # has the master image already been created?
+            self.images[imageType] = readFitsData(masterFilePrefix + '.fits')
+            # has the master standard deviation image already been created?
+            self.images[imageType+noisestring] = readFitsData(masterFilePrefix + noisestring + '.fits')
+            # if both are true, then we're all set
+            self.speak( "loaded {0} from {1}.fits".format(imageType, masterFilePrefix))
+        except IOError:
+            # create a stacked image from the appropriate file prefixes
+            self.speak("creating from images " + truncate(str(self.obs.fileprefixes[imageType]), n=30))
+            self.images[imageType], self.images[imageType+noisestring] = self.createStackedImage(self.obs.fileprefixes[imageType], imageType=imageType)
 
-		# create a 3D array of images
-		array = self.ccd.loadImages(n[::stride], imageType=imageType)
+            # write these out to FITS files, so we can look at them in ds9
+            writeFitsData(self.images[imageType], masterFilePrefix  + '.fits')
+            writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
 
-		# if there's only one image, simply return that image (with no noise)
-		if len(array.shape) <=2:
-			return array, array*0
+            ### FIX ME ### -- make sure the displays work nicely, for making images and movies
+            #self.display.one(self.images[imageType+noisestring], clobber=True)
+            #self.display.one(self.images[imageType], clobber=False)
+            #self.display.single()
+            #self.display.zoom()
+            #self.display.scale('log', limits=[0,np.percentile(self.images[imageType],99)])
+            #assert('n' not in self.input("Do you like master image {0}? [Y,n]".format(imageType)).lower())
 
-		# calculate the outlier-rejected mean, and the 1.48*MAD for the cube
-		mean, noise = craftroom.twod.stack(array, axis=0, threshold=threshold)
+    def createStackedImage(self, n, imageType=None, threshold=5.0):
+        '''
+        Take an outlier-rejected stack of a series of images
+        (requires enough memory to hold them all).
 
-		#self.ccd.display.many(array, depth=0, clobber=True)
-		return mean, noise
+        n is an array of fileprefixes
+        imageType is a string describing the image type
+        threshold is how many sigma for clipping in the stacked image
+        truncation limits the number of images to be included (for large cubes)
+        '''
 
-	def createBadPixelMask(self, visualize=True):
-		'''Try to estimate bad pixels from a flat image. KLUDGE'''
+        # if there are more than "truncation" images, take only some fraction of them
+        if imageType == 'science': 
+
+            truncation = self.obs.instrument.maximumimagesinmemoryforscience
+
+            # if we're trying to load too many images, skip some of them
+            stride = np.int(np.maximum(len(n)/truncation, 1))
+            if stride > 1:
+                self.speak('stacking {0}/{2} {1} images'.format(len(n),imageType,truncation))
+            else:
+                self.speak('stacking {0} {1} images'.format(len(n), imageType))
+
+            # create a 3D array of images
+            array = self.ccd.loadImages(n[::stride], imageType=imageType)
+
+        else: 
+            
+            loadlimit = self.obs.instrument.maximumimagesinmemory
+
+            # if we're trying to load too many images, skip some of them
+            stride = np.int(np.maximum(len(n)/loadlimit, 1))
+            if stride > 1:
+                self.speak('stacking {0}/{2} {1} images'.format(len(n),imageType,loadlimit))
+            else:
+                self.speak('stacking {0} {1} images'.format(len(n), imageType))
+
+            # create a 3D array of images
+            array = self.ccd.loadImages(n[:loadlimit], imageType=imageType)
 
 
-		self.speak("populating bad pixel mask")
+        # if there's only one image, simply return that image (with no noise)
+        if len(array.shape) <=2:
+            return array, array*0
 
-		# try to load it, otherwise make it
-		badPixelFilename = os.path.join(self.calibrationDirectory, 'master_badpixels.fits')
-		try:
-			self.images['badpixels'] = readFitsData(badPixelFilename)
-			self.speak( "loaded bad pixel mask from {0}".format(badPixelFilename))
-		except:
-			if 'flat' in self.obs.fileprefixes.keys():
-			    self.speak( "creating bad pixel mask from the master flat frames")
-			    c = self.ccd#CCD(self.obs, calib=self)
+        # calculate the outlier-rejected mean, and the 1.48*MAD for the cube
+        mean, noise = craftroom.twod.stack(array, axis=0, threshold=threshold)
 
-			    # make a cube of flat images
-			    cube = []
+        #self.ccd.display.many(array, depth=0, clobber=True)
+        return mean, noise
+
+    def createBadPixelMask(self, visualize=True):
+        '''Try to estimate bad pixels from a flat image. KLUDGE'''
+
+
+        self.speak("populating bad pixel mask")
+
+        # try to load it, otherwise make it
+        badPixelFilename = os.path.join(self.calibrationDirectory, 'master_badpixels.fits')
+        try:
+            self.images['badpixels'] = readFitsData(badPixelFilename)
+            self.speak( "loaded bad pixel mask from {0}".format(badPixelFilename))
+        except:
+            if 'flat' in self.obs.fileprefixes.keys():
+                self.speak( "creating bad pixel mask from the master flat frames")
+                c = self.ccd#CCD(self.obs, calib=self)
+
+                # make a cube of flat images
+                cube = []
         
-			    for exposureprefix in self.obs.fileprefixes['flat']:
-				    c.set(exposureprefix, 'flat')
-				    cube.append(c.readData())
-			    cube = np.array(cube)
+                for exposureprefix in self.obs.fileprefixes['flat']:
+                    c.set(exposureprefix, 'flat')
+                    cube.append(c.readData())
+                cube = np.array(cube)
 
-			    #
-			    median = np.median(cube,0)
-			    noise = np.median(np.abs(cube - median.reshape(1,cube.shape[1], cube.shape[2])), 0)
-			    plt.figure('bad pixel mask')
-			    ax = plt.subplot()
-			    ax.plot(median.flatten(), noise.flatten(), color='black', alpha=0.5, marker='o', markersize=4, markeredgewidth=0, linewidth=0)
-			    ax.set_yscale('log')
-			    bad = (noise < 0.05*np.sqrt(median)) | (noise == 0) | (median == 0) | (median < 0) | (self.bias() > 10000) | (self.dark() > 100)
-			    ax.plot(median[bad].flatten(), noise[bad].flatten(), color='red', alpha=0.5, marker='o', markersize=10, markeredgecolor='red', linewidth=0)
-			    ax.set_xlabel('Fluence')
-			    ax.set_ylabel('RMS')
-			    self.images['badpixels'] = bad.astype(np.int)
-			    if visualize:
-				    self.display.one(self.images['badpixels'])
-				    answer = self.input("Does the bad pixel mask seem reasonable? [Y,n]").lower()
-			    assert('n' not in answer)
+                #
+                median = np.median(cube,0)
+                noise = np.median(np.abs(cube - median.reshape(1,cube.shape[1], cube.shape[2])), 0)
+                plt.figure('bad pixel mask')
+                ax = plt.subplot()
+                ax.plot(median.flatten(), noise.flatten(), color='black', alpha=0.5, marker='o', markersize=4, markeredgewidth=0, linewidth=0)
+                ax.set_yscale('log')
+                bad = (noise < 0.05*np.sqrt(median)) | (noise == 0) | (median == 0) | (median < 0) | (self.bias() > 10000) | (self.dark() > 100)
+                ax.plot(median[bad].flatten(), noise[bad].flatten(), color='red', alpha=0.5, marker='o', markersize=10, markeredgecolor='red', linewidth=0)
+                ax.set_xlabel('Fluence')
+                ax.set_ylabel('RMS')
+                self.images['badpixels'] = bad.astype(np.int)
+                if visualize:
+                    self.display.one(self.images['badpixels'])
+                    answer = self.input("Does the bad pixel mask seem reasonable? [Y,n]").lower()
+                assert('n' not in answer)
 
-			else: self.images['badpixels'] = np.zeros_like(self.bias())
+            else: self.images['badpixels'] = np.zeros_like(self.bias())
 
-			writeFitsData(self.images['badpixels'], badPixelFilename)
+            writeFitsData(self.images['badpixels'], badPixelFilename)
 
-	def bias(self):
-		try:
-			return self.images['bias']
-		except KeyError:
-			self.createMasterImage('bias')
-			return self.images['bias']
+    def bias(self):
+        try:
+            return self.images['bias']
+        except KeyError:
+            self.createMasterImage('bias')
+            return self.images['bias']
 
-	def dark(self):
-		try:
-			return self.images['dark']
-		except KeyError:
-			self.createMasterImage('dark')
-			return self.images['dark']
+    def dark(self):
+        try:
+            return self.images['dark']
+        except KeyError:
+            self.createMasterImage('dark')
+            return self.images['dark']
 
-	def science(self):
-		'''
-		Return the stacked science image (remaking it if necessary).
-		'''
-		try:
-		  return self.images['science']
-		except KeyError:
-		  self.createMasterImage('science')
-		  return self.images['science']
+    def science(self):
+        '''
+        Return the stacked science image (remaking it if necessary).
+        '''
+        try:
+          return self.images['science']
+        except KeyError:
+          self.createMasterImage('science')
+          return self.images['science']
 
-	def wideflat(self):
-		'''
-		Return the spectroscopic flat (remaking it if necessary).
-		'''
-		try:
-			return self.images['flat']
-		except KeyError:
-			self.createMasterImage('flat')
-			return self.images['flat']
+    def wideflat(self):
+        '''
+        Return the spectroscopic flat (remaking it if necessary).
+        '''
+        try:
+            return self.images['flat']
+        except KeyError:
+            self.createMasterImage('flat')
+            return self.images['flat']

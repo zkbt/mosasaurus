@@ -56,12 +56,23 @@ class IMACS(Spectrograph):
     # these keys are useful to search for guessing the filetype
     keytosearch = 'object'
 
+    # by what key should files be sorted in the summaries?
+    summarysortkey = 'fileprefix'
+
     # within those keys, what words do we search for?
-    wordstosearchfor = { 'bias':['bias'],
-                         'flat':['quartz', 'flat'],
-                         'He':['He', 'helium'],
-                         'Ne':['Ne', 'neon'],
-                         'Ar':['Ar', 'argon']}
+    wordstosearchfor = {'dark':['dark'],
+                        'bias':['bias'],
+                        'flat':['quartz', 'flat'],
+                        'He':['He', 'helium'],
+                        'Ne':['Ne', 'neon'],
+                        'Ar':['Ar', 'argon']}
+
+    wordstoavoid  =    { 'dark':[],
+                         'bias':[],
+                         'flat':[],
+                           'He':[],
+                           'Ne':[],
+                           'Ar':['dark', 'quartz']}
 
     def __repr__(self):
         '''How should this object be represented as a string?'''
@@ -156,11 +167,11 @@ class IMACS(Spectrograph):
         self.ysize = 4096
 
         # what are the calibrations we should expect
-        #self.detectorcalibrations = ['bias', 'flat']
-        self.detectorcalibrations = ['bias', 'flat']
+        self.detectorcalibrations = ['dark', 'bias', 'flat']
+        #self.detectorcalibrations = ['dark', 'bias', 'flat']
 
         # how many stitched images can we hold in memory?
-        self.maximumimagesinmemory = 128
+        self.maximumimagesinmemory = 75
         self.maximumimagesinmemoryforscience = 32
 
     def setupDisperser(self):
@@ -177,14 +188,14 @@ class IMACS(Spectrograph):
             self.uniformwavelengths = np.arange(5000, 10000)
             self.alignmentranges = {    r'$O_2$ - A':(7500,7800),
                                         r'Ca triplet':(8450,8750),
-                                        r'$H_2O$':(9200, 9700),
+                                        r'$H_2O$':(9200, 9500),
                                             }
 
         if self.grism == 'gri-300-26.7':
             self.uniformwavelengths = np.arange(5000, 10000)
             self.alignmentranges = {    r'$O_2$ - A':(7500,7800),
                                         r'Ca triplet':(8450,8750),
-                                        r'$H_2O$':(9200, 9700),
+                                        r'$H_2O$':(9200, 9500),
                                             }
             
         self.offsetBetweenReferenceAndWavelengthIDs = 0.

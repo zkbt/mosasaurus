@@ -37,6 +37,12 @@ class Trace(Talker):
             self.skyoffsets = [ dict(top=outer, bottom=inner, whattodo=1),
                                 dict(top=-inner, bottom=-outer, whattodo=1)]
 
+
+            #maskinner = outer + self.instrument.extractiondefaults['skyGap']
+            #maskouter = maskinner + self.instrument.extractiondefaults['skyWidth']
+            #self.maskfluxoffsets = [ dict(top=maskouter, bottom=maskinner, whattodo=1),
+            #                         dict(top=-maskinner, bottom=-maskouter, whattodo=1)]
+
             # an array of custom-selected trace points (for forcing a particular fit)
             self.tracepoints = {'w':[], 's':[]}
 
@@ -76,6 +82,7 @@ class Trace(Talker):
         # save the extraction and sky masks
         filename = os.path.join(self.aperture.directory, 'extractionmasks_{0}.npy'.format(self.aperture.name))
         np.save(filename, (self.skyoffsets, self.extractionwidths))
+        #np.save(filename, (self.skyoffsets, self.maskfluxoffsets, self.extractionwidths))
         self.speak("saved extraction mask parameters to {0}".format(filename))
 
         # save a PDF of the trace definition
@@ -91,6 +98,7 @@ class Trace(Talker):
 
         # save the extraction and sky masks
         filename = os.path.join(self.aperture.directory,  'extractionmasks_{0}.npy'.format(self.aperture.name))
+        #(self.skyoffsets, self.maskfluxoffsets, self.extractionwidths) = np.load(filename)
         (self.skyoffsets, self.extractionwidths) = np.load(filename)
         self.speak("saved extraction mask parameters to {0}".format(filename))
         self.numberofapertures = len(self.extractionwidths)
@@ -148,22 +156,22 @@ class Trace(Talker):
             self.speak('Please refine the extraction aperture.')
 
             options = {}
-            options['w'] = dict(description='[w]rite and quit',
+            options['w'] = dict(description="[w]rite and quit",
                                 function=self.writeandquit,
                                 requiresposition=False)
-            options['q'] = dict(description='[q]uit without writing',
+            options['q'] = dict(description="[q]uit without writing",
                                 function=self.quit,
                                 requiresposition=False)
-            options['c'] = dict(description='move the [c]rosshair, and plot slices along it',
+            options['c'] = dict(description="move the [c]rosshair, and plot slices along it",
                                 function=self.moveCrosshair,
                                 requiresposition=True)
-            options['t'] = dict(description='add a guess for a [t]race point',
+            options['t'] = dict(description="add a guess for a [t]race point",
                                 function=self.addTracePoint,
                                 requiresposition=True)
-            options['e'] = dict(description='[e]xtend a sky region (twice for start and stop)',
+            options['e'] = dict(description="[e]xtend a sky region (twice for start and stop)",
                                 function=self.modifySky,
                                 requiresposition=True)
-            options['r'] = dict(description='[r]emove a sky region (twice for start and stop)',
+            options['r'] = dict(description="[r]emove a sky region (twice for start and stop)",
                                 function=self.modifySky,
                                 requiresposition=True)
             options['f'] = dict(description="[f]it the trace, using the star's centroids and sky areas",
@@ -173,6 +181,14 @@ class Trace(Talker):
                                 function=self.setSizes,
                                 requiresposition=False)
 
+            # hzdl:
+            # trying to add designation for "out of slit" or "mask" flux.
+            # want to designate this similar to sky background
+            #options['m'] = dict(description='extend a [m]ask region (twice for start and stop)',
+            #                    function=self.modifyMaskFlux,
+            #                    requiresposition=True)
+            #options['n'] = dict(description="[n]o, not that mask region, like 'r' (twice for start and stop)",
+            #                    function=self.modifyMaskFlux,
 
 
             # print the options
@@ -290,6 +306,53 @@ class Trace(Talker):
         else:
             self.speak('How did you get here?')
 
+    #def modifyMaskFlux(self, pressed, whattodo=None):
+    #    '''from a KeyEvent, extend or remove regions from the mask to be used to estimate extra out-of-slit flux '''
+    #    try:
+    #        # if we've clicked once before, add to those positions
+    #        self.maskfluxkeys.append(pressed)
+    #    except AttributeError:
+    #        # if we haven't clicked yet, create a new catalog
+    #        self.maskfluxkeys = [pressed]
+
+        # pull out the values
+    #    w = np.array([mf.xdata for mf in self.maskfluxkeys])
+    #    s = np.array([mf.ydata for mf in self.maskfluxkeys])
+    #    self.plotted['dragger'].set_data(w, s)
+
+    #    if len(self.maskfluxkeys) == 2:
+    #        a, b = [mf.key for mf in self.maskfluxkeys]
+    #        if a != b:
+    #            self.speak("Uh-oh, you pressed {0} and then {1}, "
+    #                "but that doesn't make sense. "
+    #                "Please try again!".format(a,b))
+    #            return
+
+            # are we extending or removing?
+    #        whattodo = {"m":1, "n":0}[a]
+
+            # figure out offset from the trace guess
+    #        offsets = s - self.traceCenter(w)
+
+    #        d = {   'top':offsets.max(),
+    #                'bottom':offsets.min(),
+    #                'whattodo':whattodo}
+
+    #        try:
+    #            self.maskfluxoffsets.append(d)
+    #        except AttributeError:
+    #            self.maskfluxoffsets = [d]
+
+    #        self.updateMasks()
+
+            # remove the dictionary, to start over again for the next
+    #        del self.maskfluxkeys
+
+    #    elif len(self.maskfluxkeys) == 1:
+    #        self.speak('Please do another "{}" again to edit the mask flux.'.format(pressed.key))
+    #    else:
+    #        self.speak('How did you get here?')
+
     def updateMasks(self):
         '''update the sky mask (because either the sky offsets have changed),
             or the trace center has changed), and update the plots'''
@@ -309,6 +372,7 @@ class Trace(Talker):
 
         self.plotted['extractionmask'].set_data(self.extractionmaskimage)
         self.plotted['skymask'].set_data(self.skymaskimage)
+        #self.plotted['maskfluxmask'].set_data(self.maskfluxmaskimage)
 
         for t in self.plotted['widthlabels']:
             t.remove()
@@ -341,8 +405,6 @@ class Trace(Talker):
 
         xfine = np.linspace(self.waxis.min(), self.waxis.max(), 10)
         self.plotted['traceguess'].set_data(xfine, self.traceguess(xfine))
-        print(xfine)
-        print(self.traceguess(xfine))
 
         # set the trace fit to be the guess!
         self.tracefit = self.traceguess
@@ -495,6 +557,15 @@ class Trace(Talker):
                                             vmin=0.5, vmax=1.5,
                                             origin='lower')
 
+        # add the mask flux mask
+        #self.plotted['maskfluxmask'] =  self.ax['2d'].imshow(self.maskfluxmaskimage,
+        #                                    cmap=one2another('gold', 'gold', alphabottom=0.0, alphatop=1.0),
+        #                                    extent=self.extent,
+        #                                    interpolation='nearest',
+        #                                    aspect='auto',
+        #                                    zorder=100,
+        #                                    vmin=0.5, vmax=1.5,
+        #                                    origin='lower')
 
         offsets = (np.array([-1,1])[np.newaxis, :]*self.extractionwidths[:,np.newaxis]).flatten()
         x = self.waxis
@@ -653,6 +724,29 @@ class Trace(Talker):
         # return the populated map
         return mask
 
+    #def maskfluxmask(self, width):
+        '''to define those pixels that are considered sky'''
+
+        # create a blank mask
+    #    mask = np.zeros_like(self.aperture.images['science'])
+
+        # loop through the sky offsets, and use them to add and subtract
+    #    for d in self.maskfluxoffsets:
+    #        top, bottom, whattodo = d['top'], d['bottom'], d['whattodo']
+            # identifiy pixels that been selected
+    #        ok  = self.aperture.s > (self.traceCenter(self.aperture.w) + bottom)
+    #        ok *= self.aperture.s < (self.traceCenter(self.aperture.w) + top)
+            # either add or remove them from the sky mask
+    #        mask[ok] = whattodo
+
+    #    absolutedistancefromtrace = np.abs(self.aperture.s - self.traceCenter(self.aperture.w))
+    #    mask[absolutedistancefromtrace < (width + 50)] = 0
+        #self.speak('')
+        #self.speak('{}'.format(width + self.obs.skyGap))
+        # return the populated map
+    #    return mask
+
+
     @property
     def vmin(self):
         '''for plotting, the minimum value, for the imshow grayscale'''
@@ -677,6 +771,19 @@ class Trace(Talker):
             image[:,int(i*chunksize):] = mask[:,int(i*chunksize):]*(1.0 - 0.2*(i%2))
 
         return image/image.max()
+
+    #@property
+    #def maskfluxmaskimage(self):
+    #    '''for plotting, a masked array of the mask flux mask'''
+    #    image = np.zeros_like(self.imagetoplot)
+    #    chunksize = image.shape[1]/self.numberofapertures
+
+    #    for i,width in enumerate(self.extractionwidths):
+    #        mask = self.maskfluxmask(width).T
+
+    #        image[:,int(i*chunksize):] = mask[:,int(i*chunksize):]*(1.0 - 0.2*(i%2))
+
+    #    return image/image.max()
 
     @property
     def extractionmaskimage(self):

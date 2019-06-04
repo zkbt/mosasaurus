@@ -81,7 +81,7 @@ class LDSS3C(Spectrograph):
     # within that header key, what words do we search for?
     wordstosearchfor = { 'dark':['dark'],
                          'bias':['bias'],
-                         'flat':['quartz', 'flat'],
+                         'flat':['quartz', 'flat', 'lamp'],
                            'He':['He', 'helium'],
                            'Ne':['Ne', 'neon'],
                            'Ar':['Ar', 'argon']}
@@ -132,7 +132,7 @@ class LDSS3C(Spectrograph):
 
         # basic information about the amplifiers
         self.namps = 2
-        self.gains = np.array([1.72, 1.49])
+        self.gains = np.array([1.67, 1.45])
         self.binning = 2
 
         # what area of the detector contains real data? (for individual amplifiers
@@ -216,6 +216,7 @@ class LDSS3C(Spectrograph):
         # how far (in pixels) does spectrum extend away from direct image position
         self.extractiondefaults['stampwavelengthredward'] = np.inf
         self.extractiondefaults['stampwavelengthblueward'] = 1050
+
 
 
         # setup the default initial extraction geometry

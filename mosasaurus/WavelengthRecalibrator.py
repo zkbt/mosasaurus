@@ -48,7 +48,7 @@ class WavelengthRecalibrator(Talker):
     and then fitting a line to the change in wavelengths (vs wavelength).
     '''
 
-    def __init__(self, cube, visualize=True):
+    def __init__(self, cube, outsidecube='', visualize=True):
         '''
         Initialize by assigning to a cube.
 
@@ -69,6 +69,14 @@ class WavelengthRecalibrator(Talker):
 
         # store the unshifted cube in here
         self.unshiftedcube = cube
+
+        # if outsidecube is not specified, self.outsidecube = ''
+        # if outsidecube is specified, self.outsidecube = ''.npy loaded up **shifted** cube
+        self.outsidecube = outsidecube
+        if self.outsidecube: 
+            self.speak('calibrating against cube from another extraction, path={0}'.format(self.outsidecube))
+            self.outsidecube = np.load(self.outsidecube)[()]
+
 
         #
         self.visualize = visualize
@@ -183,7 +191,7 @@ class WavelengthRecalibrator(Talker):
 
             for iline, line in enumerate(alignmentranges.keys()):
 
-                    # set up the arrays for this correlation
+                # set up the arrays for this correlation
                 l, r = alignmentranges[line]
 
                 # define the range for this correlation
@@ -195,7 +203,17 @@ class WavelengthRecalibrator(Talker):
                 # create a master template
                 wave = self.unshiftedcube.spectral['wavelength'][left:right]
                 masterexposure = 0
-                master = c[self.unshiftedcube.target][masterexposure, left:right]
+                if self.outsidecube:
+                    # define the range for outside cube's wavelength for this correlation
+                    outsideleft = np.argmin(
+                        np.abs(self.outsidecube['spectral']['wavelength'] - l))
+                    outsideright = np.argmin(
+                        np.abs(self.outsidecube['spectral']['wavelength'] - r))
+                    outsideapertures = list(self.outsidecube['cubes']['raw_counts'].keys())
+                    # grab one of the spectra from the outside shifted cube; it shouldn't matter which once since they should all be shifted
+                    master = self.outsidecube['cubes']['raw_counts'][outsideapertures[0]][masterexposure, outsideleft:outsideright]
+                else:          
+                    master = c[self.unshiftedcube.target][masterexposure, left:right]
                 start = subtractcontinuum(master)
 
                 # calculate all the shifts
