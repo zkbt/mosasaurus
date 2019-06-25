@@ -140,6 +140,12 @@ class DIS(Spectrograph):
         # what are the calibrations we should expect
         self.detectorcalibrations = ['dark', 'bias', 'flat']
 
+
+        # how many stitched images can we hold in memory?
+        self.maximumimagesinmemory = 128
+        self.maximumimagesinmemoryforscience = 32
+
+
     def setupDisperser(self):
         '''
         Setup the basics for the disperser.
@@ -178,7 +184,8 @@ class DIS(Spectrograph):
 
         if self.binning == 2:
             self.offsetBetweenReferenceAndWavelengthIDs = 0# -1024
-
+        else:
+            self.offsetBetweenReferenceAndWavelengthIDs = 0
         # find the peak of the combined correlation function
         #if self.aperture.obs.instrument == 'LDSS3C':
         #    self.offsetBetweenReferenceAndWavelengthIDs = -1024 # KLUDGE KLUDGE KLUDGE! np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)

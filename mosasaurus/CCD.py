@@ -227,7 +227,7 @@ class CCD(Talker):
         '''Create and load a stitched CCD image, given a file prefix.'''
 
         # print status
-        self.speak(self.space + "creating a stitched image for {0}".format( self.stitched_filename))
+        self.speak( "creating a stitched image for {0}".format( self.stitched_filename))
 
         # provide different options for different kinds of images
         if self.imageType == 'bias':
@@ -253,7 +253,7 @@ class CCD(Talker):
 
         # don't restitch if unnecessary
         if os.path.exists(self.stitched_filename):
-            self.speak(self.space + "{0} has already been stitched".format(self.name))
+            self.speak("{0} has already been stitched".format(self.name))
         else:
             # process the two halves separately, and then smush them together
             filenames = [os.path.join(self.obs.night.dataDirectory, f) for f in self.instrument.prefix2files(self.exposureprefix)]
@@ -311,4 +311,4 @@ class CCD(Talker):
 
             # write out the image to a stitched image
             writeFitsData(self.data, self.stitched_filename)
-            self.speak(self.space + "stitched and saved {0}".format(self.name))
+            self.speak("stitched and saved {0}".format(self.name))

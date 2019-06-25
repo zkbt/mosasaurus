@@ -186,7 +186,7 @@ class IMACS(Spectrograph):
                                         r'Ca triplet':(8450,8750),
                                         r'$H_2O$':(9200, 9700),
                                             }
-            
+
         self.offsetBetweenReferenceAndWavelengthIDs = 0.
 
         # the available arc lamps for wavelength calibration
@@ -222,12 +222,12 @@ class IMACS(Spectrograph):
         self.extractiondefaults['spatialsubarray'] = 50
         # how far (in pixels) does spectrum extend away from direct image position
         if self.grism == 'gri-150-10.8':
-            self.extractiondefaults['wavelengthredward'] = 500
-            self.extractiondefaults['wavelengthblueward'] = 500
+            self.extractiondefaults['stampwavelengthredward'] = 500
+            self.extractiondefaults['stampwavelengthblueward'] = 500
 
         if self.grism == 'gri-300-26.7':
-            self.extractiondefaults['wavelengthredward'] = 550
-            self.extractiondefaults['wavelengthblueward'] = 1200
+            self.extractiondefaults['stampwavelengthredward'] = 550
+            self.extractiondefaults['stampwavelengthblueward'] = 1200
 
 
 
@@ -391,8 +391,8 @@ class IMACS(Spectrograph):
     def loadSingleCCD(self, filenames):
         '''
         Load an IMACS image; subtract and trim its overscan.
-        In general, this function should load and return a single image. 
-        If the detector uses multiple amplifiers to read out different parts of the same chip, 
+        In general, this function should load and return a single image.
+        If the detector uses multiple amplifiers to read out different parts of the same chip,
         this function should stitch those sections together.
 
         Parameters
@@ -415,5 +415,3 @@ class IMACS(Spectrograph):
         stitched = self.stitchChips(c_data)
 
         return stitched, c_header
-
-

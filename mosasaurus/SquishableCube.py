@@ -426,7 +426,7 @@ class SquishableCube(Talker):
 
             z = self.corrected()
             ntimes, nwavelengths = z.shape
-            binned = np.mean(self.corrected().reshape(ntimes, nwavelengths/wavelengthbin, wavelengthbin), 2)
+            binned = np.mean(self.corrected().reshape(ntimes, np.ceil(nwavelengths/wavelengthbin).astype(np.int), wavelengthbin), 2)
             mediantimeseries = np.median(binned, 1)
             withouttimeseries = binned/mediantimeseries[:, np.newaxis] - 1
             wavelengthstd = np.nanstd(withouttimeseries, 0)
