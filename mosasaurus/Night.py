@@ -96,6 +96,8 @@ class Night(Talker):
             # create an astropy table, and write it out to the working directory
             self.log = astropy.table.Table(data=self.rows, names=['fileprefix'] + keys)
 
+            # FIXME -- replace `summarysortkey` with `sortkey`
+            self.log.sort(self.instrument.summarysortkey)
             self.log.write(self.logFilename,
                             format='ascii.fixed_width',
                             delimiter='|',
