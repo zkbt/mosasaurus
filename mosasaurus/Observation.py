@@ -25,10 +25,10 @@ class Observation(Talker):
         mkdir(self.directory)
 
         # set up the observation with the prefixes it will need
-        try:
-            self.setupFilePrefixes()
-        except ValueError:
-            self.speak('Hmmmmm...something funny happened with default file prefix choices. Please specify them by hand.')
+        #try:
+        self.setupFilePrefixes()
+        #except ValueError:
+        #    self.speak('Hmmmmm...something funny happened with default file prefix choices. Please specify them by hand.')
 
 
     def __repr__(self):
@@ -97,15 +97,16 @@ class Observation(Talker):
 
                 else:
                     # find exposures where
-                    if k == 'science':
+                    if k in self.instrument.wordstosearchfor:
+                        wordstosearchfor = self.instrument.wordstosearchfor[k]
+                        wordstoavoid = self.instrument.wordstoavoid[k]
+                    elif (k == 'science'):
                         wordstosearchfor = [self.target.starname]
                         wordstoavoid=[]
                     elif k == 'reference':
                         wordstosearchfor = [self.target.starname]
                         wordstoavoid=[]
-                    else:
-                        wordstosearchfor = self.instrument.wordstosearchfor[k]
-                        wordstoavoid = self.instrument.wordstoavoid[k]
+
 
                 # this will find the indices that match the wordstosearchfor
                 match = self.night.find(wordstosearchfor, self.instrument.keytosearch, wordstoavoid=wordstoavoid)

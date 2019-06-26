@@ -1,4 +1,5 @@
 from ..Spectrograph import *
+from astropy.stats import mad_std
 
 class WFC3(Spectrograph):
     '''
@@ -105,10 +106,10 @@ class WFC3(Spectrograph):
 
     # within that header key, what words do we search for?
     wordstosearchfor = { 'science':['G'],
-                         'finder':['F']}
+                         'reference':['F']}
 
-    wordstoavoid  =    { }
-
+    wordstoavoid  =    { 'science':['F'],
+                         'reference':['G']}
     # by what key should files be sorted in the summaries?
     summarysortkey = 'EXPSTART'
 
@@ -278,7 +279,7 @@ class WFC3(Spectrograph):
         This function returns a CCD number (not necessarily starting from 0)
         from a fileprefix.
         '''
-        return np.int(prefix[-4:])
+        return 0 #np.int(prefix[-4:])
 
     def prefix2files(self, prefix):
         '''
@@ -291,7 +292,6 @@ class WFC3(Spectrograph):
     def gain(self, header):
         '''
         Return the gain, from a given header.
-        (DIS has good headers, so this is easy.)
         '''
         return header['GAIN']
 
@@ -303,13 +303,12 @@ class WFC3(Spectrograph):
 
     def loadSingleCCD(self, filenames):
         '''
-        Load a DIS image; subtract and trim its overscan.
+        Load a WFC3 ima image.
 
-        In general, this function should load and return
-        a single image. If the detector uses multiple
-        amplifiers to read out different parts of the
-        same chip, this function should stitch those
-        sections together.
+        Subtract background from each read.
+        (FIXME - This doesn't remove faint sources under ours!!)
+        Stack the subtracted flux from individual reads together.
+        The result should be a background-subtracted stacked image.
 
         Parameters
         ----------
@@ -323,25 +322,52 @@ class WFC3(Spectrograph):
 
         '''
 
-        # for DIS, we need only one filename; it shouldn't be a list
+        # for WFC#, we need only one _ima filename; it shouldn't be a list
         filename = filenames[0]
 
         # open (temporarily) the file
         with astropy.io.fits.open(filename) as hdu:
-            self.data, self.header = hdu[0].data,  hdu[0].header
+            #self.data, self.header = hdu[0].data,  hdu[0].header
 
-        # pull out just the data section
-        dbottom, dtop, dleft, dright = iraf2python(self.header['DATASEC'])
-        trimmed = self.data[dbottom:dtop, dleft:dright].astype(np.float)
+            # find all the SCI extensions inside the _ima
+            n_extensions_per_read = 5
+            nsamp = np.int((len(hdu)-1)/n_extensions_per_read)
+            e_primary = 0
+            e_sci = np.arange(nsamp)*n_extensions_per_read + 1
 
-         # subtract bias overscan (just one value)
-        bbottom, btop, bleft, bright = iraf2python(self.header['BIASSEC'])
-        biaslevel = np.median(self.data[bbottom:btop,bleft:bright])
-        trimmed -= biaslevel
+            # all WFC3 images have a 5 pixel border around them
+            reads = []
+            border = 5
+            for e in e_sci[:-2]:
+                this_read = hdu[e].data[border:-border, border:-border]
+                last_read = hdu[e+5].data[border:-border, border:-border]
 
-         # record that these have been stitched
-        header = copy.copy(self.header)
-        header['STITCHED'] = True
+                # the flux accumuluated just in this read
+                difference = this_read - last_read
+
+                # estimate a crude background
+                background_estimate = np.median(difference)
+                is_not_obvious_star = np.abs(difference - background_estimate) < mad_std(difference)*10
+
+                # estimate a better background and subtract it
+                better_background = np.median(difference[is_not_obvious_star])
+                difference -= better_background
+                reads.append(difference)
+
+            stacked = np.sum(reads, 0)
+
+            visualize = True
+
+            import illumination as il
+            movie_filename = filename.replace('fits', 'mp4')
+            assert(movie_filename != filename)
+            print(f'saving movie to {movie_filename}')
+            individual = il.imshowFrame(data=np.array(reads))
+            stacked = il.imshowFrame(data=stacked)
+            il.GenericIllustration(imshows=[stacked, individual]).animate(filename=movie_filename, dpi=150)
+
+             # record that these have been stitched
+            header = copy.copy(hdu[0].header)
 
         # return the trimmed
-        return trimmed.T, header
+        return stacked, header
