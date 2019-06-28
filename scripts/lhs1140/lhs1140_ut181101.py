@@ -16,38 +16,39 @@ r = Reducer(o, visualize=False)
 r.reduce()
 
 from mosasaurus.Cube import Cube
-c = Cube(o, width=7.0)
-c.setStars(target='aperture_1418_3413', comparisons=['aperture_1776_3473'])
-c.populate(shift=False, max=None)
-c.savable=c.savable + ['target', 'comparisons']
-c.save()
-c.imageCube(keys=['raw_counts'], stars=[c.target])
-#c.imageCube()
-#c.populate(shift=True, max=None)
-#c.imageCube(keys=['raw_counts'], stars=[c.target])
-#c.save()
-#c.imageCube()
-#c.exportShiftStretch()
+for w in [7]:
+    c = Cube(o, width=w)
+    c.setStars(target='aperture_1418_3412', comparisons=['aperture_1776_3472'])
+    c.populate(shift=False, max=None)
+    c.savable=c.savable + ['target', 'comparisons']
+    c.save()
+    c.imageCube(keys=['raw_counts'], stars=[c.target])
+    #c.imageCube()
+    #c.populate(shift=True, max=None)
+    #c.imageCube(keys=['raw_counts'], stars=[c.target])
+    #c.save()
+    #c.imageCube()
+    #c.exportShiftStretch()
 
-from mosasaurus.WavelengthRecalibrator import WavelengthRecalibrator
-wr = WavelengthRecalibrator(c, outsidecube='/h/mulan0/data/LHS1140/LDSS3C/working/ut171026_27/LHS1140b/extraction_default/spectralCube_LHS1140b_ut171026_27_2stars_767spectra_06px_shifted.npy', visualize=True)
+    from mosasaurus.WavelengthRecalibrator import WavelengthRecalibrator
+    wr = WavelengthRecalibrator(c, outsidecube='/h/mulan0/data/LHS1140/LDSS3C/working/ut171026_27/LHS1140b/extraction_default/spectralCube_LHS1140b_ut171026_27_2stars_767spectra_06px_shifted.npy', visualize=True)
 
-# fix up the wavelength calibration for each exposure
-r.mask.setup()
-r.mask.addWavelengthCalibration(shift=True)
+    # fix up the wavelength calibration for each exposure
+    r.mask.setup()
+    r.mask.addWavelengthCalibration(shift=True)
 
-# repopulate the cube
-c.populate(shift=True, remake=True)
-c.save()
-c.imageCube(keys=['raw_counts'], stars=[c.target])
+    # repopulate the cube
+    c.populate(shift=True, remake=True)
+    c.save()
+    c.imageCube(keys=['raw_counts'], stars=[c.target])
 
-#c.exportShiftStretch()
+    #c.exportShiftStretch()
 
-'''
-c.imageCube(remake=True)
-c.movieCube(stride=1, remake=True)
-c.shiftCube()
-c.imageCube(remake=True)
-c.movieCube(stride=1, remake=True)
-#c.nudgeWavelengths()
-'''
+    '''
+    c.imageCube(remake=True)
+    c.movieCube(stride=1, remake=True)
+    c.shiftCube()
+    c.imageCube(remake=True)
+    c.movieCube(stride=1, remake=True)
+    #c.nudgeWavelengths()
+    '''

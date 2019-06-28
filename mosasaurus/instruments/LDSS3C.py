@@ -84,14 +84,16 @@ class LDSS3C(Spectrograph):
                          'flat':['quartz', 'flat', 'lamp'],
                            'He':['He', 'helium'],
                            'Ne':['Ne', 'neon'],
-                           'Ar':['Ar', 'argon']}
+                           'Ar':['Ar', 'argon'],
+                      'science':['sciece']}
 
     wordstoavoid  =    { 'dark':[],
                          'bias':[],
                          'flat':[],
                            'He':[],
                            'Ne':[],
-                           'Ar':['dark', 'quartz']}
+                           'Ar':['dark', 'quartz'],
+                      'science':['science']}
 
     def __repr__(self):
         '''
@@ -174,10 +176,8 @@ class LDSS3C(Spectrograph):
                                             }
         elif self.grism == 'vph-red':
             self.uniformwavelengths = np.arange(6000, 10500)
-            self.alignmentranges = dict(    O2=(7580, 7650),
-                                            Ca1=(8490, 8525),
-                                            Ca2=(8535, 8580),
-                                            Ca3=(8650, 8700),
+            self.alignmentranges = dict(    O2=(7500,7800),
+                                            Ca_triplet=(8450,8750),
                                             H2O=(9300, 9700)
                                             )
 

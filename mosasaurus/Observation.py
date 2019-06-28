@@ -98,10 +98,10 @@ class Observation(Talker):
                 else:
                     # find exposures where
                     if k == 'science':
-                        wordstosearchfor = [self.target.starname]
+                        wordstosearchfor = [self.target.starname, 'science']
                         wordstoavoid=[]
                     elif k == 'reference':
-                        wordstosearchfor = [self.target.starname]
+                        wordstosearchfor = [self.target.starname, 'reference']
                         wordstoavoid=[]
                     else:
                         wordstosearchfor = self.instrument.wordstosearchfor[k]
