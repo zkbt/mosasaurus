@@ -89,6 +89,16 @@ class Trace(Talker):
         filename = os.path.join(self.aperture.directory, 'tracedefinition_{0}.pdf'.format(self.aperture.name))
         self.figure.savefig(filename)
 
+        # save skyMask and extractionMask for each width
+        filename = os.path.join(self.aperture.directory, 'masks_{0}.npy'.format(self.aperture.name))
+        masks = {}
+        for width in self.extractionwidths:
+            masks[width] = {}
+            masks[width]['extractionMask'] =  self.extractionmask(width)
+            masks[width]['skyMask'] = self.skymask(width)
+        np.save(filename, masks)
+        self.speak("saved set of extraction and sky masks for each width")            
+
     def load(self):
 
         # load the parameters of the trace

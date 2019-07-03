@@ -165,8 +165,6 @@ class Aperture(Talker):
     '''Fit for the position and width of the trace.'''
 
     self.speak("populating the trace parameters")
-    tracefilename = os.path.join(self.directory, 'trace_{0}.npy'.format(self.name))
-    skyfilename = os.path.join(self.directory, 'skyMask_{0}.npy'.format(self.name))
 
     # define the trace object (will either load saved, or remake)
     self.trace = Trace(self)
@@ -306,6 +304,8 @@ class Aperture(Talker):
         # remove cosmic rays (now moved to an earlier stage)
         image = raw
 
+        #self.extracted['original'] = self.intermediates['original']
+
 
 
         # define the extraction aperture (Gaussian profile for wavelength extraction, boxcar for stellar flux)
@@ -320,6 +320,11 @@ class Aperture(Talker):
 
             # load the appropriate sky estimation mask
             self.intermediates[width]['skyMask'] = self.trace.skymask(width)
+
+            # want to save some of the intermediates stuff into extracted for later, just in case
+            self.extracted[width]['intermediates'] = {}
+            self.extracted[width]['intermediates']['skyMask'] = self.intermediates[width]['skyMask']
+            self.extracted[width]['intermediates']['extractMask'] = self.intermediates[width]['extractMask']
 
             # keep track of the cosmics that were rejected along the important columns
             if self.instrument.zapcosmics:
@@ -491,21 +496,24 @@ class Aperture(Talker):
 
                 self.extracted[width]['peak'] = np.max(self.intermediates[width]['extractMask']*image, self.sindex)
 
+                # add intermediates stuff to extracted for later inspection
+                #self.extracted[width]['intermediates']['sky'] = self.intermediates[width]['sky']
+
+
                 # KLUDGE -- am I definitely catching this error later?
                 #for k in ['centroid', 'width', 'peak']:
                 #    assert(np.isfinite(self.extracted[width][k]).all())
+
             else:
                 self.extracted[width]['raw_counts'] = np.nansum(self.intermediates[width]['extractMask']*image/self.images['NormalizedFlat'], self.sindex)
                 # this is a kludge, to make the plotting look better for arcs
                 self.intermediates[width]['sky']  = np.zeros_like(self.intermediates['original'])# + np.percentile(self.extracted[width]['raw_counts'] , 1)
 
-            # diagnostic: saves files locally to be opened and played with
-            # should eventually make this less specific to my personal directories
+            # diagnostic: saves a 
             #import pickle
             #takefive = int(len(self.obs.fileprefixes['science'])/5)
             #if self.exposureprefix in self.obs.fileprefixes['science'][::takefive]:# & (width == 6.0):
             #    pickle.dump(self.intermediates, open('/home/hdiamond/LHS1140/from_extraction/intermediates_'+self.obs.night.name+'_'+self.name+'_'+self.exposureprefix+'_'+str(width)+'px.p', 'wb'))
-                #pickle.dump(self.images, open('/home/hdiamond/LHS1140/from_extraction/images2018_'+self.name+'_'+self.exposureprefix+'_'+str(width)+'px.p', 'wb'))
 
             #import sys
             #sys.exit("Breaking here. Check it out.")
