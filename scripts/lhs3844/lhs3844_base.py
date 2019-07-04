@@ -21,8 +21,8 @@ if os.path.exists(path):
 
 i.extractiondefaults['spatialsubarray'] = 75
 i.extractiondefaults['narrowest'] = 6
-i.extractiondefaults['widest'] = 6
-i.extractiondefaults['numberofapertures'] = 1
+i.extractiondefaults['widest'] = 10
+i.extractiondefaults['numberofapertures'] = 3
 i.extractiondefaults['zapcosmics'] = False
 i.summarize()
 

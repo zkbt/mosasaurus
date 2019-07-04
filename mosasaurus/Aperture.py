@@ -180,6 +180,9 @@ class Aperture(Talker):
       self.speak("creating normalized flat for {0}".format(self.name))
       self.createNormalizedFlat()
 
+    # make a diagnostic plot of cuts in the spatial direction
+    self.spatialCuts()
+
   def displayTrace(self):
       for i, width in enumerate(self.trace.extractionwidths):
           self.display.new(frame=i)
@@ -235,6 +238,96 @@ class Aperture(Talker):
       np.save(calibfilename, self.images)
       self.speak("saved normalized flat to calibration stamp {0}".format(calibfilename))
 
+  def spatialCuts(self):
+
+        ''' plot some cuts in the spatial direction for reference '''
+
+        print(self.name)
+        filename = os.path.join(self.directory, 'diagnosticCuts_{0}.pdf'.format(self.name))
+
+        widths = self.trace.extractionwidths
+
+        figure = plt.figure(figsize=(14,15), dpi=50)
+        gs = plt.matplotlib.gridspec.GridSpec(5, 2, left=0.06, right=.98, bottom=0.04, top=0.98, hspace=0.17, wspace=0.15)
+        cuts = {}
+        cuts['stamp'] = plt.subplot(gs[:,0])
+
+        image = self.images['science']/self.images['NormalizedFlat']
+        extent = [self.saxis.min(), self.saxis.max(), self.waxis.min(), self.waxis.max()]
+
+        cuts['stamp'].imshow(image, 
+                             cmap='gray',
+                             extent=extent,
+                             interpolation='nearest',
+                             aspect='auto',
+                             zorder=0,
+                             origin='lower',
+                             vmin=0, vmax=np.percentile(image, 97))
+
+        cuts['stamp'].set_xlabel('Spatial Direction (Pixels)')
+        cuts['stamp'].set_ylabel('Dispersion Direction (Pixels)')
+
+        takefive = int(np.round(len(self.waxis)/5))
+        pixelcutinds = (np.round(np.arange(len(self.waxis))[::takefive] + takefive/2)).astype(int)[::-1]
+
+        axis, order = 0, 2
+        for p, pix in enumerate(pixelcutinds):
+
+            cuts[pix] = plt.subplot(gs[p, 1])
+
+            profile = image.take(pix, axis=axis)
+            cuts[pix].plot(self.saxis, profile, color='k', lw=2, alpha=.8)
+
+            for width in widths:
+
+                skymask = self.trace.skymask(width)
+                extractmask = self.trace.extractionmask(width)
+
+                sky = craftroom.twod.polyInterpolate(image, skymask == 0, order=order, visualize=False)
+
+                cuts['stamp'].imshow(extractmask, 
+                                     cmap=one2another('aquamarine', 'aquamarine', alphabottom=0.0, alphatop=1.0), 
+                                     alpha=0.35, aspect='auto', extent=extent, origin='lower')
+                cuts['stamp'].imshow(skymask, 
+                                     cmap=one2another('deepskyblue', 'deepskyblue', alphabottom=0.0, alphatop=1.0),
+                                     alpha=0.3, aspect='auto', extent=extent, origin='lower')
+
+                notSky = skymask == 0
+                extract = extractmask == 1
+                
+                notSkydata = notSky.take(pix, axis=axis)
+                isExtractdata = extract.take(pix, axis=axis)
+                extractdata = np.where(isExtractdata)[0]
+
+                ok = notSkydata == 0
+                med = np.median(profile[ok])
+                mad = np.median(np.abs(profile[ok] - med))
+                ok = ok*(np.abs(profile - med) <= 4*1.48*mad)
+
+                fit = np.polynomial.polynomial.polyfit(self.saxis[ok], profile[ok], order)
+                poly = np.polynomial.polynomial.Polynomial(fit)
+
+                mincounts, maxcounts = np.min(profile), np.max(profile)
+
+                # only need to plot the profile once per pixel cut; it doesn't change for different widths
+
+                cuts[pix].plot(self.saxis, poly(self.saxis), lw=3, color='deepskyblue', alpha=0.3)
+                cuts[pix].fill_between(self.saxis, 0, maxcounts, where=(notSkydata==0), color='deepskyblue', alpha=0.3)
+                cuts[pix].fill_between(self.saxis, 0, maxcounts, where=(isExtractdata), color='aquamarine', alpha=0.3)
+
+            cuts['stamp'].axhline(self.waxis[pix], self.saxis[0], self.saxis[-1], color='white', ls='--', lw=1.5, alpha=.5)
+
+            cuts[pix].set_title('Cut on Pixel {0}'.format(self.waxis[pix]))
+            cuts[pix].set_ylim(0,  np.percentile(profile, 96))
+            cuts[pix].set_ylabel('Counts')
+            cuts[pix].tick_params(labelbottom=False)
+
+        cuts[pix].tick_params(labelbottom=True)
+        cuts[pix].set_xlabel('Spatial Direction (Pixels)')
+
+        plt.savefig(filename)
+        self.speak("saved plot of diagnostic cuts in spatial direction")
+
   def createWavelengthCal(self, remake=False):
     '''Populate the wavelength calibration for this aperture.'''
     self.speak("populating wavelength calibration")
@@ -274,7 +367,6 @@ class Aperture(Talker):
             self.trace.traceCenter
         except AttributeError:
             self.createTrace()
-
 
         # reassign the image number for this, because createwavelength cal probably reset it
         self.exposureprefix = n
@@ -504,6 +596,7 @@ class Aperture(Talker):
                 #for k in ['centroid', 'width', 'peak']:
                 #    assert(np.isfinite(self.extracted[width][k]).all())
 
+
             else:
                 self.extracted[width]['raw_counts'] = np.nansum(self.intermediates[width]['extractMask']*image/self.images['NormalizedFlat'], self.sindex)
                 # this is a kludge, to make the plotting look better for arcs
@@ -519,7 +612,7 @@ class Aperture(Talker):
             #sys.exit("Breaking here. Check it out.")
 
         if arc==False:
-            self.visualizeExtraction(width)
+            self.visualizeExtraction()
 
 
         # save the extracted spectra for all apertures
@@ -534,7 +627,7 @@ class Aperture(Talker):
     return self.extracted
  
   def setupVisualization(self):
-        self.thingstoplot = ['raw_counts', 'raw_counts_optext']#['sky', 'width',  'raw_counts']
+        self.thingstoplot = ['raw_counts']#['sky', 'width',  'raw_counts']
         height_ratios = np.ones(len(self.thingstoplot) + 2)
         suptitletext = '{}, {}'.format(self.name, self.exposureprefix)
         try:
@@ -543,8 +636,8 @@ class Aperture(Talker):
         except AttributeError:
             self.figure = plt.figure(figsize=(20,12), dpi=50)
             gs = plt.matplotlib.gridspec.GridSpec(len(self.thingstoplot) + 2, self.trace.numberofapertures,
-                                                    hspace=0.1, wspace=0.05,
-                                                    height_ratios = height_ratios )
+                                                    hspace=0.08, wspace=0.05,
+                                                    height_ratios = height_ratios)
             self.suptitle = self.figure.suptitle(suptitletext, fontsize=17)
             # create all the axes
             self.ax = {}
@@ -556,20 +649,27 @@ class Aperture(Talker):
                 sharey[thing] = None
             for i, width in enumerate(self.trace.extractionwidths):
                 self.ax[width], self.plotted[width] = {}, {}
+            
+                # row of 2D plots showing extraction stamp with extraction mask and sky mask for each width
                 self.ax[width]['apertures'] = plt.subplot(gs[-2, i], sharex=sharex, sharey=shareapertures)
                 sharex = self.ax[width]['apertures']
-                shareapertures=self.ax[width]['apertures']
+                shareapertures = self.ax[width]['apertures']
+                self.ax[width]['apertures'].tick_params(labelbottom=False)
+
+                # row of 2D plots showing extraction stamp with extraction mask and sky mask with the sky background subtracted for each width
                 self.ax[width]['subtracted'] = plt.subplot(gs[-1, i], sharex=sharex, sharey=sharesubtracted)
                 sharesubtracted = self.ax[width]['subtracted']
-                self.ax[width]['subtracted'].set_xlabel('Pixels')
+                self.ax[width]['subtracted'].set_xlabel('Dispersion Direction (Pixels)')
                 self.ax[width]['apertures'].set_ylim(*craftroom.oned.minmax(self.saxis))
+
+                # set the y labels
                 if i == 0:
                     self.ax[width]['apertures'].set_ylabel('extraction apertures')
                     self.ax[width]['subtracted'].set_ylabel('sky-subtracted, and coarsely rectified')
                 else:
-                    plt.setp(self.ax[width]['subtracted'].get_yticklabels(), visible=False)
-                    plt.setp(self.ax[width]['apertures'].get_yticklabels(), visible=False)
-                plt.setp(self.ax[width]['apertures'].get_xticklabels(), visible=False)
+                    self.ax[width]['subtracted'].tick_params(labelleft=False)
+                    self.ax[width]['apertures'].tick_params(labelleft=False)
+
 
                 for j, thing in enumerate(self.thingstoplot):
                     self.ax[width][thing] = plt.subplot(gs[j,i], sharex=sharex, sharey=sharey[thing])
@@ -589,11 +689,11 @@ class Aperture(Talker):
                     if thing == 'centroid':
                         self.ax[width][thing].set_ylim(np.min(self.trace.traceCenter(self.waxis))-5, np.max(self.trace.traceCenter(self.waxis))+5)
                     if thing == 'raw_counts':
-                        self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width]['raw_counts'], 99)*1.5)
+                        self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width][thing], 99)*1.5)
                     if thing == 'raw_counts_optext':
-                        self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width]['raw_counts_optext'], 99)*1.5)
+                        self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width][thing], 99)*1.5)
 
-  def visualizeExtraction(self, width):
+  def visualizeExtraction(self):
         # make sure the axes have been setup
         self.setupVisualization()
 
@@ -633,10 +733,6 @@ class Aperture(Talker):
         if ax is None:
             ax = self.ax[width]['subtracted']
 
-        # create interpolators to get indices from coordinates
-        #wtoindex = scipy.interpolate.interp1d(self.waxis, np.arange(len(self.waxis)))
-        #stoindex = scipy.interpolate.interp1d(self.saxis, np.arange(len(self.saxis)))
-
         # create grid of coordinates
         ok = self.intermediates[width]['skyMask'] > 0
         offsets = self.s[ok] - self.trace.traceCenter(self.w[ok])
@@ -655,17 +751,6 @@ class Aperture(Talker):
         ignore += (indexs == 0)
         ignore += (indexs == len(self.saxis)-1)
         ignore = ignore > 0
-
-        #interpolator = scipy.interpolate.RectBivariateSpline(self.waxis, self.saxis, self.intermediates[width]['subtracted'])
-
-        #rectifiedw, rectifieds = np.meshgrid(self.waxis, )
-        #rectified = interpolator(rectifiedw, self.trace.traceCenter(rectifiedw) + rectifieds)
-        #x, y = rectifiedw, self.trace.traceCenter(rectifiedw) + rectifieds
-        #rectified = np.zeros_like(x)
-        # why do I have to do this?
-        #for i in range(y.shape[1]):
-        #    rectified[:,i] = interpolator(x[:,i], y[:,i].T)
-
 
 
         # try updating an existing plot
@@ -746,11 +831,11 @@ class Aperture(Talker):
             for side in [-1,1]:
                 ax.plot(self.waxis, self.trace.traceCenter(self.waxis)[:,np.newaxis]+np.array([[-width, width]]), **extractedgekw)
 
-  def plotExtracted(self, width, axes=None):
+  def plotExtracted(self, width, ax=None):
         '''plot the extract spectra and parameters'''
 
-        if axes is None:
-            axes = self.ax[width]
+        if ax is None:
+            ax = self.ax[width]
 
         for j, thing in enumerate(self.thingstoplot):
             if thing in self.extracted[width].keys():
@@ -758,10 +843,10 @@ class Aperture(Talker):
                     self.plotted[width][thing][0].set_data(self.extracted['w'], self.extracted[width][thing])
                 except KeyError:
                     self.plotted[width][thing] = \
-                        axes[thing].plot(
+                        ax[thing].plot(
                             self.extracted['w'],
                             self.extracted[width][thing],
-                            linewidth=1, color='black')
+                            linewidth=2, color='k', alpha=0.8)
 
   def movieExtraction(self):
       pattern = '{}/extracted*.pdf'.format(self.directory)
