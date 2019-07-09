@@ -627,7 +627,7 @@ class Aperture(Talker):
     return self.extracted
  
   def setupVisualization(self):
-        self.thingstoplot = ['raw_counts']#['sky', 'width',  'raw_counts']
+        self.thingstoplot = ['raw_counts']#['raw_counts_optext', 'sky', 'width',  'raw_counts']
         height_ratios = np.ones(len(self.thingstoplot) + 2)
         suptitletext = '{}, {}'.format(self.name, self.exposureprefix)
         try:
@@ -681,17 +681,19 @@ class Aperture(Talker):
                     if i == 0:
                         self.ax[width][thing].set_ylabel(thing)
                     else:
-                        plt.setp(self.ax[width][thing].get_yticklabels(), visible=False)
-                    plt.setp(self.ax[width][thing].get_xticklabels(), visible=False)
+                        self.ax[width][thing].tick_params(labelleft=False)
+                    self.ax[width][thing].tick_params(labelbottom=False)
 
                     if thing == 'width':
                         self.ax[width][thing].set_ylim(0,np.max(self.trace.extractionwidths)/3.5)
                     if thing == 'centroid':
                         self.ax[width][thing].set_ylim(np.min(self.trace.traceCenter(self.waxis))-5, np.max(self.trace.traceCenter(self.waxis))+5)
                     if thing == 'raw_counts':
-                        self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width][thing], 99)*1.5)
+                        self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width]['raw_counts'], 99)*1.5)
+                        print(i, width, j, thing)
+                        print(np.percentile(self.extracted[width]['raw_counts'], 99)*1.5)
                     if thing == 'raw_counts_optext':
-                        self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width][thing], 99)*1.5)
+                        self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width]['raw_counts_optext'], 99)*1.5)
 
   def visualizeExtraction(self):
         # make sure the axes have been setup
