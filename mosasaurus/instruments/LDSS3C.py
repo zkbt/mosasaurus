@@ -134,7 +134,8 @@ class LDSS3C(Spectrograph):
 
         # basic information about the amplifiers
         self.namps = 2
-        self.gains = np.array([1.67, 1.45])
+        #self.gains = np.array([1.67, 1.45])  # gain from 2017 (user manual)
+        self.gains = np.array([1.570, 1.383])  # new gain from working on instrument (20 June 2019)
         self.binning = 2
 
         # what area of the detector contains real data? (for individual amplifiers
