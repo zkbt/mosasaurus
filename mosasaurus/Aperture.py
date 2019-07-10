@@ -242,12 +242,11 @@ class Aperture(Talker):
 
         ''' plot some cuts in the spatial direction for reference '''
 
-        print(self.name)
         filename = os.path.join(self.directory, 'diagnosticCuts_{0}.pdf'.format(self.name))
 
         widths = self.trace.extractionwidths
 
-        figure = plt.figure(figsize=(14,15), dpi=50)
+        plt.figure(figsize=(14,15), dpi=50)
         gs = plt.matplotlib.gridspec.GridSpec(5, 2, left=0.06, right=.98, bottom=0.04, top=0.98, hspace=0.17, wspace=0.15)
         cuts = {}
         cuts['stamp'] = plt.subplot(gs[:,0])
@@ -267,8 +266,9 @@ class Aperture(Talker):
         cuts['stamp'].set_xlabel('Spatial Direction (Pixels)')
         cuts['stamp'].set_ylabel('Dispersion Direction (Pixels)')
 
-        takefive = int(np.round(len(self.waxis)/5))
-        pixelcutinds = (np.round(np.arange(len(self.waxis))[::takefive] + takefive/2)).astype(int)[::-1]
+        # get the pixel indices of 5 rows in the cross-dispersion direction (don't use the first or last pixel rows though)
+        take5 = np.linspace(0, len(self.waxis), 7)[1:-1]
+        pixelcutinds = (np.round(take5)).astype(int)[::-1]
 
         axis, order = 0, 2
         for p, pix in enumerate(pixelcutinds):
@@ -317,7 +317,7 @@ class Aperture(Talker):
 
             cuts['stamp'].axhline(self.waxis[pix], self.saxis[0], self.saxis[-1], color='white', ls='--', lw=1.5, alpha=.5)
 
-            cuts[pix].set_title('Cut on Pixel {0}'.format(self.waxis[pix]))
+            cuts[pix].set_title('Cut on Pixel {0}'.format(int(self.waxis[pix])))
             cuts[pix].set_ylim(0,  np.percentile(profile, 96))
             cuts[pix].set_ylabel('Counts')
             cuts[pix].tick_params(labelbottom=False)
@@ -327,6 +327,8 @@ class Aperture(Talker):
 
         plt.savefig(filename)
         self.speak("saved plot of diagnostic cuts in spatial direction")
+        plt.close()
+        
 
   def createWavelengthCal(self, remake=False):
     '''Populate the wavelength calibration for this aperture.'''
@@ -690,8 +692,6 @@ class Aperture(Talker):
                         self.ax[width][thing].set_ylim(np.min(self.trace.traceCenter(self.waxis))-5, np.max(self.trace.traceCenter(self.waxis))+5)
                     if thing == 'raw_counts':
                         self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width]['raw_counts'], 99)*1.5)
-                        print(i, width, j, thing)
-                        print(np.percentile(self.extracted[width]['raw_counts'], 99)*1.5)
                     if thing == 'raw_counts_optext':
                         self.ax[width][thing].set_ylim(0, np.percentile(self.extracted[width]['raw_counts_optext'], 99)*1.5)
 
