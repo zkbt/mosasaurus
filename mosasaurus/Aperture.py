@@ -246,7 +246,7 @@ class Aperture(Talker):
 
         widths = self.trace.extractionwidths
 
-        plt.figure(figsize=(14,15), dpi=50)
+        plt.figure('diagnistic cuts', figsize=(14,15), dpi=50)
         gs = plt.matplotlib.gridspec.GridSpec(5, 2, left=0.06, right=.98, bottom=0.04, top=0.98, hspace=0.17, wspace=0.15)
         cuts = {}
         cuts['stamp'] = plt.subplot(gs[:,0])
