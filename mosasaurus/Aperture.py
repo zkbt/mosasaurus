@@ -881,7 +881,7 @@ class Aperture(Talker):
                     self.suptitle_supersampled = plt.suptitle(suptitletext)
 
                     # make subplot for each key, and each aperture
-                    gs = plt.matplotlib.gridspec.GridSpec(nkeys, napertures, hspace=0.1, wspace=0.05)
+                    self.gs = plt.matplotlib.gridspec.GridSpec(nkeys, napertures, hspace=0.1, wspace=0.05)
                     self.plotted_supersampled = {}
 
                 try:
@@ -986,7 +986,7 @@ class Aperture(Talker):
                             self.ax_supersampled[combinedkey]
                         except KeyError:
                             # or do we need to create it from scratch?
-                            self.ax_supersampled[combinedkey] = plt.subplot(gs[i,j], sharex=sharex)
+                            self.ax_supersampled[combinedkey] = plt.subplot(self.gs[i,j], sharex=sharex)
                             sharex = self.ax_supersampled[combinedkey]
 
                     # plot demonstration

@@ -292,7 +292,7 @@ class Cube(Talker):
             if 'raw_counts' in key:
                 s = sum(self.cubes[key][star][timepoint,:])
                 self.speak('(raw_counts sum to {} for {})'.format(s, fileprefix))
-                assert(s>0.0)
+                #assert(s>0.0)
 
           # pull out data from the (unsupersampled) spectra to populate a square with dimensions self.numberofstars x self.numberoftimes
           for key in ['sky', 'width', 'centroid', 'shift', 'stretch']:#, 'median_width']:#, 'cosmicdiagnostic']:
@@ -333,9 +333,9 @@ class Cube(Talker):
     if truncate:
         self.speak("couldn't find all requested spectra, so truncated cube at a length of {0}".format(timepoint))
         for key in self.cubes.keys():
-            self.cubes[key] = self.cubes[key][star][0:timepoint,:]
+            self.cubes[key][star] = self.cubes[key][star][0:timepoint,:]
         for key in self.squares.keys():
-            self.squares[key] = self.squares[key][star][0:timepoint]
+            self.squares[key][star] = self.squares[key][star][0:timepoint]
 
     # keep track of purely time-dependent quantities
     self.temporal = astropy.table.Table(self.headers)[0:self.numberoftimes]

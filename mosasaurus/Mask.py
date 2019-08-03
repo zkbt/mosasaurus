@@ -211,7 +211,11 @@ class Mask(Talker):
 
       self.speak('creating wavelength calibrators')
       for aperture in self.apertures:
-          aperture.createWavelengthCal(remake=remake)
+          try:
+              aperture.wavelengthcalibrator
+              assert(remake == False)
+          except (AssertionError, AttributeError):
+              aperture.createWavelengthCal(remake=remake)
 
       self.speak('adding wavelength calibrations to all stars (if needed)')
       for exposureprefix in self.obs.fileprefixes['science']:

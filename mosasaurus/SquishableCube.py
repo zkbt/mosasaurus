@@ -365,7 +365,7 @@ class SquishableCube(Talker):
                         final = binned_weighted/binned_weights
 
                         # make sure that something is finite
-                        assert(np.isfinite(final).any())
+                        # assert(np.isfinite(final).any())
 
                         # store the final one
                         self.binned_cubes[k][star][i,:] = final
@@ -427,7 +427,7 @@ class SquishableCube(Talker):
             z = self.corrected()
             ntimes, nwavelengths = z.shape
             binned = np.mean(self.corrected().reshape(ntimes, np.ceil(nwavelengths/wavelengthbin).astype(np.int), wavelengthbin), 2)
-            mediantimeseries = np.median(binned, 1)
+            mediantimeseries = np.nanmedian(binned, 1)
             withouttimeseries = binned/mediantimeseries[:, np.newaxis] - 1
             wavelengthstd = np.nanstd(withouttimeseries, 0)
             normalized = withouttimeseries/wavelengthstd[np.newaxis, :]
