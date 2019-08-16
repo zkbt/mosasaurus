@@ -180,8 +180,8 @@ class Aperture(Talker):
       self.speak("creating normalized flat for {0}".format(self.name))
       self.createNormalizedFlat()
 
-    # make a diagnostic plot of cuts in the spatial direction
-    self.spatialCuts()
+      # make a diagnostic plot of cuts in the spatial direction
+      self.spatialCuts()
 
   def displayTrace(self):
       for i, width in enumerate(self.trace.extractionwidths):

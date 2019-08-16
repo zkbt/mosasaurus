@@ -178,7 +178,7 @@ class LDSS3C(Spectrograph):
         elif self.grism == 'vph-red':
             self.uniformwavelengths = np.arange(6000, 10500)
             self.alignmentranges = dict(    O2=(7500,7800),
-                                            Ca_triplet=(8450,8750),
+                                            Ca_triplet=(8450,8725),
                                             H2O=(9300, 9700)
                                             )
 
@@ -332,7 +332,6 @@ class LDSS3C(Spectrograph):
 
     def loadOverscanTrimHalfCCD(self, filename):
         '''Open one half of an amplifier of a chip, subtract the overscan, and trim.'''
-        ### FIX ME ### -- this should all be moved into the Spectrograph definition
 
         # open the FITS file, split into header and data
         hdu = astropy.io.fits.open(filename)
