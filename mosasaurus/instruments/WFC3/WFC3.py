@@ -1,5 +1,11 @@
 from ..Spectrograph import *
 from astropy.stats import mad_std
+from astropy.coordinates import SkyCoord
+import astropy.units as u
+import illumination as il
+from astropy.wcs import WCS
+from astropy.io import fits
+
 
 class WFC3(Spectrograph):
     '''
@@ -293,13 +299,13 @@ class WFC3(Spectrograph):
         '''
         Return the gain, from a given header.
         '''
-        return header['GAIN']
+        return 1.0
 
     def exptime(self, header):
         return header['EXPTIME']
 
     def darkexptime(self, header):
-        return header['DARKTIME']
+        return 0.0
 
     def loadSingleCCD(self, filenames):
         '''
@@ -322,52 +328,154 @@ class WFC3(Spectrograph):
 
         '''
 
-        # for WFC#, we need only one _ima filename; it shouldn't be a list
+
         filename = filenames[0]
 
+        # FIXME -- move some of these to be instrument options!
+
+
         # open (temporarily) the file
-        with astropy.io.fits.open(filename) as hdu:
-            #self.data, self.header = hdu[0].data,  hdu[0].header
+        print(filename)
+        with fits.open(filename) as hdu:
+
 
             # find all the SCI extensions inside the _ima
             n_extensions_per_read = 5
             nsamp = np.int((len(hdu)-1)/n_extensions_per_read)
             e_primary = 0
             e_sci = np.arange(nsamp)*n_extensions_per_read + 1
+            print(e_sci)
 
-            # all WFC3 images have a 5 pixel border around them
-            reads = []
-            border = 5
-            for e in e_sci[:-2]:
+            # transform the target location to pixel coordinates
+            w = WCS(hdu[e_sci[0]].header)
+            target_coord = SkyCoord(hdu[0].header['RA_TARG']*u.deg, hdu[0].header['DEC_TARG']*u.deg)
+            xstart, ystart  = w.world_to_pixel(target_coord)
+            print(xstart, ystart)
+
+            # calculate the x and y pixel scales (in arcseconds/pixel)
+            xscale = (np.sqrt(np.sum(w.pixel_scale_matrix[:,0]**2))*u.deg).to(u.arcsec)
+            yscale = (np.sqrt(np.sum(w.pixel_scale_matrix[:,1]**2))*u.deg).to(u.arcsec)
+            xscale, yscale
+
+            print(xscale, yscale)
+            # calculate the total scan height in pixels
+            yscan_arcsec = hdu[0].header['SCAN_LEN']
+            yscan_pixels = (yscan_arcsec*u.arcsec/yscale).decompose()
+
+            # set up the basic scan geometry (FIXME -- make more flexible)
+            yoffset = 0
+            xoffset = 20
+
+            boxwidth = 175
+            boxleft = xstart + xoffset
+            nboxes = hdu[0].header['NSAMP'] - 2
+            buffer = 5
+            yheight = yscan_pixels/(nboxes+1)
+            boxheight = yheight*buffer
+
+
+
+            # create some empty lists to populate with images
+            rawreads = []
+            maskedreads = []
+            betterstacked = []
+            stacked = []
+
+            for i in range(nboxes):
+
+                # pull out this science extension
+                e = e_sci[i]
+
+                # all WFC3 images have a 5 pixel border around them; trim that
+                border = 5
                 this_read = hdu[e].data[border:-border, border:-border]
                 last_read = hdu[e+5].data[border:-border, border:-border]
 
-                # the flux accumuluated just in this read
-                difference = this_read - last_read
+                rows, cols = np.shape(this_read)
+                x2d, y2d = np.meshgrid(np.arange(cols), np.arange(rows))
 
+                boxcenter = ystart + yoffset + yheight*i #+ yheight/2.0
+                boxbottom = boxcenter - boxheight/2.0
+                boxright = boxleft + boxwidth
+                boxtop = boxbottom + boxheight
+
+                is_target = (y2d >= boxbottom)*(y2d <= boxtop)*(x2d >= boxleft)*(x2d <= (boxright))
+                is_nottarget = is_target == False
+
+
+
+                # pull out the flux accumuluated just in this read
+                raw = this_read - last_read
+                masked = raw*is_target
+
+                #FIXME - still need to subtract background
                 # estimate a crude background
-                background_estimate = np.median(difference)
-                is_not_obvious_star = np.abs(difference - background_estimate) < mad_std(difference)*10
 
+                without_target = raw[is_nottarget]
+                background_estimate = np.median(without_target)
+                is_not_obvious_star = np.abs(without_target - background_estimate) < mad_std(without_target)*3
+                better_background = np.median(without_target[is_not_obvious_star])
+
+                raw_subtracted = raw - better_background
+                masked = (raw - better_background)*is_target
                 # estimate a better background and subtract it
-                better_background = np.median(difference[is_not_obvious_star])
-                difference -= better_background
-                reads.append(difference)
+                #
+                #difference -= better_background
 
-            stacked = np.sum(reads, 0)
+                #maskedread +
+                rawreads.append(raw_subtracted)
+                maskedreads.append(masked)
+                betterstacked.append(np.sum(maskedreads,0))
+                stacked.append(np.sum(rawreads, 0))
 
-            visualize = True
 
-            import illumination as il
-            movie_filename = filename.replace('fits', 'mp4')
-            assert(movie_filename != filename)
-            print(f'saving movie to {movie_filename}')
-            individual = il.imshowFrame(data=np.array(reads))
-            stacked = il.imshowFrame(data=stacked)
-            il.GenericIllustration(imshows=[stacked, individual]).animate(filename=movie_filename, dpi=150)
+        movie_filename = filename.replace('fits', 'mp4')
+        assert(movie_filename != filename)
+        print(f'saving movie to {movie_filename}')
 
-             # record that these have been stitched
-            header = copy.copy(hdu[0].header)
 
+        frames = []
+
+        # create a frame for the last - first image
+        frames.append(il.imshowFrame(data=np.array(stacked), name='stacked'))
+
+        # create a frame for each individual read
+        frames.append(il.imshowFrame(data=np.array(rawreads), name='raw-reads'))
+
+        # create a frame for each individual read, masked just around the target
+        frames.append(il.imshowFrame(data=np.array(maskedreads),  name='masked-target'))
+
+        # create a frame for each individual read, masked except for the target
+        frames.append(il.imshowFrame(data=np.array(rawreads) - np.array(maskedreads), name='masked-other'))
+
+        # create a frame for each individual read, masked except for the target
+        frames.append(il.imshowFrame(data=np.array(betterstacked), name='better-stacked'))
+
+        # make an illustration that contains all frames
+        illust = il.GenericIllustration(imshows=frames, imshowrows=2)
+        illust.plot()
+
+        # pull out a single frame
+        f = illust.frames['stacked']
+
+        # plot the target reference location on the image
+        plt.sca(f.ax)
+        plt.scatter(xstart, ystart, c='black', marker='x', linewidth=0.5)
+        plt.text(xstart, ystart, '\nTARG', ha='center', va='top', fontsize=6)
+
+
+        # plot the individual-read boxes on each frame
+        for i in range(nboxes):
+
+            boxcenter = ystart + yoffset + yheight*i #+ yheight/2.0
+            boxbottom = boxcenter - yheight/2.0
+
+            for f in illust.frames.values():
+                patch = plt.Rectangle([boxleft, boxbottom], boxwidth, yheight, fill=False)
+                f.ax.add_patch(patch)
+
+        illust.animate(filename=movie_filename, dpi=150)
+
+        header = copy.copy(hdu[0].header)
         # return the trimmed
-        return stacked, header
+        return betterstacked[-1], header

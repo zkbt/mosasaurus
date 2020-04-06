@@ -203,7 +203,7 @@ class Calibration(Talker):
 
 			    # make a cube of flat images
 			    cube = []
-        
+
 			    for exposureprefix in self.obs.fileprefixes['flat']:
 				    c.set(exposureprefix, 'flat')
 				    cube.append(c.readData())
