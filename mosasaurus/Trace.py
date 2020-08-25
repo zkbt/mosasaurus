@@ -102,14 +102,14 @@ class Trace(Talker):
     def load(self):
 
         # load the parameters of the trace
-        (self.tracefitcoef, self.tracefitwidth) = np.load(self.filename)
+        (self.tracefitcoef, self.tracefitwidth) = np.load(self.filename, allow_pickle=True)
         self.speak("loaded trace parameters to {0}".format(self.filename))
         self.tracefit = np.poly1d(self.tracefitcoef)
 
         # save the extraction and sky masks
         filename = os.path.join(self.aperture.directory,  'extractionmasks_{0}.npy'.format(self.aperture.name))
         #(self.skyoffsets, self.maskfluxoffsets, self.extractionwidths) = np.load(filename)
-        (self.skyoffsets, self.extractionwidths) = np.load(filename)
+        (self.skyoffsets, self.extractionwidths) = np.load(filename, allow_pickle=True)
         self.speak("saved extraction mask parameters to {0}".format(filename))
         self.numberofapertures = len(self.extractionwidths)
         self.narrowest, self.widest = craftroom.oned.minmax(self.extractionwidths)

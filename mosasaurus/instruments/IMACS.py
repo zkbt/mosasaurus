@@ -113,7 +113,7 @@ class IMACS(Spectrograph):
 
         #try:
         #self.observatory = coord.EarthLocation.of_site(self.sitename)
-        self.observatory = coord.EarthLocation.from_geodetic(-4.71333*u.hourangle, -29.00833*u.deg, 2282.0*u.m)
+        self.observatory = coord.EarthLocation.from_geodetic(lon=coord.Angle('-70° 41′ 33.36″'), lat=coord.Latitude('-29° 0′ 52.56″'), height=2380*u.m)
         #EarthLocation(1845655.49905341*m, -5270856.2947176*m, -3075330.77760682*m)
 
         '''
@@ -167,7 +167,7 @@ class IMACS(Spectrograph):
         self.ysize = 4096
 
         # what are the calibrations we should expect
-        self.detectorcalibrations = ['dark', 'bias', 'flat']
+        self.detectorcalibrations = ['flat'] # for some data sets where I didn't take biases or flats (you shouldn't need them for IMACS)
         #self.detectorcalibrations = ['dark', 'bias', 'flat']
 
         # how many stitched images can we hold in memory?
@@ -233,7 +233,7 @@ class IMACS(Spectrograph):
         self.extractiondefaults['spatialsubarray'] = 50
         # how far (in pixels) does spectrum extend away from direct image position
         if self.grism == 'gri-150-10.8':
-            self.extractiondefaults['stampwavelengthredward'] = 500
+            self.extractiondefaults['stampwavelengthredward'] = 1000
             self.extractiondefaults['stampwavelengthblueward'] = 500
 
         if self.grism == 'gri-300-26.7':

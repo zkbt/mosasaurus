@@ -75,7 +75,7 @@ class WavelengthRecalibrator(Talker):
         self.outsidecube = outsidecube
         if self.outsidecube: 
             self.speak('calibrating against cube from another extraction, path={0}'.format(self.outsidecube))
-            self.outsidecube = np.load(self.outsidecube)[()]
+            self.outsidecube = np.load(self.outsidecube, allow_pickle=True)[()]
 
 
         #
@@ -112,7 +112,7 @@ class WavelengthRecalibrator(Talker):
 
         self.speak('attempting to load previously saved shifts and stretches from {}'.format(
             self.filename))
-        loaded = np.load(self.filename)[()]
+        loaded = np.load(self.filename, allow_pickle=True)[()]
         self.corrections = loaded
         self.speak('  loading [corrections] from the saved cube structure')
 
@@ -375,7 +375,7 @@ class WavelengthRecalibrator(Talker):
                     directory, 'extracted_{}.npy'.format(prefix))
 
                 # load the original extracted file
-                extracted = np.load(extractedFilename)
+                extracted = np.load(extractedFilename, allow_pickle=True)
 
                 # nudge the wavelengths
                 originalwavelength = extracted['wavelength'] + 0.0

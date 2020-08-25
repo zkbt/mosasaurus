@@ -64,3 +64,8 @@ docs/_build/
 
 # PyBuilder
 target/
+
+# annoying back-up python thing I think (HZDL)
+/mosasaurus/*.py~
+/mosasaurus/instruments/*.py~
+.gitignore~

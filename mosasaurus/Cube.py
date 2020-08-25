@@ -112,7 +112,7 @@ class Cube(Talker):
       extractionandaperture = s.split('extraction_')[-1]
       self.speak(' [{}] contains:'.format(extractionandaperture))
       files = glob.glob(os.path.join(s, 'supersampled_*.npy'))
-      supersampled = np.load(files[0])[()]
+      supersampled = np.load(files[0], allow_pickle=True)[()]
       for k in supersampled.keys():
         if 'raw_counts' in k:
             width = k.split('_')[-1]
@@ -217,7 +217,7 @@ class Cube(Talker):
 
     if self.shift:
         shiftsFile = os.path.join(self.directory, 'spectralstretch.npy')
-        self.wavelengthstretches = np.load(shiftsFile)[()]
+        self.wavelengthstretches = np.load(shiftsFile, allow_pickle=True)[()]
 
     # loop over the spectra
     for timepoint in range(self.numberoftimes):
@@ -239,9 +239,9 @@ class Cube(Talker):
           self.speak('trying to load {0}'.format(spectrumFile))
           # load the extracted spectrum (or truncate the cubes at this point)
           try:
-              supersampled = np.load(spectrumFile)[()]
+              supersampled = np.load(spectrumFile, allow_pickle=True)[()]
               self.speak('loaded {0}'.format(spectrumFile))
-              extracted = np.load(extractedFile)[()]
+              extracted = np.load(extractedFile, allow_pickle=True)[()]
               self.speak('loaded {0}'.format(extractedFile))
           except IOError:
               # if we've run out of spectra to load, then truncate
@@ -370,7 +370,7 @@ class Cube(Talker):
   def load(self):
       self.speak('attempting to load previously saved cubes from...')
       self.speak('{0}'.format(self.filename))
-      loaded = np.load(self.filename)[()]
+      loaded = np.load(self.filename, allow_pickle=True)[()]
       for thing in self.savable:
           self.__dict__[thing] = loaded[thing]
           self.speak('  loading [{0}] from the saved cube structure'.format(thing))

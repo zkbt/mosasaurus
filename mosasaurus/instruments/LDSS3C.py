@@ -112,7 +112,10 @@ class LDSS3C(Spectrograph):
 
         #try:
         #self.observatory = coord.EarthLocation.of_site(self.sitename)
-        self.observatory = coord.EarthLocation.from_geodetic(-4.71333*u.hourangle, -29.00833*u.deg, 2282.0*u.m)
+        # what used to be here:
+        #self.observatory = coord.EarthLocation.from_geodetic(-4.71333*u.hourangle, -29.00833*u.deg, 2282.0*u.m)
+        # testing with revised location from LCO.CL website
+        self.observatory = coord.EarthLocation.from_geodetic(lon=coord.Angle('-70° 41′ 33.36″'), lat=coord.Latitude('-29° 0′ 52.56″'), height=2380*u.m)
         #EarthLocation(1845655.49905341*m, -5270856.2947176*m, -3075330.77760682*m)
 
 
@@ -140,9 +143,11 @@ class LDSS3C(Spectrograph):
 
         # what area of the detector contains real data? (for individual amplifiers
         self.dataleft = 0
-        self.dataright = 512
+        if   self.binning == 1: self.dataright = 1024
+        elif self.binning == 2: self.dataright = 512
         self.databottom = 0
-        self.datatop = 2048
+        if   self.binning == 1: self.datatop = 4096
+        elif self.binning == 2: self.datatop = 2048
 
         # set up the size of the image
         self.xsize = self.namps*(self.dataright - self.dataleft)
@@ -153,7 +158,7 @@ class LDSS3C(Spectrograph):
 
         # how many stitched images can we hold in memory?
         self.maximumimagesinmemory = 128
-        self.maximumimagesinmemoryforscience = 128
+        self.maximumimagesinmemoryforscience = 75
 
 
     def setupDisperser(self):
@@ -199,6 +204,8 @@ class LDSS3C(Spectrograph):
 
         if self.binning == 2:
             self.offsetBetweenReferenceAndWavelengthIDs = -1024
+        elif self.binning == 1: 
+            self.offsetBetweenReferenceAndWavelengthIDs = -2048
         # find the peak of the combined correlation function
         #if self.aperture.obs.instrument == 'LDSS3C':
         #    self.offsetBetweenReferenceAndWavelengthIDs = -1024 # KLUDGE KLUDGE KLUDGE! np.where(self.corre['combined'] == self.corre['combined'].max())[0][0] - len(x)
@@ -216,8 +223,7 @@ class LDSS3C(Spectrograph):
         self.extractiondefaults['spatialsubarray'] = 50
         # how far (in pixels) does spectrum extend away from direct image position
         self.extractiondefaults['stampwavelengthredward'] = np.inf
-        self.extractiondefaults['stampwavelengthblueward'] = 1050
-
+        self.extractiondefaults['stampwavelengthblueward'] = 1115
 
 
         # setup the default initial extraction geometry

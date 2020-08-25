@@ -105,7 +105,7 @@ class Aperture(Talker):
     self.speak("populating calibration stamps")
     calibfilename = os.path.join(self.directory, 'calibStamps_{0}.npy'.format(self.name))
     try:
-      self.images = np.load(calibfilename)[()] # i don't understand why i need the "empty tuple" but the internet says so
+      self.images = np.load(calibfilename, allow_pickle=True)[()] # i don't understand why i need the "empty tuple" but the internet says so
       self.speak("loaded calibration stamps from {0}".format(calibfilename))
     except:
       self.speak("cutting them for the first time out of the stitched master images")
@@ -345,7 +345,7 @@ class Aperture(Talker):
 
   def loadExtracted(self, n):
     self.exposureprefix = n
-    self.extracted = np.load(self.extractedFilename)[()]
+    self.extracted = np.load(self.extractedFilename, allow_pickle=True)[()]
     self.speak('loaded extracted spectrum from {0}'.format(self.extractedFilename))
 
   def extract(self, n=0, image=None, subtractsky=True, arc=False, remake=False):
@@ -897,7 +897,7 @@ class Aperture(Talker):
       if remake or not os.path.exists(self.supersampledFilename):
           self.speak('recalibrating wavelengths for {0}'.format(self.exposureprefix))
           # load the spectrum
-          self.extracted = np.load(self.extractedFilename)[()]
+          self.extracted = np.load(self.extractedFilename, allow_pickle=True)[()]
 
           # addWavelengthCalibration the spectrum
           self.extracted['wavelength'] = self.wavelengthcalibrator.pixelstowavelengths(self.waxis)
@@ -949,7 +949,7 @@ class Aperture(Talker):
         try:
             # try just loading the supersampled spectra from files
             assert(remake == False)
-            self.supersampled = np.load(self.supersampledFilename)
+            self.supersampled = np.load(self.supersampledFilename, allow_pickle=True)
             self.speak('loaded supersampled spectrum from {0}'.format(self.supersampledFilename))
         except (AssertionError, IOError):
             # otherwise, make some new supersampled spectra
@@ -961,7 +961,7 @@ class Aperture(Talker):
                 except AttributeError:
                     # load the spectral stretches that were estimated via a WavelengthRecalibrator
                     stretchfilename = os.path.join(self.mask.reducer.extractionDirectory,  'spectralstretch.npy')
-                    self.stretches = np.load(stretchfilename)[()]
+                    self.stretches = np.load(stretchfilename, allow_pickle=True)[()]
                     self.speak('loaded stretches from {}'.format(stretchfilename))
 
             # we're going to supersample multiple keys, to keep everything together

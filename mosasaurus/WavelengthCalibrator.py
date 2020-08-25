@@ -111,7 +111,7 @@ class WavelengthCalibrator(Talker):
     def loadCalibration(self):
         '''Load the wavelength calibration.'''
         self.speak('trying to load calibration data')
-        coef, domain = np.load(self.calibrationfilename)
+        coef, domain = np.load(self.calibrationfilename, allow_pickle=True)
         self.pixelstowavelengths = Legendre(coef, domain)
         self.polynomialdegree = self.pixelstowavelengths.degree()
         self.speak("loaded wavelength calibration"
@@ -274,7 +274,7 @@ class WavelengthCalibrator(Talker):
         '''
         Load (user-set) matches between pixel peaks and known wavelength lines.
         '''
-        (self.matches, self.knownwavelengths) = np.load(self.matchesfilename)
+        (self.matches, self.knownwavelengths) = np.load(self.matchesfilename, allow_pickle=True)
         self.speak('loaded wavelength matches from {0}'.format(self.matchesfilename))
 
     def guessMatches(self):
