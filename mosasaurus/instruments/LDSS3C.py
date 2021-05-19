@@ -79,13 +79,13 @@ class LDSS3C(Spectrograph):
     summarysortkey = 'fileprefix'
 
     # within that header key, what words do we search for?
-    wordstosearchfor = { 'dark':['dark'],
-                         'bias':['bias'],
-                         'flat':['quartz', 'flat', 'lamp'],
+    wordstosearchfor = { 'dark':['dark', ''],
+                         'bias':['bias', 'Bias', ''],
+                         'flat':['quartz', 'flat', 'lamp', ''],
                            'He':['He', 'helium'],
                            'Ne':['Ne', 'neon'],
                            'Ar':['Ar', 'argon'],
-                      'science':['sciece']}
+                      'science':['sciece', 'spec']}
 
     wordstoavoid  =    { 'dark':[],
                          'bias':[],
@@ -137,9 +137,11 @@ class LDSS3C(Spectrograph):
 
         # basic information about the amplifiers
         self.namps = 2
-        #self.gains = np.array([1.67, 1.45])  # gain from 2017 (user manual)
-        self.gains = np.array([1.570, 1.383])  # new gain from working on instrument (20 June 2019)
-        self.binning = 2
+        #self.gains = np.array([1.67, 1.45])  # gain from 2017, fast read out (user manual)
+        #self.gains = np.array([1.570, 1.383])  # new gain from working on instrument, fast read out (20 June 2019)
+        #self.gains = np.array([2.95, 2.56])  # gain from 2019, turbo read out mode (August 2019)
+        self.gains = np.array([2.84, 2.52])  # gain from 2021, turbo read out mode (March 2021)
+        self.binning = 1
 
         # what area of the detector contains real data? (for individual amplifiers
         self.dataleft = 0
@@ -154,7 +156,7 @@ class LDSS3C(Spectrograph):
         self.ysize = (self.datatop - self.databottom)
 
         # what are the calibrations we should expect
-        self.detectorcalibrations = ['dark', 'bias', 'flat']
+        self.detectorcalibrations = ['bias']#, 'flat']#['dark', 'bias', 'flat']
 
         # how many stitched images can we hold in memory?
         self.maximumimagesinmemory = 128
@@ -172,17 +174,18 @@ class LDSS3C(Spectrograph):
 
         # define a uniform grid of wavelengths for supersampling onto, later
         if self.grism == 'vph-all':
-            self.uniformwavelengths = np.arange(4000, 10500)
-            self.alignmentranges = {    r'$H\beta$':(4750,5050),
-                                        r'$H\alpha$':(6425,6725),
-                                        r'$O_2$ - B':(6750,7050),
-                                        r'$O_2$ - A':(7500,7800),
-                                        r'Ca triplet':(8450,8750),
-                                        r'$H_2O$':(9200, 9700),
-                                            }
+            self.uniformwavelengths = np.arange(5000, 9800)
+            self.alignmentranges = dict(    #Hbeta=(4750,5050),
+                                            #Halpha=(6425,6725),
+                                            O2B=(6850,6950),
+                                            O2A=(7550,7750),
+                                            #Ca_triplet=(8450,8725),
+                                            H2O=(9300, 9500)
+                                            )
         elif self.grism == 'vph-red':
             self.uniformwavelengths = np.arange(6000, 10500)
-            self.alignmentranges = dict(    O2=(7500,7800),
+            self.alignmentranges = dict(    O2B=(6850,6950),
+                                            O2A=(7500,7800),
                                             Ca_triplet=(8450,8725),
                                             H2O=(9300, 9700)
                                             )
@@ -223,7 +226,7 @@ class LDSS3C(Spectrograph):
         self.extractiondefaults['spatialsubarray'] = 50
         # how far (in pixels) does spectrum extend away from direct image position
         self.extractiondefaults['stampwavelengthredward'] = np.inf
-        self.extractiondefaults['stampwavelengthblueward'] = 1115
+        self.extractiondefaults['stampwavelengthblueward'] = np.inf
 
 
         # setup the default initial extraction geometry
