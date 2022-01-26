@@ -532,6 +532,9 @@ class Aperture(Talker):
                 # store the 2D sky subtracted image
                 self.intermediates[width]['subtracted'] = image/self.images['NormalizedFlat'] - self.intermediates[width]['sky']
 
+                # comment this next line out if you don't need it; it makes the extraction a lot slower
+                #self.extracted[width]['intermediates']['subtracted'] = self.intermediates[width]['subtracted']
+
                 # this is a plotting tool to go along with the FWHM modification
                 #if self.exposureprefix in [fileprefixes[i] for i in indices]:
                 #    diagnosticFilename = os.path.join(self.directory, 'extracted_diagnostic_{0}_{1}px.pdf'.format(self.exposureprefix, width))

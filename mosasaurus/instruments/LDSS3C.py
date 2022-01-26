@@ -156,7 +156,7 @@ class LDSS3C(Spectrograph):
         self.ysize = (self.datatop - self.databottom)
 
         # what are the calibrations we should expect
-        self.detectorcalibrations = ['bias']#, 'flat']#['dark', 'bias', 'flat']
+        self.detectorcalibrations = ['dark', 'bias', 'flat']
 
         # how many stitched images can we hold in memory?
         self.maximumimagesinmemory = 128
@@ -176,7 +176,7 @@ class LDSS3C(Spectrograph):
         if self.grism == 'vph-all':
             self.uniformwavelengths = np.arange(5000, 9800)
             self.alignmentranges = dict(    #Hbeta=(4750,5050),
-                                            #Halpha=(6425,6725),
+                                            Halpha=(6425,6725),
                                             O2B=(6850,6950),
                                             O2A=(7550,7750),
                                             #Ca_triplet=(8450,8725),
@@ -184,12 +184,13 @@ class LDSS3C(Spectrograph):
                                             )
         elif self.grism == 'vph-red':
             self.uniformwavelengths = np.arange(6000, 10500)
-            self.alignmentranges = dict(    O2B=(6850,6950),
-                                            O2A=(7500,7800),
+            self.alignmentranges = dict(    #Hbeta=(4750,5050),
+                                            Halpha=(6425,6725),
+                                            O2B=(6850,6950),
+                                            O2A=(7550,7750),
                                             Ca_triplet=(8450,8725),
-                                            H2O=(9300, 9700)
+                                            H2O=(9300, 9500)
                                             )
-
 
         # the available arc lamps for wavelength calibration
         self.arclamps = ['He', 'Ne', 'Ar']

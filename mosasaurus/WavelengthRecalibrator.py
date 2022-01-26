@@ -209,10 +209,13 @@ class WavelengthRecalibrator(Talker):
                         np.abs(self.outsidecube['spectral']['wavelength'] - l))
                     outsideright = np.argmin(
                         np.abs(self.outsidecube['spectral']['wavelength'] - r))
-                    outsideapertures = list(self.outsidecube['cubes']['raw_counts'].keys())
+                    target = self.outsidecube['target']
+                    comp = self.outsidecube['comparisons'][0]
                     # grab one of the spectra from the outside shifted cube; it shouldn't matter which once since they should all be shifted
-                    master = self.outsidecube['cubes']['raw_counts'][outsideapertures[0]][masterexposure, outsideleft:outsideright]
+                    master = self.outsidecube['cubes']['raw_counts'][target][masterexposure, outsideleft:outsideright]
+                    #master = np.median(self.outsidecube['cubes']['raw_counts'][target], 0)[outsideleft:outsideright]
                 else:          
+                    #master = c[self.unshiftedcube.target][masterexposure, left:right]
                     master = c[self.unshiftedcube.target][masterexposure, left:right]
                 start = subtractcontinuum(master)
 
@@ -234,6 +237,7 @@ class WavelengthRecalibrator(Talker):
 
                     # do a quadratic fit to estimate the peak
                     x = np.arange(len(xc))
+
                     coeff = np.polynomial.polynomial.polyfit(
                         x[xc.argmax() - 5:xc.argmax() + 5], xc[xc.argmax() - 5:xc.argmax() + 5], 2)
                     fit = np.polynomial.polynomial.Polynomial(coeff)
@@ -241,7 +245,7 @@ class WavelengthRecalibrator(Talker):
                     peak = der.roots()
 
                     # calculate the offset from the peak
-                    offset = peak - len(wave) / 2 + 1
+                    offset = peak - len(wave) / 2 
                     linecenter = (l + r) / 2.0
                     localshifts[star][linecenter] = offset
 
@@ -336,6 +340,7 @@ class WavelengthRecalibrator(Talker):
                     self.unshiftedcube.spectral['wavelength']))
                 plt.xlabel('Original Wavelength (angstroms)')
                 plt.ylim(-15, 15)
+                plt.grid(alpha=0.4)
                 plt.ylabel('New - Original')
 
                 pltdir = os.path.join(self.unshiftedcube.directory, 'shifts')
@@ -375,7 +380,7 @@ class WavelengthRecalibrator(Talker):
                     directory, 'extracted_{}.npy'.format(prefix))
 
                 # load the original extracted file
-                extracted = np.load(extractedFilename, allow_pickle=True)
+                extracted = np.load(extractedFilename, allow_pickle=True)[()]
 
                 # nudge the wavelengths
                 originalwavelength = extracted['wavelength'] + 0.0
