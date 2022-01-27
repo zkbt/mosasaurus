@@ -213,9 +213,7 @@ class WavelengthRecalibrator(Talker):
                     comp = self.outsidecube['comparisons'][0]
                     # grab one of the spectra from the outside shifted cube; it shouldn't matter which once since they should all be shifted
                     master = self.outsidecube['cubes']['raw_counts'][target][masterexposure, outsideleft:outsideright]
-                    #master = np.median(self.outsidecube['cubes']['raw_counts'][target], 0)[outsideleft:outsideright]
                 else:          
-                    #master = c[self.unshiftedcube.target][masterexposure, left:right]
                     master = c[self.unshiftedcube.target][masterexposure, left:right]
                 start = subtractcontinuum(master)
 
