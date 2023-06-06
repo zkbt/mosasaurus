@@ -13,7 +13,7 @@ def readFitsData(filename, verbose=False):
 def writeFitsData(data, filename, verbose=False):
     '''Write data to a FITS image (ignoring the header).'''
     hdu = astropy.io.fits.PrimaryHDU(data.astype(np.float32))
-    hdu.writeto(filename, clobber=True)
+    hdu.writeto(filename, overwrite=True)
     if verbose:
         print("      wrote image to ", filename)
 

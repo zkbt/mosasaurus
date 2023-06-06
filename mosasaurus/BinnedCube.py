@@ -235,7 +235,7 @@ The stuff below is mostly code that came out of the original Cube (some not)
     mediancompositespectrum = np.ma.median(self.binned_correction, 0)
     self.binned_correction /= mediancompositespectrum.reshape(1,nWaves)
     self.binned_correction_uncertainty /= mediancompositespectrum.reshape(1,nWaves)
-    #self.display.one(self.binned_correction.filled(), clobber=True)
+    #self.display.one(self.binned_correction.filled(), overwrite=True)
     #self.display.one(self.binned_correction_uncertainty.filled())
     self.binned_cubes['corrected'] = self.binned_cubes['raw_counts']/self.binned_correction
     photonnoise = np.sqrt(self.binned_cubes['raw_counts'] + self.binned_cubes['sky'])/self.binned_cubes['raw_counts']

@@ -4,7 +4,7 @@ i = LDSS3C(grism='vph-all')
 
 # for working on a remote hardisk
 import os
-path = '/Users/zkbt/Cosmos/Data/Magellan/LDSS3/'
+path = '/Users/zach/Data/LDSS3C/WASP94Ab'
 
 if os.path.exists(path):
     i.setupDirectories(path)

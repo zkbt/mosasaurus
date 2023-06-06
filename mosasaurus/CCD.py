@@ -261,7 +261,7 @@ class CCD(Talker):
             stitched, header = self.instrument.loadSingleCCD(filenames)
 
             if self.visualize:
-                self.display.one(stitched, clobber=True)
+                self.display.one(stitched, overwrite=True)
                 self.input('This is the raw stitched image; press enter to continue.')
 
             # subtract bias
@@ -270,7 +270,7 @@ class CCD(Talker):
                 stitched -= self.calib.bias()
 
             if self.visualize:
-                self.display.one(stitched, clobber=True)
+                self.display.one(stitched, overwrite=True)
                 self.input('after subtracting bias')
 
             # normalize darks by exposure time
@@ -285,7 +285,7 @@ class CCD(Talker):
                 stitched -= self.calib.dark()*self.instrument.darkexptime(header)
 
             if self.visualize:
-                self.display.one(stitched, clobber=True)
+                self.display.one(stitched, overwrite=True)
                 self.visualize = self.input('after subtracting dark; type [s] to stop showing these').lower() != 's'
 
             # divide by the gain (pulled from the header)
@@ -298,7 +298,7 @@ class CCD(Talker):
                 stitched *= gain
 
             if self.visualize:
-                self.display.one(stitched, clobber=True)
+                self.display.one(stitched, overwrite=True)
                 self.visualize = self.input('after multiplying by gain; type [s] to stop showing these').lower() != 's'
 
             # put the stitched image into the CCD's memory

@@ -157,12 +157,12 @@ def estimateGain(self):
   		last = data
   		self.speak('        ' + self.ccd.name)
 
-  		#self.display.one(summedImage, clobber=(i == 0))
+  		#self.display.one(summedImage, overwrite=(i == 0))
   		if cosmic:
   			#self.display.one((data - summedImage/count)/stddev)
   		if visualize:
   			if i == 0:
-  				self.display.one(outlier, clobber=True)
+  				self.display.one(outlier, overwrite=True)
   			else:
   				self.display.ds9update(outlier)
   		if visualize:

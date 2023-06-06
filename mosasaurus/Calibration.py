@@ -141,8 +141,8 @@ class Calibration(Talker):
             writeFitsData(self.images[imageType+noisestring],masterFilePrefix + noisestring + '.fits')
 
             ### FIX ME ### -- make sure the displays work nicely, for making images and movies
-            #self.display.one(self.images[imageType+noisestring], clobber=True)
-            #self.display.one(self.images[imageType], clobber=False)
+            #self.display.one(self.images[imageType+noisestring], overwrite=True)
+            #self.display.one(self.images[imageType], overwrite=False)
             #self.display.single()
             #self.display.zoom()
             #self.display.scale('log', limits=[0,np.percentile(self.images[imageType],99)])
@@ -196,7 +196,7 @@ class Calibration(Talker):
         # calculate the outlier-rejected mean, and the 1.48*MAD for the cube
         mean, noise = craftroom.twod.stack(array, axis=0, threshold=threshold)
 
-        #self.ccd.display.many(array, depth=0, clobber=True)
+        #self.ccd.display.many(array, depth=0, overwrite=True)
         return mean, noise
 
     def createBadPixelMask(self, visualize=True):

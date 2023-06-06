@@ -1,0 +1,16 @@
+# Separate image/detector calibration from
+
+Redesign so that extraction can start from a (set of) calibrated image(s).
+
+Image calibration should start from raw images downloaded from handle all of the detector specifics and get to a single image with amplifiers or chips stitched together in units of photons or photons/second. (Maybe this should start using CCD models from astropy stuff?)
+
+Extraction should look similar for all instruments, starting from a photon or photons/second image.
+
+# Fix image stitching for LDSS3C.
+
+It looks like in switching to DIS a while ago, I broke the image stitched for the two-amplifier readout on LDSS3C. Fix this!
+
+
+# Check on Hannah's most recent version. 
+
+Did she fix lots of these problems?
