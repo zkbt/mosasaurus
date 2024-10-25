@@ -25,32 +25,45 @@ else:
     import builtins
 builtins.__MOSASAURUS_SETUP__ = True
 import mosasaurus
+
 version = mosasaurus.__version__
+
 
 # pull the long description from the readmedef readme():
 def readme():
-    with open('README.md') as f:
+    with open("README.md") as f:
         return f.read()
 
-setup(name = "mosasaurus",
-    version = version,
-    description = "Tools for extracting chromatic light curves from MultiObject Spectra.",
-    long_description = readme(),
-    author = "Zach Berta-Thompson",
-    author_email = "zach.bertathompson@colorado.edu",
-    url = "https://github.com/zkbt/mosasaurus",
-    packages = find_packages(),
-    package_data = {'mosasaurus': [ '../data/LDSS3C/vph-red/*',
-                                    '../data/LDSS3C/vph-all/*']},
+
+setup(
+    name="mosasaurus",
+    version=version,
+    description="Tools for extracting chromatic light curves from MultiObject Spectra.",
+    long_description=readme(),
+    author="Zach Berta-Thompson",
+    author_email="zach.bertathompson@colorado.edu",
+    url="https://github.com/zkbt/mosasaurus",
+    packages=find_packages(),
+    package_data={
+        "mosasaurus": ["../data/LDSS3C/vph-red/*", "../data/LDSS3C/vph-all/*"]
+    },
     include_package_data=True,
-    scripts = [],
+    scripts=[],
     classifiers=[
-      'Intended Audience :: Science/Research',
-      'Programming Language :: Python',
-      'Topic :: Scientific/Engineering :: Astronomy'
-      ],
-    install_requires=['numpy', 'astropy', 'astroquery', 'scipy', 'matplotlib',  'craftroom'], #'emcee', 'corner',
-    dependency_links=['git+https://github.com/zkbt/craftroom.git@master#egg=craftroom'],
+        "Intended Audience :: Science/Research",
+        "Programming Language :: Python",
+        "Topic :: Scientific/Engineering :: Astronomy",
+    ],
+    install_requires=[
+        "numpy",
+        "astropy",
+        "astroquery",
+        "scipy",
+        "matplotlib",
+        "chromatic-lightcurves",
+        "PyQt5",
+    ],  # ,  'craftroom'], #'emcee', 'corner',
+    dependency_links=["git+https://github.com/zkbt/craftroom.git@master#egg=craftroom"],
     zip_safe=False,
-    license='MIT',
+    license="MIT",
 )

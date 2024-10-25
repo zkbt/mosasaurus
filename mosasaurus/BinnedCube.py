@@ -63,7 +63,7 @@ The stuff below is mostly code that came out of the original Cube (some not)
 
         import craftroom.cmaps
         blue, red = 'indigo', 'darkorange'
-        cmap = craftroom.cmaps.one2another(blue, red)
+        cmap = one2another(blue, red)
 
         plt.ioff()
         for i, w in enumerate(wavelengths):
@@ -202,7 +202,7 @@ The stuff below is mostly code that came out of the original Cube (some not)
           if k=='width' or k =='centroid' or k =='peak':
               self.binned_cubes[k] /= (dndw).reshape((1,1, self.numberofwavelengths/binsize, binsize)).sum(-1)
           if k=='ok':
-              self.binned_cubes[k] = (self.binned_cubes[k]/binsize).astype(np.bool)
+              self.binned_cubes[k] = (self.binned_cubes[k]/binsize).astype(bool)
       #
       self.bin_centers = bin_centers
       self.binned_cubes = astropy.table.Table(self.binned_cubes)
@@ -228,8 +228,8 @@ The stuff below is mostly code that came out of the original Cube (some not)
     correction = weightedsum(self.binned_cubes['raw_counts'])
     uncertainty = np.sqrt(weightedsum(self.binned_cubes['raw_counts'] + self.binned_cubes['sky']))
 
-    self.binned_correction = np.ma.MaskedArray(correction, mask=((self.binned_cubes['ok']==False).sum(0).astype(np.bool)), fill_value=np.nan)
-    self.binned_correction_uncertainty = np.ma.MaskedArray(uncertainty, mask=((self.binned_cubes['ok']==False).sum(0).astype(np.bool)), fill_value=np.nan)
+    self.binned_correction = np.ma.MaskedArray(correction, mask=((self.binned_cubes['ok']==False).sum(0).astype(bool)), fill_value=np.nan)
+    self.binned_correction_uncertainty = np.ma.MaskedArray(uncertainty, mask=((self.binned_cubes['ok']==False).sum(0).astype(bool)), fill_value=np.nan)
 
     # normalize the correction spectrum to be close to one
     mediancompositespectrum = np.ma.median(self.binned_correction, 0)
@@ -308,7 +308,7 @@ The stuff below is mostly code that came out of the original Cube (some not)
     # loop through wavelength bins
     for wave in range(nWaves):
       left, right = bin_starts[wave], bin_ends[wave]
-      lcfilename =  os.path.join(lcDirectory, '/{0:05d}to{1:05d}.lightcurve'.format(np.int(left), np.int(right)))
+      lcfilename =  os.path.join(lcDirectory, '/{0:05d}to{1:05d}.lightcurve'.format(int(left), int(right)))
 
       # is there *any* good data at this wavelength?
       if self.binned_cubes['ok'][target,:,wave].any():
@@ -324,7 +324,7 @@ The stuff below is mostly code that came out of the original Cube (some not)
         lc['bjd'] = self.temporal['bjd']
         lc['flux'] = self.binned_cubes['corrected'][target,:,wave].flatten()/np.median(self.binned_cubes['raw_counts'][target,:,wave].flatten())
         lc['uncertainty'] = self.binned_cubes['uncertainty'][target,:,wave].flatten()
-        lc['ok'] = ok.astype(np.int)
+        lc['ok'] = ok.astype(int)
 
         # pull out global values
         for key in ['airmass', 'rotatore']:
@@ -354,7 +354,7 @@ The stuff below is mostly code that came out of the original Cube (some not)
         table = astropy.table.Table(lc)
         table['bjd'].format = '.10f'
 
-        #table = table[table['ok'].astype(np.bool)]
+        #table = table[table['ok'].astype(bool)]
         # REMOVED TO MAKE SURE MASKING IS EASIER AT LATER STEP
 
 
@@ -464,13 +464,13 @@ class LC():
   def setup(self):
     self.wavelength = (self.left + self.right)/2.0
     self.binsize = self.right - self.left
-    self.filename = os.path.join(self.directory, 'lc_binby' + ('%d' % self.binsize) + '/lc_{0:05d}to{1:05d}.npy'.format(np.int(self.left), np.int(self.right)))
+    self.filename = os.path.join(self.directory, 'lc_binby' + ('%d' % self.binsize) + '/lc_{0:05d}to{1:05d}.npy'.format(int(self.left), int(self.right)))
 
   def populate(self, bjd, flux, error, **kwargs):
     # set up the column names for the light curve record array
-    types = [('bjd', np.float), ('flux', np.float), ('error', np.float)]
+    types = [('bjd', float), ('flux', float), ('error', float)]
     for key in kwargs.keys():
-      types.append((key,np.float))
+      types.append((key,float))
 
     # populate the columns with data
     self.lc = np.zeros(bjd.size, types)
@@ -486,8 +486,8 @@ class LC():
     np.save(self.filename, self.lc)
 
   def load(self, filename):
-    self.left = np.float(filename.split('lc_')[-1].split('to')[-2])
-    self.right = np.float(filename.split('.npy')[-2].split('to')[-1])
+    self.left = float(filename.split('lc_')[-1].split('to')[-2])
+    self.right = float(filename.split('.npy')[-2].split('to')[-1])
     self.setup()
     assert(self.filename == filename)
     self.lc = np.load(self.filename)

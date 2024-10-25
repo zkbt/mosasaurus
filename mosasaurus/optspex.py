@@ -30,9 +30,9 @@ def fitbg(dataim, mask, x1, x2, deg=1, threshold=5, isrotate=False, isplots=Fals
     
     #Convert x1 and x2 to array, if need be
     ny, nx   = np.shape(dataim)
-    if type(x1) == int or type(x1) == np.int64:
+    if type(x1) == int or type(x1) == int64:
         x1 = np.zeros(ny,dtype=int)+x1
-    if type(x2) == int or type(x2) == np.int64:
+    if type(x2) == int or type(x2) == int64:
         x2 = np.zeros(ny,dtype=int)+x2
     
     if deg < 0:

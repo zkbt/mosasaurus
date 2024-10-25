@@ -97,10 +97,10 @@ class Observation(Talker):
         self.namps =int(dictionary['namps'])
         self.xsize = self.namps*(self.dataright - self.dataleft)
         self.ysize = (self.datatop - self.databottom)
-        self.ra =np.float(dictionary['ra'])
-        self.dec =np.float(dictionary['dec'])
-        self.binning = np.float(dictionary['binning'])
-        self.subarray = np.float(dictionary['subarray'])
+        self.ra =float(dictionary['ra'])
+        self.dec =float(dictionary['dec'])
+        self.binning = float(dictionary['binning'])
+        self.subarray = float(dictionary['subarray'])
         try:
             self.gains = [float(x) for x in dictionary['gains']]
         except (ValueError,KeyError):

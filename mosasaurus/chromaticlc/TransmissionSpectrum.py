@@ -138,8 +138,8 @@ class WithTLCs(TransmissionSpectrum):
 		wavelengths = []
 		for trimmed in chunks:
 			# figure out the boundaries of this bin
-			left = np.int(trimmed.split('to')[0])
-			right = np.int(trimmed.split('to')[-1])
+			left = int(trimmed.split('to')[0])
+			right = int(trimmed.split('to')[-1])
 			# create a wavelength bin (but don't load its lightcurve yet)
 			bins.append(WavelengthBin(self, left=left, right=right))
 			wavelengths.append(bins[-1].wavelength)
@@ -223,7 +223,7 @@ class WithTLCs(TransmissionSpectrum):
 	#		except:
 	#			# interpolate from times to indices
 	#			interpolation = scipy.interpolate.interp1d(self.themostdenselypopulatedtimes, np.arange(self.nTimes), bounds_error=True, kind='nearest')
-	#			tlc.interpolationindices = interpolation(tlc.bjd).astype(np.int)
+	#			tlc.interpolationindices = interpolation(tlc.bjd).astype(int)
 	#			return tlc.interpolationindices
 
 	def createMask(self, empty=False, afterfastfit=False):
@@ -243,7 +243,7 @@ class WithTLCs(TransmissionSpectrum):
 			nColumns = 3
 			nRows = len(keys)
 			plt.figure('masking')
-			ip = craftroom.displays.iplot.iplot(nRows, nColumns)
+			ip = iplot(nRows, nColumns)
 
 			kw = dict(cmap='gray', interpolation='nearest', aspect='auto', vmin=None, vmax=None)
 
@@ -362,12 +362,12 @@ class WithTLCs(TransmissionSpectrum):
 						clicks = ip.getMouseClicks(2)
 
 						rows = (clicks[0].ydata, clicks[1].ydata)
-						top = np.int(np.max(rows))
-						bottom = np.maximum(np.int(np.min(rows)), 0)
+						top = int(np.max(rows))
+						bottom = np.maximum(int(np.min(rows)), 0)
 
 						columns =  (clicks[0].xdata, clicks[1].xdata)
-						right = np.int(np.max(columns))
-						left = np.maximum(np.int(np.min(columns)), 0)
+						right = int(np.max(columns))
+						left = np.maximum(int(np.min(columns)), 0)
 
 
 						mask[bottom:top, left:right] = mask[bottom:top, left:right] | self.bins[0].tlc.flags['custom']
@@ -377,12 +377,12 @@ class WithTLCs(TransmissionSpectrum):
 						clicks = ip.getMouseClicks(2)
 
 						rows = np.round((clicks[0].ydata, clicks[1].ydata))
-						top = np.int(np.max(rows))
-						bottom = np.maximum(np.int(np.min(rows)), 0)
+						top = int(np.max(rows))
+						bottom = np.maximum(int(np.min(rows)), 0)
 
 						columns =  np.round((clicks[0].xdata, clicks[1].xdata))
-						right = np.int(np.max(columns))
-						left = np.maximum(np.int(np.min(columns)), 0)
+						right = int(np.max(columns))
+						left = np.maximum(int(np.min(columns)), 0)
 
 						mask[bottom:top, left:right] -= mask[bottom:top, left:right] & self.bins[0].tlc.flags['custom']
 

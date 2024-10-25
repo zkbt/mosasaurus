@@ -68,13 +68,13 @@
                     isnanoriginal = np.isnan(yoriginal)
 
                     # this ones where the supersampled array was corrupted by nans
-                    yclosetonan = fluxconservingresample(
+                    yclosetonan = resample_while_conserving_flux(
                                         wavelength,
                                         isnanoriginal,
                                         self.supersampled['wavelength']) > 0
 
                     # supersample onto the uniform grid
-                    ysupersampled = fluxconservingresample(
+                    ysupersampled = resample_while_conserving_flux(
                                         wavelength,
                                         self.extracted[width][key],
                                         self.supersampled['wavelength'],
@@ -197,7 +197,7 @@ def extracted2supersampled(extracted, newwavelength, additivekeys, intrinsickeys
     assert((np.diff(commonwavelength) == scale).all())
 
     # what fraction of an original pixel went into this new pixel?
-    doriginaldnew = fluxconservingresample(wavelength, np.ones_like(pixelnumber), commonwavelength)
+    doriginaldnew = resample_while_conserving_flux(wavelength, np.ones_like(pixelnumber), commonwavelength)
 
     # create a supersampled dictionary
     supersampled = {}
@@ -219,13 +219,13 @@ def extracted2supersampled(extracted, newwavelength, additivekeys, intrinsickeys
             isnanoriginal = np.isnan(yoriginal)
 
             # this ones where the supersampled array was corrupted by nans
-            yclosetonan = fluxconservingresample(
+            yclosetonan = resample_while_conserving_flux(
                                 wavelength,
                                 isnanoriginal,
                                 supersampled['wavelength']) > 0
 
             # supersample onto the uniform grid
-            ysupersampled = fluxconservingresample(
+            ysupersampled = resample_while_conserving_flux(
                                 wavelength,
                                 extracted[width][key],
                                 supersampled['wavelength'],
