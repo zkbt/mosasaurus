@@ -57,7 +57,7 @@ class WavelengthCalibrator(Talker):
                     self.waveidfilename
                 )
             )
-            self.waveids = astropy.io.ascii.read(self.waveidfilename)
+            self.waveids = astropy.io.ascii.read(self.waveidfilename, format="ecsv")
 
             # keep track of which waveid file is used
             self.whichwaveid = "Aperture-Specific ({0})".format(
@@ -68,7 +68,7 @@ class WavelengthCalibrator(Talker):
             self.speak("no custom wavelength-to-pixel files found")
 
             # load the default for this grism, as set in obs. file
-            d = astropy.io.ascii.read(self.aperture.instrument.wavelength2pixelsFile)
+            d = astropy.io.ascii.read(self.aperture.instrument.wavelength2pixelsFile, format="ecsv"
             self.rawwaveids = d[["pixel", "wavelength", "name"]]
 
             if self.aperture.instrument.name != "DIS":
@@ -96,9 +96,8 @@ class WavelengthCalibrator(Talker):
 
         self.waveids.write(
             self.waveidfilename,
-            format="ascii.fixed_width",
-            delimiter="|",
-            bookend=False,
+            format="ascii.ecsv",
+            overwrite=True,
         )
         self.speak("saved wavelength-to-pixel matches to " + self.waveidfilename)
 
@@ -122,7 +121,9 @@ class WavelengthCalibrator(Talker):
     def loadCalibration(self):
         """Load the wavelength calibration."""
         self.speak("trying to load calibration data")
-        coef, domain = np.load(self.calibrationfilename, allow_pickle=True)
+        d = np.load(self.calibrationfilename, allow_pickle=True)
+        coef = d["coef"]
+        domain = d["domain"]
         self.pixelstowavelengths = Legendre(coef, domain)
         self.polynomialdegree = self.pixelstowavelengths.degree()
         self.speak(
@@ -133,7 +134,10 @@ class WavelengthCalibrator(Talker):
         """Save the wavelength calibration."""
         np.save(
             self.calibrationfilename,
-            (self.pixelstowavelengths.coef, self.pixelstowavelengths.domain),
+            dict(
+                coef=self.pixelstowavelengths.coef,
+                domain=self.pixelstowavelengths.domain,
+            ),
         )
         self.speak(
             "saved wavelength calibration coefficients to {0}".format(
@@ -223,7 +227,7 @@ class WavelengthCalibrator(Talker):
                 flux,
                 plot=False,
                 xsmooth=30,
-                threshold=100,
+                threshold=10,  # 100,
                 edgebuffer=10,
                 widthguess=1,
                 maskwidth=3,
@@ -287,15 +291,18 @@ class WavelengthCalibrator(Talker):
         Save (user-set) matches between pixel peaks and known wavelength lines.
         """
         self.speak("saving wavelength dictionaries to {}".format(self.matchesfilename))
-        np.save(self.matchesfilename, (self.matches, self.knownwavelengths))
+        np.save(
+            self.matchesfilename,
+            dict(matches=self.matches, knownwavelengths=self.knownwavelengths),
+        )
 
     def loadMatches(self):
         """
         Load (user-set) matches between pixel peaks and known wavelength lines.
         """
-        (self.matches, self.knownwavelengths) = np.load(
-            self.matchesfilename, allow_pickle=True
-        )
+        d = np.load(self.matchesfilename, allow_pickle=True)
+        self.matches = d["matches"]
+        self.knownwavelengths = d["knownwavelengths"]
         self.speak("loaded wavelength matches from {0}".format(self.matchesfilename))
 
     def guessMatches(self):
